@@ -248,7 +248,7 @@ function onGameStop(byPlayer) {
                 )
             }
         }
-        if (state.scores != undefined) {
+        if (state.scores != undefined && state.scores != null) {
             setTimeout(
                 (gameEnd) => {
                     fetchRecording(replayWebhook, gameEnd);

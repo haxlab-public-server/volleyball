@@ -1,3 +1,5 @@
+const announcementMessages = require('../announcementMessages');
+
 module.exports = function createIntervals({
     room,
     state,
@@ -17,6 +19,17 @@ module.exports = function createIntervals({
     HaxNotification,
     updateVipSlots
 }) {
+
+let i = 0;
+setInterval(() => {
+    room.sendAnnouncement(
+        announcementMessages[i++ % announcementMessages.length],
+        null,
+        Color.WH_BLUE,
+        "bold",
+        HaxNotification.CHAT
+    )
+}, 10*60*1000)
 
 setInterval(() => {
     state.vipPassword = getRandomInt(100000, 999999)

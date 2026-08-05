@@ -82,11 +82,22 @@ const replayWebhook = window.__secrets.replayWebhookUrl;
 const vipWebhook = window.__secrets.vipWebhookUrl;
 
 /* Utils */
-const createUtils = require('../core/utils/utils');
+const createRoomUtils = require('../core/utils/roomUtils');
 const {
     getAuth,
     getConn,
     getID,
+    getTeamArray,
+    ballSpawner
+} = createRoomUtils({
+    room,
+    state,
+    lastIds,
+    cf,
+    Team
+})
+
+const {
     getOnlyInt,
     stringToTime,
     getStringTime,
@@ -95,18 +106,10 @@ const {
     getDate,
     findFirstNumberCharString,
     getRandomInt,
-    getTeamArray,
     getMinutesGame,
     getSecondsGame,
-    getTimeGame,
-    ballSpawner
-} = createUtils({
-    room,
-    state,
-    lastIds,
-    cf,
-    Team
-})
+    getTimeGame
+} = require('../core/utils/utils');
 
 const {
     getRecordingName,
