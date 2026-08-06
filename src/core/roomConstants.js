@@ -1,6 +1,6 @@
 const { Role } = require('../core/models/enums');
 
-const roomName = "🏐 chesdes x HaxLab | VOLLEYBALL"
+const roomName = "🏐 chesdes x HaxLab | VOLLEYBALL 🏐"
 const maxPlayers = 14
 const roomPublic = true
 const geo = { code: 'RU', lat: 55.7558, lon: 37.6173 };

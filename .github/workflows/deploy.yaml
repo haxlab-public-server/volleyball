@@ -1,0 +1,17 @@
+name: Deploy to server
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Deploy
+        run: |
+          cd /home/runner/volleyball
+          git pull origin main
+          npm ci
+          pm2 restart volleyball || pm2 start main.js --name "volleyball"
