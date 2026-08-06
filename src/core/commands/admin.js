@@ -237,7 +237,7 @@ function banListCommand(player, message) {
         cstm += ` ${ban["name"] == null ? ban["auth"] : ban["name"]}` + ` (${Math.round((ban["date"] - Date.now())/1000/60)}мин) ` + `[${banList.indexOf(ban)}],`;
     }
     cstm = cstm.substring(0, cstm.length - 1) + ".";
-    room.sendAnnouncement(cstm, player.id, Color.GR_GREEN, "small", null);
+    room.sendAnnouncement(cstm, player.id, Color.GR_GREEN, "small", HaxNotification.NONE);
 }
 
 function muteCommand(player, message) {
@@ -417,7 +417,7 @@ function muteListCommand(player, message) {
         cstm += mute.name + ` (${Math.round((mute.unmuteDate - Date.now())/1000/60)}мин)` +`[${mute.id}],`;
     }
     cstm = cstm.substring(0, cstm.length - 1) + ".";
-    room.sendAnnouncement(cstm, player.id, Color.GR_GREEN, "small", null);
+    room.sendAnnouncement(cstm, player.id, Color.GR_GREEN, "small", HaxNotification.NONE);
 }
 
 return {
