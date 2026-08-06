@@ -41,11 +41,11 @@ function getStatTime(time) {
 }
     
 function getActTime() {
-    subbed = new Date();
-    hour = subbed.getHours().toString().length < 2 ? '0' + subbed.getHours() : subbed.getHours();
-    min = subbed.getMinutes().toString().length < 2 ? '0' + subbed.getMinutes() : subbed.getMinutes();
-    correct_date = `${hour}:${min}`;
-    return correct_date
+    return new Date().toLocaleTimeString("ru-RU", {
+        timeZone: "Europe/Moscow",
+        hour: "2-digit",
+        minute: "2-digit"
+    });
 }
     
 function getDate(mils) {
