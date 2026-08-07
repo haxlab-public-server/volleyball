@@ -97,7 +97,6 @@ state.vipPassword = getRandomInt(100000, 999999)
 
 const replayWebhook = window.__secrets.replayWebhookUrl;
 const vipWebhook = window.__secrets.vipWebhookUrl;
-sendVipPassword(vipWebhook, state.vipPassword)
 
 /* Room Utils */
 const createRoomUtils = require('../core/utils/roomUtils');
