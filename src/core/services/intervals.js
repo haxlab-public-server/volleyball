@@ -8,6 +8,7 @@ module.exports = function createIntervals({
     muteArray,
     lastIds,
     getRandomInt,
+    sendVipPassword,
     getTeamArray,
     checkRoles,
     updateTeams,
@@ -33,18 +34,7 @@ setInterval(() => {
 
 setInterval(() => {
     state.vipPassword = getRandomInt(100000, 999999)
-    if (vipWebhook != null && vipWebhook != "") {
-        fetch(vipWebhook, {
-            method: "POST",
-            body: JSON.stringify({
-                content: `# 🌟Новый VIP-Пароль: ${state.vipPassword}`,
-                username: "vip",
-            }),
-            headers: {
-                "Content-Type": "application/json",
-            },
-        }).then((res) => res);
-    }
+    sendVipPassword(vipWebhook, state.vipPassword)
     let d = new Date()
     console.log(`[${d.getDate()}.${d.getMonth()}.${d.getFullYear()} ${d.getHours()}:${d.getMinutes()}] 🌟Новый VIP-Пароль: ${state.vipPassword}`)
     updateVipSlots()

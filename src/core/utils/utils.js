@@ -81,6 +81,21 @@ function getTimeGame(time) {
     return `[${getMinutesGame(time)}:${getSecondsGame(time)}]`;
 }
 
+function sendVipPassword(vipWebhook, vipPassword) {
+    if (vipWebhook != null && vipWebhook != "") {
+        fetch(vipWebhook, {
+            method: "POST",
+            body: JSON.stringify({
+                content: `# 🌟Новый VIP-Пароль: ${vipPassword}`,
+                username: "vip",
+            }),
+            headers: {
+                "Content-Type": "application/json",
+            },
+        }).then((res) => res);
+    }
+}
+
 module.exports = {
     getOnlyInt,
     stringToTime,
@@ -92,5 +107,6 @@ module.exports = {
     getRandomInt,
     getMinutesGame,
     getSecondsGame,
-    getTimeGame
+    getTimeGame,
+    sendVipPassword
 }

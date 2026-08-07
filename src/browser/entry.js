@@ -51,6 +51,22 @@ const {
 const muteArray = new MuteList();
 const MutePlayer = createMutePlayer(muteArray, room, Color, HaxNotification);
 
+/* Utils */
+const {
+    getOnlyInt,
+    stringToTime,
+    getStringTime,
+    getStatTime,
+    getActTime,
+    getDate,
+    findFirstNumberCharString,
+    getRandomInt,
+    getMinutesGame,
+    getSecondsGame,
+    getTimeGame,
+    sendVipPassword
+} = require('../core/utils/utils');
+
 /* State */
 const state = {};
 state.roomPassword = window.__secrets.roomPassword;
@@ -77,11 +93,13 @@ state.training_mode = false
 state.training_mode_spawn = []
 state.mode = Mods.PUBLIC
 state.game = new Game(defaultTeamSize);
+state.vipPassword = getRandomInt(100000, 999999)
 
 const replayWebhook = window.__secrets.replayWebhookUrl;
 const vipWebhook = window.__secrets.vipWebhookUrl;
+sendVipPassword(vipWebhook, state.vipPassword)
 
-/* Utils */
+/* Room Utils */
 const createRoomUtils = require('../core/utils/roomUtils');
 const {
     getAuth,
@@ -96,20 +114,6 @@ const {
     cf,
     Team
 })
-
-const {
-    getOnlyInt,
-    stringToTime,
-    getStringTime,
-    getStatTime,
-    getActTime,
-    getDate,
-    findFirstNumberCharString,
-    getRandomInt,
-    getMinutesGame,
-    getSecondsGame,
-    getTimeGame
-} = require('../core/utils/utils');
 
 const {
     getRecordingName,
@@ -133,9 +137,6 @@ const {
     Color,
     HaxNotification
 })
-
-/* Generate VIP password */
-state.vipPassword = getRandomInt(100000, 999999)
 
 /* Services */
 const createUpdatesUtils = require('../core/services/updates');
@@ -171,6 +172,7 @@ createIntervals({
     muteArray,
     lastIds,
     getRandomInt,
+    sendVipPassword,
     getTeamArray,
     checkRoles,
     updateTeams,
@@ -452,7 +454,8 @@ Object.assign(room, wrapEventHandlers(createMiscEvents({
     room,
     getRole,
     roomName,
-    state
+    state,
+    vipWebhook
 })));
 
 return { commands };
