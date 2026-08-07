@@ -397,8 +397,11 @@ function setRoleCommand(player, message) {
             )
         }
     } else {
+        const availableRoles = Object.keys(RoleString)
+            .filter(role => role !== 'master')
+            .join(' | ');
         room.sendAnnouncement(
-            `Недостаточно аргументов`,
+            `Недостаточно аргументов: !setrole <#ID | AUTH> <${availableRoles}> [время]`,
             player.id,
             Color.GR_RED,
             "small",
@@ -484,8 +487,9 @@ function getRoleListCommand(player, message) {
             HaxNotification.CHAT
         )
     } else {
+        const rolesHint = Object.keys(RoleString).join(' | ');
         room.sendAnnouncement(
-            `Недостаточно аргументов`,
+            `Недостаточно аргументов: !getrolelist <${rolesHint}> [ID_из_списка]`,
             player.id,
             Color.GR_RED,
             "small",

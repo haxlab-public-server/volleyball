@@ -64,8 +64,11 @@ const {
     getMinutesGame,
     getSecondsGame,
     getTimeGame,
-    sendVipPassword
 } = require('../core/utils/utils');
+
+const {
+    DiscordBot
+} = require('../core/utils/discord');
 
 /* State */
 const state = {};
@@ -97,6 +100,15 @@ state.vipPassword = getRandomInt(100000, 999999)
 
 const replayWebhook = window.__secrets.replayWebhookUrl;
 const vipWebhook = window.__secrets.vipWebhookUrl;
+const logWebhook = window.__secrets.logWebhookUrl;
+const reportWebhook = window.__secrets.reportWebhookUrl;
+
+const discordBot = new DiscordBot({
+    replayWebhook: replayWebhook,
+    vipWebhook: vipWebhook,
+    logWebhook: logWebhook,
+    reportWebhook: reportWebhook
+})
 
 /* Room Utils */
 const createRoomUtils = require('../core/utils/roomUtils');
@@ -171,11 +183,10 @@ createIntervals({
     muteArray,
     lastIds,
     getRandomInt,
-    sendVipPassword,
+    discordBot,
     getTeamArray,
     checkRoles,
     updateTeams,
-    vipWebhook,
     maxInactivity,
     Team,
     Mods,
@@ -292,7 +303,8 @@ const {
     HaxNotification,
     Discord,
     Telegram,
-    fs
+    fs,
+    discordBot
 })
 
 /* Master commands */
@@ -391,7 +403,9 @@ Object.assign(room, wrapEventHandlers(createMovementEvents({
     Color,
     HaxNotification,
     Discord,
-    Telegram
+    Telegram,
+    maxPlayers,
+    discordBot
 })));
 
 /* Activity events */
@@ -416,7 +430,8 @@ Object.assign(room, wrapEventHandlers(createActivityEvents({
     Team,
     Mods,
     Color,
-    HaxNotification
+    HaxNotification,
+    discordBot
 })));
 
 /* Game events */
@@ -432,7 +447,7 @@ Object.assign(room, wrapEventHandlers(createGameEvents({
     ballSpawner,
     randomizeTeams,
     fetchRecording,
-    replayWebhook,
+    discordBot,
     getIdReplay,
     Game,
     defaultTeamSize,
@@ -454,7 +469,7 @@ Object.assign(room, wrapEventHandlers(createMiscEvents({
     getRole,
     roomName,
     state,
-    vipWebhook
+    discordBot
 })));
 
 return { commands };

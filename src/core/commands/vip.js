@@ -136,7 +136,7 @@ function trainingSettingCommands(player, message) {
             }, state.training_mode_spawn[4])
         } else {
             room.sendAnnouncement(
-                `Недостаточно аргументов: x, y, xspeed, yspeed, interval`,
+                `Недостаточно аргументов: !bs x, y, xspeed, yspeed, interval`,
                 player.id,
                 Color.GR_RED,
                 "small",

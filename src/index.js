@@ -3,7 +3,7 @@ const fs = require('node:fs'); // TODO: migrate from fs to sqlite in the future
 const puppeteer = require('puppeteer');
 const esbuild = require('esbuild');
 
-const { roomPassword, token, replayWebhookUrl, vipWebhookUrl } = require('./core/config');
+const { roomPassword, token, replayWebhookUrl, vipWebhookUrl, logWebhookUrl, reportWebhookUrl } = require('./core/config');
 
 // TODO: migrate from fs to sqlite in the future
 const projectRoot = path.resolve(__dirname, '..');
@@ -254,7 +254,7 @@ async function launchRoom() {
     await newPage.waitForFunction(() => typeof window.HBInit === 'function', { timeout: 60000 });
     await newPage.evaluate((secrets) => {
         window.__secrets = secrets;
-    }, { token, roomPassword, replayWebhookUrl, vipWebhookUrl });
+    }, { token, roomPassword, replayWebhookUrl, vipWebhookUrl, logWebhookUrl, reportWebhookUrl });
 
     // TODO: migrate from fs to sqlite in the future
     await newPage.evaluate(({ snapshot, objectDefaults, arrayDefaults }) => {

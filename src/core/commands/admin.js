@@ -14,7 +14,8 @@ module.exports = function createAdminCommands({
     HaxNotification,
     Discord,
     Telegram,
-    fs
+    fs,
+    discordBot
 }) {
 
 function unBanCommand(player, message) {
@@ -35,6 +36,7 @@ function unBanCommand(player, message) {
                     "bold",
                     HaxNotification.NONE
                 );
+                discordBot.sendReport(player.name, banList[index]["name"], "unban", null, null)
             } else {
                 room.sendAnnouncement(
                     `${player.name} разбанил ${
@@ -45,6 +47,7 @@ function unBanCommand(player, message) {
                     "bold",
                     HaxNotification.NONE
                 );
+                discordBot.sendReport(player.name, banList[index]["auth"], "unban", null, null)
             }
             banList = banList.filter((p) => p["auth"] != banList[index]["auth"]);
             // TODO: migrate from fs to sqlite in the future
@@ -75,6 +78,7 @@ function unBanCommand(player, message) {
                         "bold",
                         HaxNotification.NONE
                     );
+                    discordBot.sendReport(player.name, banList[ID]["name"], "unban", null, null)
                 } else {
                     room.sendAnnouncement(
                         `${player.name} разбанил ${
@@ -85,6 +89,7 @@ function unBanCommand(player, message) {
                         "bold",
                         HaxNotification.NONE
                     );
+                    discordBot.sendReport(player.name, banList[ID]["auth"], "unban", null, null)
                 }
                 banList = banList.filter((p) => p["auth"] != banList[ID]["auth"]);
                 // TODO: migrate from fs to sqlite in the future
@@ -109,7 +114,7 @@ function unBanCommand(player, message) {
         }
     } else {
         room.sendAnnouncement(
-            `Неверное количество аргументов`,
+            `Неверное количество аргументов: !unban <ID | AUTH>`,
             player.id,
             Color.GR_RED,
             "small",
@@ -120,7 +125,8 @@ function unBanCommand(player, message) {
 
 function banCommand(player, message) {
     var msgArray = message.split(/ +/).slice(1);
-    if (msgArray.length == 2) {
+    if (msgArray.length >= 2) {
+        const reason = msgArray.slice(2).join(' ');
         if (msgArray[0].length == 43) {
             var ban_auth = msgArray[0]
             if (lastIds[ban_auth] != undefined) {
@@ -189,15 +195,16 @@ function banCommand(player, message) {
             // TODO: migrate from fs to sqlite in the future
             fs.writeFileSync("bans.json", JSON.stringify(ban_list))
             room.sendAnnouncement(
-                `${player.name} забанил ${ban_name == null ? ban_auth : ban_name} на ${getStringTime(msgArray[1])} мин`, 
+                `${player.name} забанил ${ban_name == null ? ban_auth : ban_name} на ${getStringTime(msgArray[1])}${reason != "" ? ` по причине: ${reason}`: ""}.`, 
                 null, 
                 Color.RED, 
                 "bold", 
                 HaxNotification.MENTION
             );
+            discordBot.sendReport(player.name, ban_name == null ? ban_auth : ban_name, "ban", reason != "" ? reason : null, getStringTime(msgArray[1]))
             var banPlayer = room.getPlayer(ban_id)
             if (banPlayer != null) {
-                room.kickPlayer(banPlayer.id, `${player.name} забанил вас на ${getStringTime(msgArray[1])} мин\n discord: ${Discord}\n telegram: ${Telegram}`, true)
+                room.kickPlayer(banPlayer.id, `${player.name} забанил вас на ${getStringTime(msgArray[1])}${reason != "" ? ` по причине: ${reason}`: ""}\n discord: ${Discord}\n telegram: ${Telegram}`, true)
             }
         } else {
             room.sendAnnouncement(
@@ -210,7 +217,7 @@ function banCommand(player, message) {
         }
     } else {
         room.sendAnnouncement(
-            `Неверное количество аргументов`,
+            `Неверное количество аргументов: !ban <#ID | AUTH> <time> [причина]`,
             player.id,
             Color.GR_RED,
             "small",
@@ -287,13 +294,15 @@ function muteCommand(player, message) {
                         getAuth(playerMute.id)
                     );
                     muteObj.setDuration(timeMute);
+                    const reason = msgArray.slice(2).join(' ');
                     room.sendAnnouncement(
-                        `${player.name} замутил ${playerMute.name} на ${getStringTime(msgArray[1])}.`,
+                        `${player.name} замутил ${playerMute.name} на ${getStringTime(msgArray[1])}${reason != "" ? ` по причине: ${reason}`: ""}.`,
                         null,
                         Color.RED,
                         "bold",
                         HaxNotification.NONE
                     );
+                    discordBot.sendReport(player.name, playerMute.name, "mute", reason != "" ? reason : null, getStringTime(msgArray[1]))
                 } else {
                     room.sendAnnouncement(
                         `У игрока защита от мута.`,
@@ -323,7 +332,7 @@ function muteCommand(player, message) {
         }
     } else {
         room.sendAnnouncement(
-            `Неверное количество аргументов`,
+            `Неверное количество аргументов: !mute <#ID> <время> [причина]`,
             player.id,
             Color.GR_RED,
             "small",
@@ -349,6 +358,7 @@ function unMuteCommand(player, message) {
                         "bold",
                         HaxNotification.CHAT
                     );
+                    discordBot.sendReport(player.name, playerUnmute.name, "unmute", null, null)
                 } else {
                     room.sendAnnouncement(
                         `Этот игрок не в муте!`,
@@ -381,6 +391,7 @@ function unMuteCommand(player, message) {
                 "bold",
                 HaxNotification.CHAT
             );
+            discordBot.sendReport(player.name, playerUnmute.name, "unmute", null, null)
         } else {
             room.sendAnnouncement(
                 `Неверный формат`,
@@ -392,7 +403,7 @@ function unMuteCommand(player, message) {
         }
     } else {
         room.sendAnnouncement(
-            `Неверное количество аргументов`,
+            `Неверное количество аргументов: !unmute <#ID| ID(из мут списка)>`,
             player.id,
             Color.GR_RED,
             "small",

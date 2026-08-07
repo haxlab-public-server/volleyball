@@ -16,7 +16,9 @@ module.exports = function createMovementEvents({
     Color,
     HaxNotification,
     Discord,
-    Telegram
+    Telegram,
+    maxPlayers,
+    discordBot
 }) {
 
 function onPlayerJoin(player) {
@@ -130,6 +132,7 @@ function onPlayerJoin(player) {
     updateVipSlots()
     updateTeams()
     updateTeamSize()
+    discordBot.sendLog(`${player.auth} / ${player.conn} | **${player.name}** join ${room.getPlayerList().length}/${maxPlayers}`)
 }
 
 function onPlayerLeave(player) {
@@ -147,6 +150,7 @@ function onPlayerLeave(player) {
     updateVipSlots()
     updateTeams()
     updateTeamSize()
+    discordBot.sendLog(`[${player.auth}] **${player.name}** leave ${room.getPlayerList().length}/${maxPlayers}`)
 }
 
 function onPlayerKicked(kickedPlayer, reason, ban, byPlayer) {
@@ -154,10 +158,11 @@ function onPlayerKicked(kickedPlayer, reason, ban, byPlayer) {
         if (ban && getRole(byPlayer) < Role.MASTER || kickedPlayer.id == byPlayer.id) {
             room.clearBan(kickedPlayer.id);
             room.setPlayerAdmin(byPlayer.id, false)
-        }else if (ban && getRole(byPlayer) <= getRole(kickedPlayer) || kickedPlayer.id != byPlayer.id) {
+        }else if (ban && getRole(byPlayer) <= getRole(kickedPlayer) || (kickedPlayer.id != byPlayer.id && getRole(byPlayer) < Role.MASTER)) {
             room.setPlayerAdmin(byPlayer.id, false)
         }
     }
+    discordBot.sendLog(`[${kickedPlayer.auth}] **${kickedPlayer.name}** was ${ban ? "banned" : "kicked"} by **${byPlayer.name}** | ${byPlayer.auth} / ${byPlayer.conn}`)
 }
 
 function onPlayerTeamChange(changedPlayer, byPlayer) {    

@@ -9,7 +9,7 @@ module.exports = function createGameEvents({
     ballSpawner,
     randomizeTeams,
     fetchRecording,
-    replayWebhook,
+    discordBot,
     getIdReplay,
     Game,
     defaultTeamSize,
@@ -251,7 +251,7 @@ function onGameStop(byPlayer) {
         if (state.scores != undefined && state.scores != null) {
             setTimeout(
                 (gameEnd) => {
-                    fetchRecording(replayWebhook, gameEnd);
+                    fetchRecording(gameEnd, discordBot);
                     replay_name = getIdReplay()
                     room.sendAnnouncement(
                         `💾replay: № ${replay_name} | download: ${Discord}`,

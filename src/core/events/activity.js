@@ -18,7 +18,8 @@ module.exports = function createActivityEvents({
     Team,
     Mods,
     Color,
-    HaxNotification
+    HaxNotification,
+    discordBot
 }) {
 
 function onPlayerChat(player, message) {
@@ -83,6 +84,7 @@ function onPlayerChat(player, message) {
         type,
         HaxNotification.CHAT
     )
+    discordBot.sendLog(`[${player.auth}] **${player.name}**: ${message}`)
     return false
 }
 

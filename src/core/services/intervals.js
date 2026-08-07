@@ -8,11 +8,10 @@ module.exports = function createIntervals({
     muteArray,
     lastIds,
     getRandomInt,
-    sendVipPassword,
+    discordBot,
     getTeamArray,
     checkRoles,
     updateTeams,
-    vipWebhook,
     maxInactivity,
     Team,
     Mods,
@@ -34,7 +33,7 @@ setInterval(() => {
 
 setInterval(() => {
     state.vipPassword = getRandomInt(100000, 999999)
-    sendVipPassword(vipWebhook, state.vipPassword)
+    discordBot.sendVipPassword(state.vipPassword)
     let d = new Date()
     console.log(`[${d.getDate()}.${d.getMonth()}.${d.getFullYear()} ${d.getHours()}:${d.getMinutes()}] 🌟Новый VIP-Пароль: ${state.vipPassword}`)
     updateVipSlots()

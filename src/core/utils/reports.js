@@ -30,36 +30,8 @@ function getIdReplay() {
     }${d.getSeconds()}${findFirstNumberCharString(roomName)}`;
 }
 
-function fetchRecording(replayWebhook, game) {
-    if (replayWebhook != null && replayWebhook != "") {
-        fetch(replayWebhook, {
-            method: "POST",
-            body: JSON.stringify({
-                content: `№ ${getIdReplay()}`,
-                username: "replay",
-            }),
-            headers: {
-                "Content-Type": "application/json",
-            },
-        }).then((res) => res);
-        let form = new FormData();
-        form.append(
-            null,
-            new File([game.rec], getRecordingName(), { type: "text/plain" })
-        );
-        form.append(
-            "payload_json",
-            JSON.stringify({
-                username: "replay",
-            })
-        );
-        setTimeout(() => {
-            fetch(replayWebhook, {
-                method: "POST",
-                body: form,
-            }).then((res) => res);
-        }, 500)
-    }
+function fetchRecording(game, discord) {
+    discord.sendRecording(game.rec, getRecordingName(), getIdReplay())
 }
 
 module.exports = {
