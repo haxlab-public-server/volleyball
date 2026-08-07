@@ -5,7 +5,7 @@ const maxPlayers = 14
 const roomPublic = true
 const geo = { code: 'RU', lat: 55.7558, lon: 37.6173 };
 
-const Discord = "https://discord.gg/cPpsQjcq8x"
+const Discord = "dsc.gg/chds"
 const Telegram = "https://t.me/chesdesq"
 const gamesTimeout = 10
 const defaultTeamSize = 2
