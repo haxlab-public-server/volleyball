@@ -146,7 +146,7 @@ function updateVipSlots() {
     if (players.length >= maxPlayers - vipSlots) {
         room.setPassword(`${state.vipPassword}`)
     } else {
-        room.setPassword(state.roomPassword)
+        room.setPassword(state.roomPassword != '' ? state.roomPassword : null);
     }
 }
 
