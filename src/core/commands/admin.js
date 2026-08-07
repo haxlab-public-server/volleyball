@@ -204,7 +204,7 @@ function banCommand(player, message) {
             discordBot.sendReport(player.name, ban_name == null ? ban_auth : ban_name, "ban", reason != "" ? reason : null, getStringTime(msgArray[1]))
             var banPlayer = room.getPlayer(ban_id)
             if (banPlayer != null) {
-                room.kickPlayer(banPlayer.id, `${player.name} забанил вас на ${getStringTime(msgArray[1])}${reason != "" ? ` по причине: ${reason}`: ""}\n discord: ${Discord}\n telegram: ${Telegram}`, true)
+                room.kickPlayer(banPlayer.id, `${player.name} забанил вас на ${getStringTime(msgArray[1])}${reason != "" ? ` по причине: ${reason}`: ""}\n discord: ${Discord}`, true)
             }
         } else {
             room.sendAnnouncement(
