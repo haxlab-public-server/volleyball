@@ -146,7 +146,7 @@ module.exports = function createUpdatesUtils({
             while (selectedIds.length < takeCount && rest.length > 0) { 
                 const idx = getRandomInt(0, rest.length - 1); 
                 selectedIds.push(rest[idx].id); 
-                used.add(rest[idx].id); // Важно добавить в used, если код расширится
+                used.add(rest[idx].id);
                 rest.splice(idx, 1); 
             } 
 

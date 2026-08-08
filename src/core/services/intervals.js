@@ -164,10 +164,8 @@ module.exports = function createIntervals({
                 (ballPos.x > 0.1 && lastTeam === Team.RED) ||
                 (ballPos.x < -0.1 && lastTeam === Team.BLUE)
             ) {
-                if (state.ball_color !== 0xffffff) {
-                    state.ball_color = 0xffffff;
-                    room.setDiscProperties(0, { color: state.ball_color });
-                }
+                state.ball_color = 0xffffff;
+                room.setDiscProperties(0, { color: state.ball_color });
             }
         }
 
