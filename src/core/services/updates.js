@@ -81,7 +81,7 @@ module.exports = function createUpdatesUtils({
         );
 
         setTimeout(() => {
-            const specs = getTeamArray(Team.SPECTATORS);
+            let specs = getTeamArray(Team.SPECTATORS);
             const isWinstay = state.winstay_mode && state.winstay.streak > 0 && specs.length >= state.teamSize;
 
             let takeCount;
@@ -90,6 +90,7 @@ module.exports = function createUpdatesUtils({
                     room.setPlayerTeam(player.id, Team.RED);
                 }
                 takeCount = state.teamSize;
+                specs = getTeamArray(Team.SPECTATORS);
             } else {
                 const maxOnField = state.teamSize * 2;
                 takeCount = Math.min(specs.length, maxOnField);
