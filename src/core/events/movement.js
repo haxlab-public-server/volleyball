@@ -227,9 +227,11 @@ module.exports = function createMovementEvents({
             }
         }
 
-        discordBot.sendLog(
-            `[${kickedPlayer.auth}] **${kickedPlayer.name}** was ${ban ? 'banned' : 'kicked'} by **${byPlayer.name}** | ${byPlayer.auth} / ${byPlayer.conn}`
-        );
+        if (byPlayer != null) {
+            discordBot.sendLog(
+                `[${kickedPlayer.auth}] **${kickedPlayer.name}** was ${ban ? 'banned' : 'kicked'} by **${byPlayer.name}** | ${byPlayer.auth} / ${byPlayer.conn}`
+            );
+        }
     }
 
     function onPlayerTeamChange(changedPlayer, byPlayer) {
