@@ -15,7 +15,7 @@ module.exports = function createUpdatesUtils({
     maxPlayers,
     vipSlots
 }) {
-    function getActivePlayers() {
+    function _getActivePlayers() {
         return room.getPlayerList().filter(
             p => state.afkList.findIndex(a => a[0] === p.id) === -1
         );
@@ -24,7 +24,12 @@ module.exports = function createUpdatesUtils({
     function updateTeamSize() {
         if (state.training_mode || state.mode !== Mods.PUBLIC) return;
 
-        state.teamSize = getActivePlayers().length >= upTeamSizePlayers
+        if (state.winstay_mode) {
+            state.teamSize = defaultTeamSize;
+            return;
+        }
+
+        state.teamSize = _getActivePlayers().length >= upTeamSizePlayers
             ? defaultTeamSize + 1
             : defaultTeamSize;
     }
@@ -37,7 +42,7 @@ module.exports = function createUpdatesUtils({
         const blue = getTeamArray(Team.BLUE);
         const specs = getTeamArray(Team.SPECTATORS);
         const scores = room.getScores();
-        const activeCount = getActivePlayers().length;
+        const activeCount = _getActivePlayers().length;
 
         if (scores != null) {
             if (red.length !== blue.length && specs.length > 0) {
@@ -77,14 +82,23 @@ module.exports = function createUpdatesUtils({
 
         setTimeout(() => {
             const specs = getTeamArray(Team.SPECTATORS);
-            const maxOnField = state.teamSize * 2;
+            const isWinstay = state.winstay_mode && specs.length >= state.teamSize;
 
-            let takeCount = Math.min(specs.length, maxOnField);
-            if (takeCount % 2 === 1) takeCount -= 1;
+            let takeCount;
+            if (isWinstay) {
+                for (const player of state.winstay.team) {
+                    room.setPlayerTeam(player.id, Team.RED);
+                }
+                takeCount = state.teamSize;
+            } else {
+                const maxOnField = state.teamSize * 2;
+                takeCount = Math.min(specs.length, maxOnField);
+                if (takeCount % 2 === 1) takeCount -= 1;
 
-            if (takeCount < 2) {
-                state.randomize_sit = false;
-                return;
+                if (takeCount < 2) {
+                    state.randomize_sit = false;
+                    return;
+                }
             }
 
             let priorityQueue = state.queue
@@ -125,17 +139,23 @@ module.exports = function createUpdatesUtils({
                 rest.splice(idx, 1);
             }
 
-            for (let i = selectedIds.length - 1; i > 0; i--) {
-                const j = getRandomInt(0, i);
-                [selectedIds[i], selectedIds[j]] = [selectedIds[j], selectedIds[i]];
-            }
+            if (isWinstay) {
+                for (const id of selectedIds) {
+                    room.setPlayerTeam(id, Team.BLUE);
+                }
+            } else {
+                for (let i = selectedIds.length - 1; i > 0; i--) {
+                    const j = getRandomInt(0, i);
+                    [selectedIds[i], selectedIds[j]] = [selectedIds[j], selectedIds[i]];
+                }
 
-            const half = selectedIds.length / 2;
-            for (let i = 0; i < selectedIds.length; i++) {
-                room.setPlayerTeam(
-                    selectedIds[i],
-                    i < half ? Team.RED : Team.BLUE
-                );
+                const half = selectedIds.length / 2;
+                for (let i = 0; i < selectedIds.length; i++) {
+                    room.setPlayerTeam(
+                        selectedIds[i],
+                        i < half ? Team.RED : Team.BLUE
+                    );
+                }
             }
 
             room.startGame();

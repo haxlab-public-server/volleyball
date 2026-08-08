@@ -296,6 +296,25 @@ module.exports = function createGameEvents({
                 HaxNotification.NONE
             );
 
+            if (state.winstay_mode) {
+                if (red === blue) {
+                    state.winstay = { streak: 0, team: [] };
+                } else {
+                    const winnerTeam = red > blue ? Team.RED : Team.BLUE;
+                    const winnerArr = getTeamArray(winnerTeam)
+
+                    const sameTeam =
+                        state.winstay.team.length > 0 &&
+                        winnerArr.length === state.winstay.team.length &&
+                        winnerArr.every(a => state.winstay.team.includes(a));
+
+                    state.winstay = {
+                        streak: sameTeam ? state.winstay.streak + 1 : 1,
+                        team: winnerArr
+                    };
+                }
+            }
+
             if (
                 state.mode === Mods.PUBLIC &&
                 red !== blue &&
@@ -317,7 +336,7 @@ module.exports = function createGameEvents({
         }
 
         room.sendAnnouncement(
-            `Заходи на наш discord-сервер: ${Discord} .\nПодписывайся на мой telegram: ${Telegram}`,
+            `Заходи на наш discord-сервер: ${Discord}\nПодписывайся на мой telegram: ${Telegram}`,
             null,
             Color.WH_BLUE,
             'bold',

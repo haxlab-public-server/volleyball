@@ -98,6 +98,12 @@ state.mode = Mods.PUBLIC
 state.game = new Game(defaultTeamSize);
 state.vipPassword = getRandomInt(100000, 999999)
 
+state.winstay_mode = true
+state.winstay = {
+  streak: 0,
+  team: [],
+}
+
 const replayWebhook = window.__secrets.replayWebhookUrl;
 const vipWebhook = window.__secrets.vipWebhookUrl;
 const logWebhook = window.__secrets.logWebhookUrl;
@@ -320,7 +326,8 @@ const {
     matchPointCommand,
     teamSizeCommand,
     setRoleCommand,
-    getRoleListCommand
+    getRoleListCommand,
+    winstayCommand
 } = createMasterCommands({
     room,
     state,

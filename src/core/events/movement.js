@@ -187,6 +187,20 @@ module.exports = function createMovementEvents({
             HaxNotification.NONE
         );
 
+        if (state.winstay_mode && state.winstay.team.includes(player)) {
+            room.sendAnnouncement(
+                `СТРИК БЫЛ СБРОШЕН`,
+                null,
+                Color.WH_BLUE,
+                'small',
+                HaxNotification.MENTION
+            );
+            state.winstay = {
+                streak: 0,
+                team: [],
+            }
+        }
+
         updateVipSlots();
         updateTeams();
         updateTeamSize();

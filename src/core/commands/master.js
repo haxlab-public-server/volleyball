@@ -477,7 +477,7 @@ module.exports = function createMasterCommands({
         if (args.length === 0) {
             const rolesHint = Object.keys(RoleString).join(' | ');
             room.sendAnnouncement(
-                `Недостаточно аргументов: !list <${rolesHint}> [ID_из_списка]`,
+                `Недостаточно аргументов: !list <${rolesHint}> [ID в списке] - чтобы посмотреть профиль игрока, необязательный аргумент`,
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -574,6 +574,61 @@ module.exports = function createMasterCommands({
         );
     }
 
+    function winstayCommand(player, message) {
+        const args = message.toLowerCase().split(/ +/).slice(1);
+
+        if (args.length === 0 || args[0] === 'mode') {
+            room.sendAnnouncement(
+                `Сейчас режим winstay: ${state.winstay_mode ? 'включён' : 'выключен'}`,
+                player.id,
+                Color.WH_BLUE,
+                'small',
+                HaxNotification.CHAT
+            );
+            return;
+        }
+
+        if (args[0] === 'on' || args[0] === 'true') {
+            state.winstay_mode = true;
+            state.winstay = {
+                streak: 0,
+                team: [],
+            }
+
+            room.sendAnnouncement(
+                `Режим winstay включён - ${player.name}`,
+                null,
+                Color.WH_GREEN,
+                'small',
+                HaxNotification.CHAT
+            );
+            
+            return;
+        }
+
+        if (args[0] === 'off' || args[0] === 'false') {
+            state.winstay_mode = false;
+
+            room.sendAnnouncement(
+                `Режим winstay выключен - ${player.name}`,
+                null,
+                Color.WH_GREEN,
+                'small',
+                HaxNotification.CHAT
+            );
+
+            return;
+        }
+
+        room.sendAnnouncement(
+            `Ошибка. Такого варианта нет: mode / on / off`,
+            player.id,
+            Color.GR_RED,
+            'small',
+            HaxNotification.CHAT
+        );
+    }
+
     return {
         passwordCommand,
         addAuthCommand,
@@ -585,6 +640,7 @@ module.exports = function createMasterCommands({
         matchPointCommand,
         teamSizeCommand,
         setRoleCommand,
-        getRoleListCommand
+        getRoleListCommand,
+        winstayCommand
     };
 };

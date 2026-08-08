@@ -35,7 +35,8 @@ module.exports = function createCommands({
     trainingCommand,
     trainingSettingCommands,
     myPointCommand,
-    chatColorCommand
+    chatColorCommand,
+    winstayCommand
 }) {
 
 return {
@@ -218,6 +219,11 @@ return {
         aliases: ["chat_color", "цвет"],
         roles: Role.VIP,
         function: chatColorCommand
+    },
+    winstay: {
+        aliases: [],
+        roles: Role.MASTER,
+        function: winstayCommand
     }
 }
 

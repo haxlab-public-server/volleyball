@@ -554,6 +554,19 @@ module.exports = function createPlayerCommands({
                 room.setPlayerTeam(player.id, Team.SPECTATORS);
             }
             state.afkList.push([player.id, player.name, Date.now()]);
+            if (state.winstay_mode && state.winstay.team.includes(player)) {
+                room.sendAnnouncement(
+                    `СТРИК БЫЛ СБРОШЕН`,
+                    null,
+                    Color.WH_BLUE,
+                    'small',
+                    HaxNotification.MENTION
+                );
+                state.winstay = {
+                    streak: 0,
+                    team: [],
+                }
+            }
             room.sendAnnouncement(
                 `💤${player.name} теперь АФК`,
                 null,
