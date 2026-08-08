@@ -38,22 +38,22 @@ module.exports = function createUpdatesUtils({
         const scores = room.getScores();
         const activeCount = getActivePlayers().length;
 
-        if (red.length !== blue.length && specs.length > 0 && scores != null) {
-            const targetTeam = red.length < blue.length ? Team.RED : Team.BLUE;
-            room.setPlayerTeam(specs[0].id, targetTeam);
-        }
-        else if (
-            red.length === blue.length &&
-            blue.length < state.game.teamSize &&
-            specs.length >= 2 &&
-            scores != null
-        ) {
-            room.setPlayerTeam(specs[0].id, Team.RED);
-            room.setPlayerTeam(getTeamArray(Team.SPECTATORS)[0].id, Team.BLUE);
-        }
+        if (scores != null) {
+            if (red.length !== blue.length && specs.length > 0) {
+                const targetTeam = red.length < blue.length ? Team.RED : Team.BLUE;
+                room.setPlayerTeam(specs[0].id, targetTeam);
+            } else if (
+                red.length === blue.length &&
+                blue.length < state.game.teamSize &&
+                specs.length >= 2
+            ) {
+                room.setPlayerTeam(specs[0].id, Team.RED);
+                room.setPlayerTeam(getTeamArray(Team.SPECTATORS)[0].id, Team.BLUE);
+            }
 
-        if (activeCount <= 1 || red.length === 0 || blue.length === 0) {
-            room.stopGame();
+            if (activeCount <= 1 || red.length === 0 || blue.length === 0) {
+                room.stopGame();
+            }
         }
 
         if (activeCount >= 2 && scores == null) {

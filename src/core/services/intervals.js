@@ -124,6 +124,8 @@ module.exports = function createIntervals({
     setInterval(() => {
         if (room.getScores() == null) return;
 
+        updateTeams();
+
         const ballPos = room.getBallPosition();
 
         if (!state.goal_sit && state.serveBall) {
@@ -137,6 +139,7 @@ module.exports = function createIntervals({
                 state.serveBall = false;
                 resetBallKick();
             }
+            return;
         }
 
         if (!state.goal_sit && state.saveBall) {
@@ -151,6 +154,7 @@ module.exports = function createIntervals({
                 state.saveBall = false;
                 resetBallKick();
             }
+            return;
         }
 
         if (!state.goal_sit && state.lastTouches[0] != null) {
@@ -167,6 +171,5 @@ module.exports = function createIntervals({
             }
         }
 
-        updateTeams();
     }, 50);
 };
