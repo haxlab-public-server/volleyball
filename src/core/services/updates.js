@@ -22,15 +22,10 @@ module.exports = function createUpdatesUtils({
     }
 
     function updateTeamSize() {
-        if (state.training_mode || state.mode !== Mods.PUBLIC) return;
-
-        if (state.winstay_mode) {
-            state.teamSize = defaultTeamSize;
-            return;
-        }
+        if (state.training_mode || state.winstay_mode || state.mode !== Mods.PUBLIC) return;
 
         state.teamSize = _getActivePlayers().length >= upTeamSizePlayers
-            ? defaultTeamSize + 1
+            ? defaultTeamSize + 1   
             : defaultTeamSize;
     }
 
@@ -82,16 +77,18 @@ module.exports = function createUpdatesUtils({
 
         setTimeout(() => {
             let specs = getTeamArray(Team.SPECTATORS);
+            let takeCount;
             const isWinstay = state.winstay_mode && state.winstay.streak > 0 && specs.length-state.winstay.team.length >= state.teamSize;
 
-            let takeCount;
             if (isWinstay) {
+                const championIds = new Set(state.winstay.team.map(p => p.id));
                 for (const player of state.winstay.team) {
                     room.setPlayerTeam(player.id, Team.RED);
                 }
+                specs = specs.filter(p => !championIds.has(p.id));
                 takeCount = state.teamSize;
-                specs = getTeamArray(Team.SPECTATORS);
             } else {
+                specs = getTeamArray(Team.SPECTATORS);
                 state.winstay = {streak: 0, team: []}
                 const maxOnField = state.teamSize * 2;
                 takeCount = Math.min(specs.length, maxOnField);
@@ -117,8 +114,7 @@ module.exports = function createUpdatesUtils({
                     .slice(0, vipLimit);
 
                 for (const vip of vipQueue) {
-                    const idx = priorityQueue.findIndex(q => q[0] === vip[0]);
-                    if (idx !== -1) priorityQueue.splice(idx, 1);
+                    priorityQueue = priorityQueue.filter(q => q[0] !== vip[0]);
                     priorityQueue.unshift(vip);
                 }
             }
