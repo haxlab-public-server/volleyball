@@ -384,7 +384,8 @@ const commands = createCommands({
     trainingCommand,
     trainingSettingCommands,
     myPointCommand,
-    chatColorCommand
+    chatColorCommand,
+    winstayCommand
 })
 
 /* EVENTS */
