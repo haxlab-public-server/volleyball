@@ -305,7 +305,7 @@ module.exports = function createGameEvents({
                     const sameTeam =
                         state.winstay.team.length > 0 &&
                         winnerArr.length === state.winstay.team.length &&
-                        winnerArr.every(a => state.winstay.team.includes(a));
+                        winnerArr.every(a => state.winstay.team.some(p => p.id === a.id));
 
                     state.winstay = {
                         streak: sameTeam ? state.winstay.streak + 1 : 1,

@@ -554,7 +554,7 @@ module.exports = function createPlayerCommands({
                 room.setPlayerTeam(player.id, Team.SPECTATORS);
             }
             state.afkList.push([player.id, player.name, Date.now()]);
-            if (state.winstay_mode && state.winstay.team.includes(player)) {
+            if (state.winstay_mode && state.winstay.team.some(p => p.id === player.id)) {
                 room.sendAnnouncement(
                     `Стрик был сброшен, так как один из игроков покинул команду`,
                     null,
