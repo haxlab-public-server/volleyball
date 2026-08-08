@@ -22,7 +22,7 @@ module.exports = function createActivityEvents({
 }) {
 
 function onPlayerChat(player, message) {
-    discordBot.sendLog(`[${player.auth}] **${player.name}**: ${message}`);
+    discordBot.sendLog(`[${getAuth(player.id)}] **${player.name}**: ${message}`);
     const msgArray = message.split(/ +/);
     state.inactivityTicks[player.id] = 0;
 
@@ -103,7 +103,6 @@ function onPlayerChat(player, message) {
         style,
         HaxNotification.CHAT
     );
-
     return false;
 }
 
