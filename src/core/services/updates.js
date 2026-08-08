@@ -93,18 +93,29 @@ module.exports = function createUpdatesUtils({
                 const maxOnField = state.teamSize * 2;
                 takeCount = Math.min(specs.length, maxOnField);
                 if (takeCount % 2 === 1) takeCount -= 1;
-
                 if (takeCount < 2) {
                     state.randomize_sit = false;
                     return;
                 }
             }
 
+            const playerThreshold = Math.max(0, queueMatches);
+
             let priorityQueue = state.queue
-                .filter(([, missed]) => missed >= queueMatches)
+                .filter(([, missed]) => missed >= playerThreshold)
                 .sort((a, b) => b[1] - a[1]);
 
-            const vips = specs.filter(p => vipQueueRoles.includes(getRole(p)));
+            const vips = specs.filter(p => {
+                if (!vipQueueRoles.includes(getRole(p))) return false;
+                const queueData = state.queue.find(([id]) => id === p.id);
+                const missedCount = queueData ? queueData[1] : 0;
+                if (isWinstay) {
+                    const vipThreshold = Math.max(0, queueMatches - 1);
+                    return missedCount >= vipThreshold;
+                }
+                return true; 
+            });
+
             if (vips.length > 0) {
                 const vipLimit = state.teamSize <= 2 ? 1 : 2;
                 const vipQueue = vips
@@ -124,37 +135,39 @@ module.exports = function createUpdatesUtils({
 
             for (const [id] of priorityQueue) {
                 if (selectedIds.length >= takeCount) break;
-                if (specs.some(p => p.id === id)) {
-                    selectedIds.push(id);
-                    used.add(id);
-                }
+                if (specs.some(p => p.id === id)) { 
+                    selectedIds.push(id); 
+                    used.add(id); 
+                } 
+            } 
+
+            const rest = specs.filter(p => !used.has(p.id)); 
+
+            while (selectedIds.length < takeCount && rest.length > 0) { 
+                const idx = getRandomInt(0, rest.length - 1); 
+                selectedIds.push(rest[idx].id); 
+                used.add(rest[idx].id); // Важно добавить в used, если код расширится
+                rest.splice(idx, 1); 
+            } 
+
+            if (isWinstay) { 
+                for (const id of selectedIds) { 
+                    room.setPlayerTeam(id, Team.BLUE); 
+                } 
+            } { 
+                for (let i = selectedIds.length - 1; i > 0; i--) { 
+                    const j = getRandomInt(0, i); 
+                    [selectedIds[i], selectedIds[j]] = [selectedIds[j], selectedIds[i]]; 
+                } 
+                const half = selectedIds.length / 2; 
+                for (let i = 0; i < selectedIds.length; i++) { 
+                    room.setPlayerTeam( 
+                        selectedIds[i], 
+                        i < half ? Team.RED : Team.BLUE 
+                    ); 
+                } 
             }
 
-            const rest = specs.filter(p => !used.has(p.id));
-            while (selectedIds.length < takeCount && rest.length > 0) {
-                const idx = getRandomInt(0, rest.length - 1);
-                selectedIds.push(rest[idx].id);
-                rest.splice(idx, 1);
-            }
-
-            if (isWinstay) {
-                for (const id of selectedIds) {
-                    room.setPlayerTeam(id, Team.BLUE);
-                }
-            } else {
-                for (let i = selectedIds.length - 1; i > 0; i--) {
-                    const j = getRandomInt(0, i);
-                    [selectedIds[i], selectedIds[j]] = [selectedIds[j], selectedIds[i]];
-                }
-
-                const half = selectedIds.length / 2;
-                for (let i = 0; i < selectedIds.length; i++) {
-                    room.setPlayerTeam(
-                        selectedIds[i],
-                        i < half ? Team.RED : Team.BLUE
-                    );
-                }
-            }
 
             room.startGame();
         }, 3000);

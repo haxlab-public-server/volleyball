@@ -342,13 +342,20 @@ module.exports = function createGameEvents({
             }
         }
 
-        room.sendAnnouncement(
-            `Заходи на наш discord-сервер: ${Discord}\nПодписывайся на мой telegram: ${Telegram}`,
-            null,
-            Color.WH_BLUE,
-            'bold',
-            HaxNotification.CHAT
-        );
+        if (state.scores != null) {
+            setTimeout((gameEnd) => {
+                fetchRecording(gameEnd, discordBot);
+                const replayName = getIdReplay();
+
+                room.sendAnnouncement(
+                    `💾replay: № ${replayName} | download: ${Discord}`,
+                    null,
+                    Color.WH_BLUE,
+                    'small',
+                    HaxNotification.NONE
+                );
+            }, 500, state.game);
+        }
 
         if (state.mode === Mods.PUBLIC) {
             for (const p of room.getPlayerList()) {
@@ -384,21 +391,6 @@ module.exports = function createGameEvents({
                     HaxNotification.CHAT
                 );
             }
-        }
-
-        if (state.scores != null) {
-            setTimeout((gameEnd) => {
-                fetchRecording(gameEnd, discordBot);
-                const replayName = getIdReplay();
-
-                room.sendAnnouncement(
-                    `💾replay: № ${replayName} | download: ${Discord}`,
-                    null,
-                    Color.WH_BLUE,
-                    'small',
-                    HaxNotification.NONE
-                );
-            }, 500, state.game);
         }
     }
 
