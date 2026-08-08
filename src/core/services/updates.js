@@ -31,6 +31,7 @@ module.exports = function createUpdatesUtils({
 
     function updateTeams() {
         if (state.mode !== Mods.PUBLIC || state.training_mode) return;
+        if (state.randomize_sit) return;
 
         const red = getTeamArray(Team.RED);
         const blue = getTeamArray(Team.BLUE);
@@ -54,16 +55,16 @@ module.exports = function createUpdatesUtils({
             if (activeCount <= 1 || red.length === 0 || blue.length === 0) {
                 room.stopGame();
             }
+            return;
         }
 
-        if (activeCount >= 2 && scores == null) {
+        if (activeCount >= 2) {
             randomizeTeams();
         }
     }
 
     function randomizeTeams() {
         if (state.randomize_sit) return;
-
         state.randomize_sit = true;
 
         room.sendAnnouncement(
@@ -75,8 +76,16 @@ module.exports = function createUpdatesUtils({
         );
 
         setTimeout(() => {
-            const needed = state.teamSize * 2;
             const specs = getTeamArray(Team.SPECTATORS);
+            const maxOnField = state.teamSize * 2;
+
+            let takeCount = Math.min(specs.length, maxOnField);
+            if (takeCount % 2 === 1) takeCount -= 1;
+
+            if (takeCount < 2) {
+                state.randomize_sit = false;
+                return;
+            }
 
             let priorityQueue = state.queue
                 .filter(([, missed]) => missed >= queueMatches)
@@ -85,7 +94,6 @@ module.exports = function createUpdatesUtils({
             const vips = specs.filter(p => vipQueueRoles.includes(getRole(p)));
             if (vips.length > 0) {
                 const vipLimit = state.teamSize <= 2 ? 1 : 2;
-
                 const vipQueue = vips
                     .map(p => state.queue.find(q => q[0] === p.id))
                     .filter(Boolean)
@@ -99,39 +107,35 @@ module.exports = function createUpdatesUtils({
                 }
             }
 
-            let fromQueue;
-            if (specs.length < needed) {
-                const gap = needed - specs.length + priorityQueue.length;
-                fromQueue = gap % 2 === 1 ? gap + 1 : gap;
-            } else if (priorityQueue.length > 0 && priorityQueue.length < needed) {
-                fromQueue = priorityQueue.length;
-            } else if (priorityQueue.length >= needed) {
-                fromQueue = needed;
-            } else {
-                fromQueue = 0;
-            }
+            const selectedIds = [];
+            const used = new Set();
 
-            const selectedIds = priorityQueue
-                .slice(0, Math.min(priorityQueue.length, needed))
-                .map(([id]) => id);
-
-            let remaining = specs.filter(p => !selectedIds.includes(p.id));
-
-            if (fromQueue !== needed) {
-                const toFill = needed - fromQueue;
-                for (let i = 0; i < toFill && remaining.length > 0; i++) {
-                    const idx = getRandomInt(0, remaining.length);
-                    selectedIds.push(remaining[idx].id);
-                    remaining.splice(idx, 1);
+            for (const [id] of priorityQueue) {
+                if (selectedIds.length >= takeCount) break;
+                if (specs.some(p => p.id === id)) {
+                    selectedIds.push(id);
+                    used.add(id);
                 }
             }
 
-            let nextTeam = Team.RED;
-            while (selectedIds.length > 0) {
-                const idx = getRandomInt(0, selectedIds.length);
-                room.setPlayerTeam(selectedIds[idx], nextTeam);
-                selectedIds.splice(idx, 1);
-                nextTeam = nextTeam === Team.RED ? Team.BLUE : Team.RED;
+            const rest = specs.filter(p => !used.has(p.id));
+            while (selectedIds.length < takeCount && rest.length > 0) {
+                const idx = getRandomInt(0, rest.length - 1);
+                selectedIds.push(rest[idx].id);
+                rest.splice(idx, 1);
+            }
+
+            for (let i = selectedIds.length - 1; i > 0; i--) {
+                const j = getRandomInt(0, i);
+                [selectedIds[i], selectedIds[j]] = [selectedIds[j], selectedIds[i]];
+            }
+
+            const half = selectedIds.length / 2;
+            for (let i = 0; i < selectedIds.length; i++) {
+                room.setPlayerTeam(
+                    selectedIds[i],
+                    i < half ? Team.RED : Team.BLUE
+                );
             }
 
             room.startGame();
