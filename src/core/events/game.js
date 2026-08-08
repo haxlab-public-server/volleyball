@@ -12,7 +12,6 @@ module.exports = function createGameEvents({
     discordBot,
     getIdReplay,
     Game,
-    defaultTeamSize,
     noGoal_map,
     volleyball_map,
     gamesTimeout,
@@ -35,8 +34,8 @@ module.exports = function createGameEvents({
 
     function isFullTeams() {
         return (
-            getTeamArray(Team.BLUE).length >= defaultTeamSize &&
-            getTeamArray(Team.RED).length >= defaultTeamSize
+            getTeamArray(Team.BLUE).length >= state.teamSize &&
+            getTeamArray(Team.RED).length >= state.teamSize
         );
     }
 

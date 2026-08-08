@@ -457,7 +457,6 @@ Object.assign(room, wrapEventHandlers(createGameEvents({
     discordBot,
     getIdReplay,
     Game,
-    defaultTeamSize,
     noGoal_map,
     volleyball_map,
     gamesTimeout,
