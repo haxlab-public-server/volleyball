@@ -311,6 +311,14 @@ module.exports = function createGameEvents({
                         streak: sameTeam ? state.winstay.streak + 1 : 1,
                         team: winnerArr
                     };
+
+                    room.sendAnnouncement(
+                        `Серия побед: ${state.winstay.streak}`,
+                        null,
+                        resultColor,
+                        'small',
+                        HaxNotification.NONE
+                    );
                 }
             }
 

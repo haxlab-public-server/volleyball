@@ -187,11 +187,11 @@ module.exports = function createMovementEvents({
             HaxNotification.NONE
         );
 
-        if (state.winstay_mode && state.winstay.team.includes(player)) {
+        if (state.winstay_mode && state.winstay.team.some(p => p.id === player.id)) {
             room.sendAnnouncement(
-                `СТРИК БЫЛ СБРОШЕН`,
+                `Стрик был сброшен, так как один из игроков покинул команду`,
                 null,
-                Color.WH_BLUE,
+                Color.GR_RED,
                 'small',
                 HaxNotification.MENTION
             );

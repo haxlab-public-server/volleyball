@@ -556,9 +556,9 @@ module.exports = function createPlayerCommands({
             state.afkList.push([player.id, player.name, Date.now()]);
             if (state.winstay_mode && state.winstay.team.includes(player)) {
                 room.sendAnnouncement(
-                    `СТРИК БЫЛ СБРОШЕН`,
+                    `Стрик был сброшен, так как один из игроков покинул команду`,
                     null,
-                    Color.WH_BLUE,
+                    Color.GR_RED,
                     'small',
                     HaxNotification.MENTION
                 );
