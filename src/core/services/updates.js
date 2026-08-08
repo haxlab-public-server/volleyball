@@ -78,7 +78,7 @@ module.exports = function createUpdatesUtils({
         setTimeout(() => {
             let specs = getTeamArray(Team.SPECTATORS);
             let takeCount;
-            const isWinstay = state.winstay_mode && state.winstay.streak > 0 && specs.length-state.winstay.team.length >= state.teamSize;
+            const isWinstay = state.winstay_mode && state.winstay.streak > 0 && specs.length > state.teamSize*2 && specs.length-state.winstay.team.length >= state.teamSize;
 
             if (isWinstay) {
                 const championIds = new Set(state.winstay.team.map(p => p.id));
