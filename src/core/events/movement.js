@@ -20,181 +20,242 @@ module.exports = function createMovementEvents({
     maxPlayers,
     discordBot
 }) {
+    function loadJson(filename) {
+        // TODO: migrate from fs to sqlite in the future
+        return JSON.parse(fs.readFileSync(filename, 'utf8'));
+    }
 
-function onPlayerJoin(player) {
-    lastIds[player.auth] = [player.id, player.conn, player.auth]
-    if (room.getPlayerList().length > 1) {
-        let plrys = room.getPlayerList().filter(plr => plr.id != player.id)
-        if (GhostKick && plrys.findIndex(g => getConn(g.id) == player.conn) != -1) {
-            room.kickPlayer(player.id, `Кажется ты уже есть в комнате`, false)
-            return false
+    function saveJson(filename, data) {
+        // TODO: migrate from fs to sqlite in the future
+        fs.writeFileSync(filename, JSON.stringify(data));
+    }
+
+    const ROLE_NAMES = {
+        [Role.MASTER]: 'Создатель',
+        [Role.ADMIN]: 'Администратор',
+        [Role.PREADMIN]: 'Мл. Администратор',
+        [Role.VIP]: 'VIP'
+    };
+
+    function onPlayerJoin(player) {
+        lastIds[player.auth] = [player.id, player.conn, player.auth];
+
+        if (GhostKick && room.getPlayerList().length > 1) {
+            const alreadyOnline = room.getPlayerList()
+                .filter(p => p.id !== player.id)
+                .some(p => getConn(p.id) === player.conn);
+
+            if (alreadyOnline) {
+                room.kickPlayer(player.id, 'Кажется ты уже есть в комнате', false);
+                return;
+            }
         }
-    }
-    // TODO: migrate from fs to sqlite in the future
-    var accounts = JSON.parse(fs.readFileSync('accounts.json', 'utf8'));
-    if (accounts[player.auth] == undefined || accounts[player.auth] == null) {
-        accounts[player.auth] = {"nickname": player.name,"role": "player", "date": null, "discord": null, "chat_color": null}
-    } else {
-        accounts[player.auth]["nickname"] = player.name
-    }
-    // TODO: migrate from fs to sqlite in the future
-    fs.writeFileSync("accounts.json", JSON.stringify(accounts))
-    // TODO: migrate from fs to sqlite in the future
-    var banList = JSON.parse(fs.readFileSync('bans.json', 'utf8'));
-    if (banList.findIndex((p) => p['auth'] == player.auth) != -1 || banList.findIndex((h) => h['conn'] == player.conn) != -1) {
-        let index = banList.findIndex((p) => p['auth'] == player.auth)
-        banList[index]['id'] = player.id
-        banList[index]['name'] = player.name
-        banList[index]['conn'] = player.conn
-        banList[index]['auth'] = player.auth
-        // TODO: migrate from fs to sqlite in the future
-        fs.writeFileSync("bans.json", JSON.stringify(banList))
-        setTimeout(() => {
-            room.kickPlayer(player.id, `Вы забанены: ${Math.round((banList[index]["date"] - Date.now())/1000/60)} мин\n discord: ${Discord}\n telegram: ${Telegram}`, true)
-        }, 700)
-        return;
-    }
-    if (state.joinAuths && getRole(player) < Role.ADMIN) {
-        // TODO: migrate from fs to sqlite in the future
-        var auths = JSON.parse(fs.readFileSync('auths.json', 'utf8'));
-        if (auths.findIndex((o) => o == player.auth) == -1) {
+
+        const accounts = loadJson('accounts.json');
+        if (accounts[player.auth] == null) {
+            accounts[player.auth] = {
+                nickname: player.name,
+                role: 'player',
+                date: null,
+                discord: null,
+                chat_color: null
+            };
+        } else {
+            accounts[player.auth].nickname = player.name;
+        }
+        saveJson('accounts.json', accounts);
+
+        const banList = loadJson('bans.json');
+        const banIndex = banList.findIndex(
+            p => p.auth === player.auth || p.conn === player.conn
+        );
+
+        if (banIndex !== -1) {
+            const ban = banList[banIndex];
+            ban.id = player.id;
+            ban.name = player.name;
+            ban.conn = player.conn;
+            ban.auth = player.auth;
+            saveJson('bans.json', banList);
+
+            const minsLeft = Math.round((ban.date - Date.now()) / 1000 / 60);
             setTimeout(() => {
-                room.kickPlayer(player.id, `Сейчас в комнату могут зайти только авторизованные игроки\n discord: ${Discord}\n telegram: ${Telegram}`, false)
-            }, 700)
+                room.kickPlayer(
+                    player.id,
+                    `Вы забанены: ${minsLeft} мин\n discord: ${Discord}\n telegram: ${Telegram}`,
+                    true
+                );
+            }, 700);
+            return;
         }
-    }
-    state.inactivityTicks[player.id] = 0
-    state.queue.push([player.id, 0])
-    // TODO: migrate from fs to sqlite in the future
-    var deanon = JSON.parse(fs.readFileSync('nicknames.json', 'utf8'));
-    if (player.auth in deanon) {
-        if (deanon[player.auth].findIndex((pname) => pname == player.name) == -1) {
-            deanon[player.auth].push(player.name)
+
+        if (state.joinAuths && getRole(player) < Role.ADMIN) {
+            const auths = loadJson('auths.json');
+            if (!auths.includes(player.auth)) {
+                setTimeout(() => {
+                    room.kickPlayer(
+                        player.id,
+                        `Сейчас в комнату могут зайти только авторизованные игроки\n discord: ${Discord}\n telegram: ${Telegram}`,
+                        false
+                    );
+                }, 700);
+            }
         }
-    } else {
-        deanon[player.auth] = [player.name]
-    }
-    let data = JSON.stringify(deanon)
-    // TODO: migrate from fs to sqlite in the future
-    fs.writeFileSync("nicknames.json", data)
-    // TODO: migrate from fs to sqlite in the future
-    var stats = JSON.parse(fs.readFileSync('stats.json', 'utf8'));
-    if (stats[player.auth] == undefined) {
-        stats[player.auth] = [player.name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-    }
-    // TODO: migrate from fs to sqlite in the future
-    fs.writeFileSync("stats.json", JSON.stringify(stats))
-    plr_role = getRole(player)
-    switch (plr_role) {
-        case Role.MASTER: var role = "Создатель"; break
-        case Role.VIPADMIN: var role = "VIP-Администратор"; break
-        case Role.ADMIN: var role = "Администратор"; break
-        case Role.PREADMIN: var role = "Мл. Администратор"; break
-        case Role.VIP: var role="VIP";break
-    }
-    if (plr_role >= Role.ADMIN) {
-        room.setPlayerAdmin(player.id, true);
-        room.sendAnnouncement(
-            `💥 ${role} ${player.name} зашёл на комнату!`,
-            null,
-            Color.RED,
-            "bold",
-            HaxNotification.CHAT
-        )
-    } else if (plr_role == Role.VIP) {
-        if (state.mode == Mods.PRIVATE) {
+
+        state.inactivityTicks[player.id] = 0;
+        state.queue.push([player.id, 0]);
+
+        const deanon = loadJson('nicknames.json');
+        if (player.auth in deanon) {
+            if (!deanon[player.auth].includes(player.name)) {
+                deanon[player.auth].push(player.name);
+            }
+        } else {
+            deanon[player.auth] = [player.name];
+        }
+        saveJson('nicknames.json', deanon);
+
+        const stats = loadJson('stats.json');
+        if (stats[player.auth] == null) {
+            stats[player.auth] = [player.name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+            saveJson('stats.json', stats);
+        }
+
+        const role = getRole(player);
+        const roleName = ROLE_NAMES[role];
+
+        if (role >= Role.ADMIN) {
             room.setPlayerAdmin(player.id, true);
+            room.sendAnnouncement(
+                `💥 ${roleName} ${player.name} зашёл на комнату!`,
+                null,
+                Color.RED,
+                'bold',
+                HaxNotification.CHAT
+            );
+        } else if (role === Role.VIP) {
+            if (state.mode === Mods.PRIVATE) {
+                room.setPlayerAdmin(player.id, true);
+            }
+            room.sendAnnouncement(
+                `🌟 ${roleName} ${player.name} зашёл на комнату!`,
+                null,
+                Color.PINK,
+                'bold',
+                HaxNotification.CHAT
+            );
+        } else if (role === Role.PREADMIN) {
+            room.setPlayerAdmin(player.id, true);
+            room.sendAnnouncement(
+                `💢 ${roleName} ${player.name} зашёл на комнату!`,
+                null,
+                Color.RED,
+                'bold',
+                HaxNotification.CHAT
+            );
         }
+
         room.sendAnnouncement(
-            `🌟 ${role} ${player.name} зашёл на комнату!`,
-            null,
-            Color.PINK,
-            "bold",
-            HaxNotification.CHAT
-        )
-    } else if (plr_role == Role.PREADMIN) {
-        room.setPlayerAdmin(player.id, true);
-        room.sendAnnouncement(
-            `💢 ${role} ${player.name} зашёл на комнату!`,
-            null,
-            Color.RED,
-            "bold",
-            HaxNotification.CHAT
-        )
+            `Заходи на наш discord-сервер: ${Discord}\nПодписывайся на мой telegram: ${Telegram}\nНапиши "!help" чтобы узнать список доступных команд.\nНапиши перед сообщением "ч", чтобы писать в чат команды\nПо всем вопросам tg: chesdes`,
+            player.id,
+            Color.GR_GREEN,
+            'small',
+            HaxNotification.NONE
+        );
+
+        updateVipSlots();
+        updateTeams();
+        updateTeamSize();
+
+        discordBot.sendLog(
+            `${player.auth} / ${player.conn} | **${player.name}** join ${room.getPlayerList().length}/${maxPlayers}`
+        );
     }
-    room.sendAnnouncement(
-        `Заходи на наш discord-сервер: ${Discord} .\nПодписывайся на мой telegram: ${Telegram}\nНапиши "!help" чтобы узнать список доступных команд.\nНапиши перед сообщением "ч", чтобы писать в чат команды\nПо всем вопросам tg: chesdes`,
-        player.id,
-        Color.GR_GREEN,
-        "small",
-        HaxNotification.NONE
-    )
-    updateVipSlots()
-    updateTeams()
-    updateTeamSize()
-    discordBot.sendLog(`${player.auth} / ${player.conn} | **${player.name}** join ${room.getPlayerList().length}/${maxPlayers}`)
-}
 
-function onPlayerLeave(player) {
-    state.queue = state.queue.filter((p) => p[0] != player.id)
-    player.auth = getAuth(player.id)
-    state.afkList = state.afkList.filter((p) => p[0] != player.id)
-    state.inactivityTicks[player.id] = 0
-    room.sendAnnouncement(
-        `${player.name} ID: ${player.auth}`,
-        null,
-        Color.GR_GREEN,
-        "small",
-        HaxNotification.NONE
-    );
-    updateVipSlots()
-    updateTeams()
-    updateTeamSize()
-    discordBot.sendLog(`[${player.auth}] **${player.name}** leave ${room.getPlayerList().length}/${maxPlayers}`)
-}
+    function onPlayerLeave(player) {
+        state.queue = state.queue.filter(p => p[0] !== player.id);
+        state.afkList = state.afkList.filter(p => p[0] !== player.id);
+        state.inactivityTicks[player.id] = 0;
 
-function onPlayerKicked(kickedPlayer, reason, ban, byPlayer) {
-    if (byPlayer != null) {
-        if (ban && getRole(byPlayer) < Role.MASTER || kickedPlayer.id == byPlayer.id) {
-            room.clearBan(kickedPlayer.id);
-            room.setPlayerAdmin(byPlayer.id, false)
-        }else if (ban && getRole(byPlayer) <= getRole(kickedPlayer) || (kickedPlayer.id != byPlayer.id && getRole(byPlayer) < Role.MASTER)) {
-            room.setPlayerAdmin(byPlayer.id, false)
+        player.auth = getAuth(player.id);
+
+        room.sendAnnouncement(
+            `${player.name} ID: ${player.auth}`,
+            null,
+            Color.GR_GREEN,
+            'small',
+            HaxNotification.NONE
+        );
+
+        updateVipSlots();
+        updateTeams();
+        updateTeamSize();
+
+        discordBot.sendLog(
+            `[${player.auth}] **${player.name}** leave ${room.getPlayerList().length}/${maxPlayers}`
+        );
+    }
+
+    function onPlayerKicked(kickedPlayer, reason, ban, byPlayer) {
+        if (byPlayer != null) {
+            const byRole = getRole(byPlayer);
+            const kickedRole = getRole(kickedPlayer);
+
+            if ((ban && byRole < Role.MASTER) || kickedPlayer.id === byPlayer.id) {
+                room.clearBan(kickedPlayer.id);
+                room.setPlayerAdmin(byPlayer.id, false);
+            }
+            else if (
+                (ban && byRole <= kickedRole) ||
+                (kickedPlayer.id !== byPlayer.id && byRole < Role.MASTER)
+            ) {
+                room.setPlayerAdmin(byPlayer.id, false);
+            }
+        }
+
+        discordBot.sendLog(
+            `[${kickedPlayer.auth}] **${kickedPlayer.name}** was ${ban ? 'banned' : 'kicked'} by **${byPlayer.name}** | ${byPlayer.auth} / ${byPlayer.conn}`
+        );
+    }
+
+    function onPlayerTeamChange(changedPlayer, byPlayer) {
+        if (
+            state.afkList.some(p => p[0] === changedPlayer.id) &&
+            changedPlayer.team !== Team.SPECTATORS
+        ) {
+            room.setPlayerTeam(changedPlayer.id, Team.SPECTATORS);
+            room.sendAnnouncement(
+                `${changedPlayer.name} АФК!`,
+                byPlayer?.id,
+                Color.GR_RED,
+                'small',
+                HaxNotification.MENTION
+            );
+            return;
+        }
+
+        state.inactivityTicks[changedPlayer.id] = 0;
+
+        const queueIdx = state.queue.findIndex(p => p[0] === changedPlayer.id);
+        if (queueIdx !== -1) {
+            state.queue[queueIdx][1] = 0;
+        }
+
+        if (changedPlayer.team !== Team.SPECTATORS && byPlayer == null) {
+            room.sendAnnouncement(
+                `@${changedPlayer.name} ты в игре!`,
+                changedPlayer.id,
+                Color.WH_BLUE,
+                'bold',
+                HaxNotification.MENTION
+            );
         }
     }
-    discordBot.sendLog(`[${kickedPlayer.auth}] **${kickedPlayer.name}** was ${ban ? "banned" : "kicked"} by **${byPlayer.name}** | ${byPlayer.auth} / ${byPlayer.conn}`)
-}
 
-function onPlayerTeamChange(changedPlayer, byPlayer) {    
-    if (state.afkList.findIndex((p) => p[0] == changedPlayer.id) != -1 && changedPlayer.team != Team.SPECTATORS) {
-        room.setPlayerTeam(changedPlayer.id, Team.SPECTATORS);
-        room.sendAnnouncement(
-            `${changedPlayer.name} АФК!`,
-            byPlayer.id,
-            Color.GR_RED,
-            "small",
-            HaxNotification.MENTION
-        )
-        return
-    }
-    state.inactivityTicks[changedPlayer.id] = 0
-    state.queue[state.queue.findIndex((p) => p[0] == changedPlayer.id)][1] = 0
-    if (changedPlayer.team != Team.SPECTATORS && byPlayer == null) {
-        room.sendAnnouncement(
-            `@${changedPlayer.name} ты в игре!`,
-            changedPlayer.id,
-            Color.WH_BLUE,
-            "bold",
-            HaxNotification.MENTION
-        )
-    }
-}
-
-return {
-    onPlayerJoin,
-    onPlayerLeave,
-    onPlayerKicked,
-    onPlayerTeamChange
-}
-
+    return {
+        onPlayerJoin,
+        onPlayerLeave,
+        onPlayerKicked,
+        onPlayerTeamChange
+    };
 };

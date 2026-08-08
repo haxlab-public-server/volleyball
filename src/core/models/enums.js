@@ -2,9 +2,8 @@ const Role = {
     PLAYER: 0, 
     VIP: 1, 
     PREADMIN: 2, 
-    ADMIN: 3, 
-    VIPADMIN: 4, 
-    MASTER: 5 
+    ADMIN: 3,  
+    MASTER: 4
 };
 
 const RoleString = {
@@ -12,7 +11,6 @@ const RoleString = {
     "vip": Role.VIP,
     "preadmin": Role.PREADMIN,
     "admin": Role.ADMIN,
-    "vipadmin": Role.VIPADMIN,
     "master": Role.MASTER,
 };
 

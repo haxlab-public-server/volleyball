@@ -422,7 +422,6 @@ Object.assign(room, wrapEventHandlers(createActivityEvents({
     commands,
     getTeamArray,
     sendAnnouncementTeam,
-    getActTime,
     getChatColor,
     teamChatCommand,
     defaultTeamSize,

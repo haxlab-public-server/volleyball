@@ -15,146 +15,143 @@ module.exports = function createUpdatesUtils({
     maxPlayers,
     vipSlots
 }) {
+    function getActivePlayers() {
+        return room.getPlayerList().filter(
+            p => state.afkList.findIndex(a => a[0] === p.id) === -1
+        );
+    }
 
-function updateTeamSize() {
-    if (!state.training_mode && state.mode == Mods.PUBLIC) {
-        if (room.getPlayerList().filter((p) => state.afkList.findIndex((i) => i[0] == p.id) == -1).length >= upTeamSizePlayers) {
-            state.teamSize = defaultTeamSize + 1
-        } else {
-            state.teamSize = defaultTeamSize
+    function updateTeamSize() {
+        if (state.training_mode || state.mode !== Mods.PUBLIC) return;
+
+        state.teamSize = getActivePlayers().length >= upTeamSizePlayers
+            ? defaultTeamSize + 1
+            : defaultTeamSize;
+    }
+
+    function updateTeams() {
+        if (state.mode !== Mods.PUBLIC || state.training_mode) return;
+
+        const red = getTeamArray(Team.RED);
+        const blue = getTeamArray(Team.BLUE);
+        const specs = getTeamArray(Team.SPECTATORS);
+        const scores = room.getScores();
+        const activeCount = getActivePlayers().length;
+
+        if (red.length !== blue.length && specs.length > 0 && scores != null) {
+            const targetTeam = red.length < blue.length ? Team.RED : Team.BLUE;
+            room.setPlayerTeam(specs[0].id, targetTeam);
+        }
+        else if (
+            red.length === blue.length &&
+            blue.length < state.game.teamSize &&
+            specs.length >= 2 &&
+            scores != null
+        ) {
+            room.setPlayerTeam(specs[0].id, Team.RED);
+            room.setPlayerTeam(getTeamArray(Team.SPECTATORS)[0].id, Team.BLUE);
+        }
+
+        if (activeCount <= 1 || red.length === 0 || blue.length === 0) {
+            room.stopGame();
+        }
+
+        if (activeCount >= 2 && scores == null) {
+            randomizeTeams();
         }
     }
-}
 
-function updateTeams() {
-    if (state.mode == Mods.PUBLIC && !state.training_mode) {
-        if (getTeamArray(Team.RED).length != getTeamArray(Team.BLUE).length && getTeamArray(Team.SPECTATORS).length > 0 && room.getScores() != null) {
-            room.setPlayerTeam(getTeamArray(Team.SPECTATORS)[0].id, getTeamArray(Team.RED).length < getTeamArray(Team.BLUE).length ? Team.RED : Team.BLUE)
-        } else if (getTeamArray(Team.RED).length == getTeamArray(Team.BLUE).length && getTeamArray(Team.BLUE).length < state.game.teamSize && getTeamArray(Team.SPECTATORS).length >= 2 && room.getScores() != null) {
-            room.setPlayerTeam(getTeamArray(Team.SPECTATORS)[0].id, Team.RED)
-            room.setPlayerTeam(getTeamArray(Team.SPECTATORS)[0].id, Team.BLUE)
-        }
-        if (room.getPlayerList().filter((p) => state.afkList.findIndex((i) => i[0] == p.id) == -1).length <= 1) {
-            room.stopGame()
-        }
-        if (getTeamArray(Team.RED).length == 0 || getTeamArray(Team.BLUE).length == 0) {
-            room.stopGame()
-        }
-        if (room.getPlayerList().filter((p) => state.afkList.findIndex((i) => i[0] == p.id) == -1).length >= 2 && room.getScores() == null) {
-            randomizeTeams()
-        }
-    }
-    
-}
+    function randomizeTeams() {
+        if (state.randomize_sit) return;
 
-function randomizeTeams() {
-    if (state.randomize_sit == false) {
-        state.randomize_sit = true
+        state.randomize_sit = true;
+
         room.sendAnnouncement(
             `⚖️ Рандомизация команд...`,
             null,
             Color.GR_GREEN,
-            "small",
+            'small',
             HaxNotification.NONE
-        )
+        );
+
         setTimeout(() => {
-            var p_team = Team.RED
-            queue_Arr = []
-            for (var b of state.queue) {
-                if (b[1] >= queueMatches) {
-                    queue_Arr.push(b)
-                }
-            }
-            queue_Arr.sort(function (a, b) {
-                return b[1] - a[1];
-            });
-            var plrArr = getTeamArray(Team.SPECTATORS)
-            var vips = plrArr.filter(g => vipQueueRoles.includes(getRole(g)) == true)
+            const needed = state.teamSize * 2;
+            const specs = getTeamArray(Team.SPECTATORS);
+
+            let priorityQueue = state.queue
+                .filter(([, missed]) => missed >= queueMatches)
+                .sort((a, b) => b[1] - a[1]);
+
+            const vips = specs.filter(p => vipQueueRoles.includes(getRole(p)));
             if (vips.length > 0) {
-                var vipsQueue = []
-                for (g of vips) {
-                    let index = state.queue.findIndex(l => l[0] == g.id)
-                    vipsQueue.push(state.queue[index])
-                }
-                vipsQueue.sort(function (a, b) {
-                    return b[1] - a[1];
-                });
-                if (state.teamSize <= 2) {
-                    var numik = 1
-                } else {
-                    var numik = 2
-                }
-                for (var m = 0; m < numik; m++) {
-                    var index_in_q = queue_Arr.findIndex(k => k[0] == vipsQueue[m][0])
-                    if (index_in_q != -1) {
-                        queue_Arr.splice(index_in_q, 1)
-                        queue_Arr.unshift(vipsQueue[m])
-                    } else {
-                        queue_Arr.unshift(vipsQueue[m])
-                    }
+                const vipLimit = state.teamSize <= 2 ? 1 : 2;
+
+                const vipQueue = vips
+                    .map(p => state.queue.find(q => q[0] === p.id))
+                    .filter(Boolean)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, vipLimit);
+
+                for (const vip of vipQueue) {
+                    const idx = priorityQueue.findIndex(q => q[0] === vip[0]);
+                    if (idx !== -1) priorityQueue.splice(idx, 1);
+                    priorityQueue.unshift(vip);
                 }
             }
-            if (plrArr.length < state.teamSize*2) {
-                if ((state.teamSize*2 - plrArr.length) % 2 == 1) {
-                    var fault = (state.teamSize*2 - plrArr.length + queue_Arr.length) + 1
-                } else {
-                    var fault = state.teamSize*2 - plrArr.length + queue_Arr.length
-                }
-            } else if (queue_Arr.length > 0 && queue_Arr.length < state.teamSize * 2) {
-                var fault = queue_Arr.length
-            } else if (queue_Arr.length  >= state.teamSize * 2) {
-                var fault = state.teamSize * 2
+
+            let fromQueue;
+            if (specs.length < needed) {
+                const gap = needed - specs.length + priorityQueue.length;
+                fromQueue = gap % 2 === 1 ? gap + 1 : gap;
+            } else if (priorityQueue.length > 0 && priorityQueue.length < needed) {
+                fromQueue = priorityQueue.length;
+            } else if (priorityQueue.length >= needed) {
+                fromQueue = needed;
             } else {
-                var fault = 0
+                fromQueue = 0;
             }
-            var nums = []
-            if (queue_Arr.length <= state.teamSize * 2) {
-                for (var g of queue_Arr) {
-                    nums.push(g[0])
-                }
-            } else {
-                for (var g = 0; g < (state.teamSize * 2); g++) {
-                    nums.push(queue_Arr[g][0])
-                }
-            }
-            arr = getTeamArray(Team.SPECTATORS).filter((n) => nums.findIndex((j) => j == n.id) == -1)
-            if (fault != state.teamSize * 2) {
-                for (var v = 0; v < (state.teamSize * 2) - fault; v++) {
-                    var number = getRandomInt(0, arr.length)
-                    nums.push(arr[number].id)
-                    arr.splice(number, 1)
+
+            const selectedIds = priorityQueue
+                .slice(0, Math.min(priorityQueue.length, needed))
+                .map(([id]) => id);
+
+            let remaining = specs.filter(p => !selectedIds.includes(p.id));
+
+            if (fromQueue !== needed) {
+                const toFill = needed - fromQueue;
+                for (let i = 0; i < toFill && remaining.length > 0; i++) {
+                    const idx = getRandomInt(0, remaining.length);
+                    selectedIds.push(remaining[idx].id);
+                    remaining.splice(idx, 1);
                 }
             }
-            var len = nums.length
-            for (var i = 0; i < len; i++) {
-                var num = getRandomInt(0, nums.length)
-                room.setPlayerTeam(nums[num], p_team)
-                nums.splice(num, 1)
-                if (p_team == Team.RED) {
-                    p_team = Team.BLUE
-                } else {
-                    p_team = Team.RED
-                }
+
+            let nextTeam = Team.RED;
+            while (selectedIds.length > 0) {
+                const idx = getRandomInt(0, selectedIds.length);
+                room.setPlayerTeam(selectedIds[idx], nextTeam);
+                selectedIds.splice(idx, 1);
+                nextTeam = nextTeam === Team.RED ? Team.BLUE : Team.RED;
             }
-            room.startGame()
-        }, 3000)
+
+            room.startGame();
+        }, 3000);
     }
-}
 
-function updateVipSlots() {
-    var players = room.getPlayerList()
-    if (players.length >= maxPlayers - vipSlots) {
-        room.setPassword(`${state.vipPassword}`)
-    } else {
-        room.setPassword(state.roomPassword != '' ? state.roomPassword : null);
+    function updateVipSlots() {
+        const players = room.getPlayerList();
+
+        if (players.length >= maxPlayers - vipSlots) {
+            room.setPassword(`${state.vipPassword}`);
+        } else {
+            room.setPassword(state.roomPassword !== '' ? state.roomPassword : null);
+        }
     }
-}
 
-return {
-    updateTeamSize,
-    updateTeams,
-    randomizeTeams,
-    updateVipSlots
-}
-
+    return {
+        updateTeamSize,
+        updateTeams,
+        randomizeTeams,
+        updateVipSlots
+    };
 };

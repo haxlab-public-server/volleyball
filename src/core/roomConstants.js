@@ -15,8 +15,7 @@ const upTeamSizePlayers = 10
 const vipSlots = 2
 const GhostKick = true
 const vipQueueRoles = [
-    Role.VIP, Role.PREADMIN, 
-    Role.VIPADMIN, Role.MASTER
+    Role.VIP, Role.PREADMIN, Role.MASTER
 ]
 
 const HAXBALL_TOKEN_LENGTH = 39;
