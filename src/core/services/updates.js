@@ -150,24 +150,24 @@ module.exports = function createUpdatesUtils({
                 rest.splice(idx, 1); 
             } 
 
-            if (isWinstay) { 
-                for (const id of selectedIds) { 
-                    room.setPlayerTeam(id, Team.BLUE); 
-                } 
-            } { 
-                for (let i = selectedIds.length - 1; i > 0; i--) { 
-                    const j = getRandomInt(0, i); 
-                    [selectedIds[i], selectedIds[j]] = [selectedIds[j], selectedIds[i]]; 
-                } 
-                const half = selectedIds.length / 2; 
-                for (let i = 0; i < selectedIds.length; i++) { 
-                    room.setPlayerTeam( 
-                        selectedIds[i], 
-                        i < half ? Team.RED : Team.BLUE 
-                    ); 
-                } 
+            if (isWinstay) {
+                for (const id of selectedIds) {
+                    room.setPlayerTeam(id, Team.BLUE);
+                }
+            } else { 
+                for (let i = selectedIds.length - 1; i > 0; i--) {
+                    const j = getRandomInt(0, i);
+                    [selectedIds[i], selectedIds[j]] = [selectedIds[j], selectedIds[i]];
+                }
+                
+                const half = selectedIds.length / 2;
+                for (let i = 0; i < selectedIds.length; i++) {
+                    room.setPlayerTeam(
+                        selectedIds[i],
+                        i < half ? Team.RED : Team.BLUE
+                    );
+                }
             }
-
 
             room.startGame();
         }, 3000);
