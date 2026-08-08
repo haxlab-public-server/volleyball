@@ -82,7 +82,7 @@ module.exports = function createUpdatesUtils({
 
         setTimeout(() => {
             const specs = getTeamArray(Team.SPECTATORS);
-            const isWinstay = state.winstay_mode && specs.length >= state.teamSize;
+            const isWinstay = state.winstay_mode && state.winstay.streak > 0 && specs.length >= state.teamSize;
 
             let takeCount;
             if (isWinstay) {
