@@ -30,6 +30,14 @@ module.exports = function createMasterCommands({
         return Number.isInteger(id) && id >= 0 ? id : null;
     }
 
+    const ROLE_NAMES = {
+        [Role.MASTER]: 'Создатель',
+        [Role.ADMIN]: 'Администратор',
+        [Role.PREADMIN]: 'Мл. Администратор',
+        [Role.VIP]: 'VIP',
+        [Role.PLAYER]: 'игрок'
+    };
+
     function passwordCommand(player, message) {
         const args = message.split(/ +/).slice(1);
 
@@ -462,10 +470,10 @@ module.exports = function createMasterCommands({
         const displayName = target.name ?? target.auth;
 
         room.sendAnnouncement(
-            `${displayName} теперь ${roleName}${timeStr}`,
-            player.id,
+            `${displayName} теперь ${ROLE_NAMES[RoleString[roleName]]}${timeStr}!`,
+            null,
             Color.RED,
-            'small',
+            'bold',
             HaxNotification.CHAT
         );
     }
