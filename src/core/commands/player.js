@@ -364,22 +364,12 @@ module.exports = function createPlayerCommands({
 
     function topsCommand(player, message) {
         const args = message.split(/ +/).slice(1);
+        const validTops = [...Object.keys(TOPS), 'all'];
+        const top = args[0]?.toLowerCase();
 
-        if (args.length === 0) {
+        if (!top || !validTops.includes(top)) {
             room.sendAnnouncement(
-                `Некорректный топ: "games", "wins", "goals", "blocks", "assists", "aces", "time"\nПример - !tops goals`,
-                player.id,
-                Color.GR_RED,
-                'small',
-                HaxNotification.CHAT
-            );
-            return;
-        }
-
-        const top = args[0].toLowerCase();
-        if (!(top in TOPS)) {
-            room.sendAnnouncement(
-                `Некорректный топ: "games", "wins", "goals", "blocks", "assists", "aces", "time"\nПример - !tops goals`,
+                `Некорректный топ: ${validTops.map(t => `"${t}"`).join(', ')}\nПример - !tops <топ> <кол-во> / !tops all <кол-во> - чтобы вывести все топы`,
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -391,7 +381,7 @@ module.exports = function createPlayerCommands({
         let len = 10;
         if (args.length >= 2) {
             len = Number(args[1]);
-            if (len < 5 || len > 50) {
+            if (isNaN(len) || len < 5 || len > 50) {
                 room.sendAnnouncement(
                     `Некорректная длина топа, min: 5 max: 50`,
                     player.id,
@@ -417,15 +407,29 @@ module.exports = function createPlayerCommands({
             return;
         }
 
-        list.sort((a, b) => b[TOPS[top]] - a[TOPS[top]]);
+        const buildTopLines = (statKey) => {
+            const sorted = [...list].sort((a, b) => b[TOPS[statKey]] - a[TOPS[statKey]]);
+            return sorted.slice(0, len).map((s, i) => {
+                const value = statKey === 'time' ? getStatTime(s[TOPS[statKey]]) : s[TOPS[statKey]];
+                return `${i + 1}. ${s[0]} (${value})`;
+            });
+        };
 
-        const lines = list.slice(0, len).map((s, i) => {
-            const value = top === 'time' ? getStatTime(s[TOPS[top]]) : s[TOPS[top]];
-            return `${i + 1}. ${s[0]} (${value})`;
-        });
+        if (top === 'all') {
+            for (const t of Object.keys(TOPS)) {
+                room.sendAnnouncement(
+                    `${t} - ${buildTopLines(t).join(' ')}`,
+                    player.id,
+                    Color.WH_BLUE,
+                    'small',
+                    HaxNotification.CHAT
+                );
+            }
+            return;
+        }
 
         room.sendAnnouncement(
-            `${top} - ${lines.join(' ')}`,
+            `${top} - ${buildTopLines(top).join(' ')}`,
             player.id,
             Color.WH_BLUE,
             'small',

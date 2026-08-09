@@ -213,6 +213,13 @@ function createDb(dbPath) {
         writer(JSON.parse(jsonString));
     }
 
+    function addMaster(auth) {
+        const row = db.prepare('SELECT auth, nickname, role, date, discord, chat_color FROM accounts WHERE auth = ?').get(auth);
+        if (!row) return false;
+        db.prepare('UPDATE accounts SET role = ? WHERE auth = ?').run('master', auth);
+        return true;
+    }
+
     function snapshot() {
         const result = {};
         for (const filename of Object.keys(READERS)) {
@@ -225,7 +232,7 @@ function createDb(dbPath) {
         db.close();
     }
 
-    return { exists, readFile, writeFile, snapshot, close };
+    return { addMaster, exists, readFile, writeFile, snapshot, close };
 }
 
 module.exports = { createDb };
