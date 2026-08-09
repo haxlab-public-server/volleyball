@@ -5,7 +5,8 @@
   "description": "volleyball public haxball room",
   "main": "main.js",
   "scripts": {
-    "start": "node main.js"
+    "start": "node main.js",
+    "migrate": "node scripts/migrate-json-to-sqlite.js"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
