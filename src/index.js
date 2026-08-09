@@ -1,20 +1,16 @@
 const path = require('node:path');
-const fs = require('node:fs'); // TODO: migrate from fs to sqlite in the future
 const puppeteer = require('puppeteer');
 const esbuild = require('esbuild');
 
+const { createDb } = require('../db/sqlite');
 const { roomPassword, token, replayWebhookUrl, vipWebhookUrl, logWebhookUrl, reportWebhookUrl } = require('./core/config');
 
-// TODO: migrate from fs to sqlite in the future
 const projectRoot = path.resolve(__dirname, '..');
-const jsonsDir = path.join(projectRoot, 'jsons');
-const defaultJsonObjectFiles = new Set(['accounts.json', 'stats.json', 'nicknames.json']);
-const defaultJsonArrayFiles = new Set(['mutes.json', 'bans.json', 'auths.json']);
+const db = createDb(path.join(projectRoot, 'db', 'volleyball.sqlite'));
 
 /*
 NOTE:
-In the project, the data is saved in JSON files next to the repository.
-These files are read/written through the fs wrapper and then get into the browser snapshot.
+The data is persisted in a sqlite database (db/volleyball.sqlite).
 
 accounts.json — object based on the player's auth ID:
 {
@@ -75,127 +71,23 @@ stats.json — object with statistics by auth:
 }
 */
 
-// TODO: migrate from fs to sqlite in the future
-function collectJsonFilesFromDisk(rootDir) {
-    const snapshot = {};
-    const sourceRoot = fs.existsSync(path.join(rootDir, 'jsons')) ? path.join(rootDir, 'jsons') : rootDir;
-    const queue = [sourceRoot];
-
-    while (queue.length > 0) {
-        const currentDir = queue.pop();
-        const entries = fs.readdirSync(currentDir, { withFileTypes: true });
-
-        for (const entry of entries) {
-            const fullPath = path.join(currentDir, entry.name);
-
-            if (entry.isDirectory()) {
-                if (entry.name === 'node_modules' || entry.name === '.git') continue;
-                queue.push(fullPath);
-            } else if (entry.isFile() && entry.name.endsWith('.json')) {
-                const relPath = path.relative(sourceRoot, fullPath).split(path.sep).join('/');
-                snapshot[relPath || entry.name] = fs.readFileSync(fullPath, 'utf8');
-            }
-        }
-    }
-
-    return snapshot;
-}
-
-// TODO: migrate from fs to sqlite in the future
-function resolveJsonFilePath(filePath) {
-    const normalizedPath = normalizeFsPath(filePath);
-    const relativePath = normalizedPath.replace(/^\/+/, '');
-    return path.join(jsonsDir, relativePath);
-}
-
-// TODO: migrate from fs to sqlite in the future
 function normalizeFsPath(filePath) {
     if (!filePath) return '';
-    return String(filePath).replace(/\\/g, '/');
+    return String(filePath).replace(/\\/g, '/').split('/').pop();
 }
 
-// TODO: migrate from fs to sqlite in the future
-function getDefaultJsonContent(filePath) {
-    const normalizedPath = normalizeFsPath(filePath);
-    const fileName = normalizedPath.split('/').pop() || '';
-    const lowerFileName = fileName.toLowerCase();
-
-    if ([...defaultJsonObjectFiles].some((name) => name.toLowerCase() === lowerFileName)) return '{}';
-    if ([...defaultJsonArrayFiles].some((name) => name.toLowerCase() === lowerFileName)) return '[]';
-
-    const arrayLikeTerms = ['mute', 'bans', 'ban', 'auth', 'list', 'items', 'entries', 'queue', 'history'];
-    if (arrayLikeTerms.some((term) => lowerFileName.includes(term))) return '[]';
-
-    return '{}';
-}
-
-// TODO: migrate from fs to sqlite in the future
-function ensureDefaultJsonFile(filePath) {
-    const resolvedPath = resolveJsonFilePath(filePath);
-    if (fs.existsSync(resolvedPath)) return false;
-
-    const defaultContent = getDefaultJsonContent(filePath);
-    fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
-    fs.writeFileSync(resolvedPath, defaultContent, 'utf8');
-    return true;
-}
-
-// TODO: migrate from fs to sqlite in the future
-function initializeDefaultJsonFiles() {
-    const filesToEnsure = [
-        'accounts.json',
-        'bans.json',
-        'mutes.json',
-        'nicknames.json',
-        'auths.json',
-        'stats.json',
-    ];
-
-    fs.mkdirSync(jsonsDir, { recursive: true });
-    for (const fileName of filesToEnsure) {
-        ensureDefaultJsonFile(fileName);
-    }
-}
-
-// TODO: migrate from fs to sqlite in the future
 async function handleFsCall(method, args) {
     const bridge = {
-        readFileSync(filePath, encoding) {
-            const resolvedPath = resolveJsonFilePath(filePath);
-            if (fs.existsSync(resolvedPath)) {
-                return fs.readFileSync(resolvedPath, encoding);
-            }
-            if (String(filePath).endsWith('.json')) {
-                ensureDefaultJsonFile(filePath);
-                return fs.readFileSync(resolveJsonFilePath(filePath), encoding);
-            }
-            return '';
+        readFileSync(filePath) {
+            const filename = normalizeFsPath(filePath);
+            return db.readFile(filename) ?? '{}';
         },
-        writeFileSync(filePath, data, encoding) {
-            const resolvedPath = resolveJsonFilePath(filePath);
-            fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
-            return fs.writeFileSync(resolvedPath, data, encoding);
+        writeFileSync(filePath, data) {
+            const filename = normalizeFsPath(filePath);
+            db.writeFile(filename, data);
         },
         existsSync(filePath) {
-            const resolvedPath = resolveJsonFilePath(filePath);
-            if (fs.existsSync(resolvedPath)) return true;
-            if (String(filePath).endsWith('.json')) {
-                ensureDefaultJsonFile(filePath);
-                return fs.existsSync(resolvedPath);
-            }
-            return false;
-        },
-        mkdirSync(filePath, options) {
-            const resolvedPath = resolveJsonFilePath(filePath);
-            return fs.mkdirSync(resolvedPath, options);
-        },
-        statSync(filePath) {
-            const resolvedPath = resolveJsonFilePath(filePath);
-            return fs.statSync(resolvedPath);
-        },
-        readdirSync(filePath, options) {
-            const resolvedPath = resolveJsonFilePath(filePath);
-            return fs.readdirSync(resolvedPath, options);
+            return db.exists(normalizeFsPath(filePath));
         },
     };
 
@@ -238,9 +130,7 @@ async function launchRoom() {
 
     const newPage = await browser.newPage();
 
-    // TODO: migrate from fs to sqlite in the future
-    initializeDefaultJsonFiles();
-    const jsonSnapshot = collectJsonFilesFromDisk(projectRoot); 
+    const jsonSnapshot = db.snapshot();
     await newPage.exposeFunction('__fsCall', handleFsCall);
 
     newPage.on('console', (msg) => {
@@ -256,90 +146,28 @@ async function launchRoom() {
         window.__secrets = secrets;
     }, { token, roomPassword, replayWebhookUrl, vipWebhookUrl, logWebhookUrl, reportWebhookUrl });
 
-    // TODO: migrate from fs to sqlite in the future
-    await newPage.evaluate(({ snapshot, objectDefaults, arrayDefaults }) => {
+    await newPage.evaluate((snapshot) => {
         const normalizeFsPath = (filePath) => {
             if (!filePath) return '';
-            return String(filePath).replace(/\\/g, '/');
-        };
-
-        const getDefaultJsonContent = (filePath) => {
-            const normalizedPath = normalizeFsPath(filePath);
-            const fileName = normalizedPath.split('/').pop() || '';
-
-            if (objectDefaults.includes(fileName)) return '{}';
-            if (arrayDefaults.includes(fileName)) return '[]';
-
-            return '{}';
-        };
-
-        const createDefaultJsonFile = (filePath) => {
-            const normalizedPath = normalizeFsPath(filePath);
-            const defaultContent = getDefaultJsonContent(filePath);
-            if (window.__fsState) {
-                window.__fsState[normalizedPath] = defaultContent;
-            }
-            if (typeof window.__fsCall === 'function') {
-                window.__fsCall('writeFileSync', [filePath, defaultContent, 'utf8']);
-            }
-            return defaultContent;
+            return String(filePath).replace(/\\/g, '/').split('/').pop();
         };
 
         window.__fsState = snapshot || {};
         window.__fs = {
-            readFileSync(filePath, encoding) {
-                const normalizedPath = normalizeFsPath(filePath);
-                if (window.__fsState && Object.prototype.hasOwnProperty.call(window.__fsState, normalizedPath)) {
-                    return window.__fsState[normalizedPath];
-                }
-                if (String(filePath).endsWith('.json')) {
-                    return createDefaultJsonFile(filePath);
-                }
-                return '';
+            readFileSync(filePath) {
+                const filename = normalizeFsPath(filePath);
+                return window.__fsState[filename] ?? '{}';
             },
             writeFileSync(filePath, data, encoding) {
-                const normalizedPath = normalizeFsPath(filePath);
-                if (window.__fsState) {
-                    window.__fsState[normalizedPath] = data;
-                }
-                if (typeof window.__fsCall === 'function') {
-                    window.__fsCall('writeFileSync', [filePath, data, encoding]);
-                }
+                const filename = normalizeFsPath(filePath);
+                window.__fsState[filename] = data;
+                window.__fsCall('writeFileSync', [filePath, data, encoding]);
             },
             existsSync(filePath) {
-                const normalizedPath = normalizeFsPath(filePath);
-                if (window.__fsState && Object.prototype.hasOwnProperty.call(window.__fsState, normalizedPath)) {
-                    return true;
-                }
-                if (String(filePath).endsWith('.json')) {
-                    createDefaultJsonFile(filePath);
-                    return true;
-                }
-                return false;
-            },
-            mkdirSync(filePath) {
-                if (typeof window.__fsCall === 'function') {
-                    window.__fsCall('mkdirSync', [filePath]);
-                }
-            },
-            statSync(filePath) {
-                if (typeof window.__fsCall === 'function') {
-                    return window.__fsCall('statSync', [filePath]);
-                }
-                return null;
-            },
-            readdirSync(filePath, options) {
-                if (typeof window.__fsCall === 'function') {
-                    return window.__fsCall('readdirSync', [filePath, options]);
-                }
-                return [];
+                return normalizeFsPath(filePath) in window.__fsState;
             },
         };
-    }, {
-        snapshot: jsonSnapshot,
-        objectDefaults: Array.from(defaultJsonObjectFiles),
-        arrayDefaults: Array.from(defaultJsonArrayFiles),
-    });
+    }, jsonSnapshot);
 
     const bundle = await buildEntryBundle();
     await newPage.addScriptTag({ content: bundle });
