@@ -12,7 +12,8 @@ module.exports = function createMasterCommands({
     RoleString,
     Mods,
     Color,
-    HaxNotification
+    HaxNotification,
+    defaultTeamSize
 }) {
     function loadJson(filename) {
         // TODO: migrate from fs to sqlite in the future
@@ -602,6 +603,7 @@ module.exports = function createMasterCommands({
                 streak: 0,
                 team: [],
             }
+            state.teamSize = defaultTeamSize;
 
             room.sendAnnouncement(
                 `Режим winstay включён - ${player.name}`,

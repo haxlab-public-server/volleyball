@@ -17,7 +17,8 @@ module.exports = function createIntervals({
     Mods,
     Color,
     HaxNotification,
-    updateVipSlots
+    updateVipSlots,
+    updateBallColor
 }) {
     function loadJson(filename) {
         // TODO: migrate from fs to sqlite in the future
@@ -139,6 +140,7 @@ module.exports = function createIntervals({
                 state.serveBall = false;
                 resetBallKick();
             }
+            updateBallColor();
             return;
         }
 
@@ -154,20 +156,12 @@ module.exports = function createIntervals({
                 state.saveBall = false;
                 resetBallKick();
             }
+            updateBallColor();
             return;
         }
 
-        if (!state.goal_sit && state.lastTouches[0] != null) {
-            const lastTeam = state.lastTouches[0][2];
-
-            if (
-                (ballPos.x > 0.1 && lastTeam === Team.RED) ||
-                (ballPos.x < -0.1 && lastTeam === Team.BLUE)
-            ) {
-                state.ball_color = 0xffffff;
-                room.setDiscProperties(0, { color: state.ball_color });
-            }
+        if (!state.goal_sit) {
+            updateBallColor();
         }
-
     }, 50);
 };

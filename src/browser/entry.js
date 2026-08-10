@@ -123,7 +123,8 @@ const {
     getConn,
     getID,
     getTeamArray,
-    ballSpawner
+    ballSpawner,
+    updateBallColor
 } = createRoomUtils({
     room,
     state,
@@ -198,7 +199,8 @@ createIntervals({
     Mods,
     Color,
     HaxNotification,
-    updateVipSlots
+    updateVipSlots,
+    updateBallColor
 })
 
 const createChatHelpers = require('../core/services/chat');
@@ -342,7 +344,8 @@ const {
     RoleString,
     Mods,
     Color,
-    HaxNotification
+    HaxNotification,
+    defaultTeamSize
 })
 
 /* Commands init */
@@ -438,7 +441,8 @@ Object.assign(room, wrapEventHandlers(createActivityEvents({
     Mods,
     Color,
     HaxNotification,
-    discordBot
+    discordBot,
+    updateBallColor
 })));
 
 /* Game events */
