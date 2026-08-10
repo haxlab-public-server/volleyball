@@ -119,13 +119,29 @@ module.exports = function createActivityEvents({
         const style = chatColor != null ? 'bold' : null;
 
         const allPlayers = room.getPlayerList();
-        const mentionedIds = new Set();
+        const preAdmins = allPlayers.filter(p => getRole(p) >= Role.PREADMIN);
+        const normals   = allPlayers.filter(p => getRole(p) < Role.PREADMIN);
 
-        if (getRole(player) >= Role.ADMIN && /@all\b/i.test(message)) {
-            for (const p of allPlayers) {
-                mentionedIds.add(p.id);
-            }
+        const isAllMention = getRole(player) >= Role.ADMIN && /@all\b/i.test(message);
+
+        if (isAllMention) {
+            sendAnnouncementTeam(
+                `${displayName} (${player.id}): ${message}`,
+                preAdmins,
+                chatColor,
+                'bold',
+                HaxNotification.MENTION
+            );
+
+            sendAnnouncementTeam(
+                `${displayName}: ${message}`,
+                normals,
+                chatColor,
+                'bold',
+                HaxNotification.MENTION
+            );
         } else {
+            const mentionedIds = new Set();
             const mentionRegex = /@([^\s@]+)/gi;
             let match;
             while ((match = mentionRegex.exec(message)) !== null) {
@@ -136,41 +152,38 @@ module.exports = function createActivityEvents({
                     mentionedIds.add(target.id);
                 }
             }
-        }
 
-        const preAdmins = allPlayers.filter(p => getRole(p) >= Role.PREADMIN);
-        const normals   = allPlayers.filter(p => getRole(p) < Role.PREADMIN);
+            for (const id of mentionedIds) {
+                const isAdmin = preAdmins.some(p => p.id === id);
+                const text = isAdmin
+                    ? `${displayName} (${player.id}): ${message}`
+                    : `${displayName}: ${message}`;
 
-        for (const id of mentionedIds) {
-            const isAdmin = preAdmins.some(p => p.id === id);
-            const text = isAdmin
-                ? `${displayName} (${player.id}): ${message}`
-                : `${displayName}: ${message}`;
+                room.sendAnnouncement(text, id, chatColor, 'bold', HaxNotification.MENTION);
+            }
 
-            room.sendAnnouncement(text, id, chatColor, 'bold', HaxNotification.MENTION);
-        }
+            const nonMentionedAdmins  = preAdmins.filter(p => !mentionedIds.has(p.id));
+            const nonMentionedNormals = normals.filter(p => !mentionedIds.has(p.id));
 
-        const nonMentionedAdmins  = preAdmins.filter(p => !mentionedIds.has(p.id));
-        const nonMentionedNormals = normals.filter(p => !mentionedIds.has(p.id));
+            if (nonMentionedAdmins.length > 0) {
+                sendAnnouncementTeam(
+                    `${displayName} (${player.id}): ${message}`,
+                    nonMentionedAdmins,
+                    chatColor,
+                    style,
+                    HaxNotification.CHAT
+                );
+            }
 
-        if (nonMentionedAdmins.length > 0) {
-            sendAnnouncementTeam(
-                `${displayName} (${player.id}): ${message}`,
-                nonMentionedAdmins,
-                chatColor,
-                style,
-                HaxNotification.CHAT
-            );
-        }
-
-        if (nonMentionedNormals.length > 0) {
-            sendAnnouncementTeam(
-                `${displayName}: ${message}`,
-                nonMentionedNormals,
-                chatColor,
-                style,
-                HaxNotification.CHAT
-            );
+            if (nonMentionedNormals.length > 0) {
+                sendAnnouncementTeam(
+                    `${displayName}: ${message}`,
+                    nonMentionedNormals,
+                    chatColor,
+                    style,
+                    HaxNotification.CHAT
+                );
+            }
         }
 
         return false;
