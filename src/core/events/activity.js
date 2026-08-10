@@ -125,8 +125,11 @@ module.exports = function createActivityEvents({
         let match;
         while ((match = mentionRegex.exec(message)) !== null) {
             const name = match[1].toLowerCase();
-            const target = allPlayers.find(p => p.name.toLowerCase() === name);
-            if (target) mentionedIds.add(target.id);
+            const targets = allPlayers.filter(p => p.name.toLowerCase() === name);
+
+            for (const target of targets) {
+                mentionedIds.add(target.id);
+            }
         }
 
         const preAdmins = allPlayers.filter(p => getRole(p) >= Role.PREADMIN);
@@ -169,6 +172,11 @@ module.exports = function createActivityEvents({
 
     function onPlayerBallKick(player) {
         const ballPos = room.getBallPosition();
+
+        if (state.waitingForServe) {
+            state.waitingForServe = false;
+        }
+
         const teamColor = getTeamColor(player.team);
         const enemyColor = getEnemyColor(player.team);
 

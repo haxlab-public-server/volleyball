@@ -183,10 +183,54 @@ module.exports = function createUpdatesUtils({
         }
     }
 
+    function updateBallColor() {
+        if (state.goal_sit) return;
+
+        if (state.waitingForServe) {
+            room.setDiscProperties(0, { color: state.ball_color });
+            return;
+        }
+
+        let color = 0xffffff;
+
+        if (state.serveBall) {
+            color = 0x42f5d4;
+        } else if (state.saveBall) {
+            color = 0x03fc45;
+        } else if (state.touches === 1) {
+            color = 0xe0ca48;
+        } else if (state.touches === 2) {
+            color = 0xcc2929;
+        }
+
+        if (
+            state.lastTouches[0] != null &&
+            !state.serveBall &&
+            !state.saveBall
+        ) {
+            const lastTeam = state.lastTouches[0][2];
+            const ballPos = room.getBallPosition();
+
+            const onEnemySide =
+                (lastTeam === Team.RED  && (ballPos.x > 0.1 || (ballPos.y >= 68 && ballPos.x >= 0))) ||
+                (lastTeam === Team.BLUE && (ballPos.x < -0.1 || (ballPos.y >= 68 && ballPos.x <= 0)));
+
+            if (onEnemySide) {
+                color = 0xffffff;
+            }
+        }
+
+        if (state.ball_color !== color) {
+            state.ball_color = color;
+            room.setDiscProperties(0, { color });
+        }
+    }
+
     return {
         updateTeamSize,
         updateTeams,
         randomizeTeams,
-        updateVipSlots
+        updateVipSlots,
+        updateBallColor
     };
 };

@@ -179,6 +179,7 @@ module.exports = function createGameEvents({
 
         state.ball_color = color;
         state.serve = team;
+        state.waitingForServe = true;
     }
 
     function onPositionsReset() {
@@ -242,6 +243,7 @@ module.exports = function createGameEvents({
         state.touches = 0;
         state.game = new Game(state.teamSize);
         state.serve = Team.BLUE;
+        state.waitingForServe = true;
 
         room.setDiscProperties(0, { color: state.ball_color });
 

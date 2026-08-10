@@ -86,6 +86,7 @@ state.training_interval;
 state.scores = null;
 state.saveBall = false
 state.serveBall = false
+state.waitingForServe = true;
 state.newMatchPoint = 0
 state.afkList = []
 state.randomize_sit = false
@@ -123,8 +124,7 @@ const {
     getConn,
     getID,
     getTeamArray,
-    ballSpawner,
-    updateBallColor
+    ballSpawner
 } = createRoomUtils({
     room,
     state,
@@ -162,7 +162,8 @@ const {
     updateTeamSize,
     updateTeams,
     randomizeTeams,
-    updateVipSlots
+    updateVipSlots,
+    updateBallColor
 } = createUpdatesUtils({
     room,
     state,
