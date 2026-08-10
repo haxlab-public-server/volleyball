@@ -43,7 +43,10 @@ module.exports = function createMovementEvents({
         if (GhostKick && room.getPlayerList().length > 1) {
             const alreadyOnline = room.getPlayerList()
                 .filter(p => p.id !== player.id)
-                .some(p => getConn(p.id) === player.conn);
+                .some(p => 
+                    getConn(p.id) === player.conn || 
+                    getAuth(p.id) === player.auth
+                );
 
             if (alreadyOnline) {
                 room.kickPlayer(player.id, 'Кажется ты уже есть в комнате', false);
