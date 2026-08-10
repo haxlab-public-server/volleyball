@@ -190,7 +190,8 @@ module.exports = function createGameEvents({
         state.goal_sit = false;
         state.saveBall = false;
         state.serveBall = false;
-
+        state.waitingForServe = true;
+        
         room.setDiscProperties(0, { color: state.ball_color });
 
         if (

@@ -121,14 +121,20 @@ module.exports = function createActivityEvents({
         const allPlayers = room.getPlayerList();
         const mentionedIds = new Set();
 
-        const mentionRegex = /@([^\s@]+)/gi;
-        let match;
-        while ((match = mentionRegex.exec(message)) !== null) {
-            const name = match[1].toLowerCase();
-            const targets = allPlayers.filter(p => p.name.toLowerCase() === name);
+        if (getRole(player) >= Role.ADMIN && /@all\b/i.test(message)) {
+            for (const p of allPlayers) {
+                mentionedIds.add(p.id);
+            }
+        } else {
+            const mentionRegex = /@([^\s@]+)/gi;
+            let match;
+            while ((match = mentionRegex.exec(message)) !== null) {
+                const name = match[1].toLowerCase();
+                const targets = allPlayers.filter(p => p.name.toLowerCase() === name);
 
-            for (const target of targets) {
-                mentionedIds.add(target.id);
+                for (const target of targets) {
+                    mentionedIds.add(target.id);
+                }
             }
         }
 
