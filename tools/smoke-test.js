@@ -192,8 +192,7 @@ console.log('\n--- models.js MuteList ---');
     db.close();
 }
 
-console.log('\n--- utils/roles.js ---');
-{
+(async () => {
     const db = createDb(':memory:');
     db.ensureAccount('auth1', 'Alice');
 
@@ -208,14 +207,15 @@ console.log('\n--- utils/roles.js ---');
     });
 
     const player = { id: 1, auth: 'auth1' };
-    check('starts as player', getRole(player, 'auth1'), Role.PLAYER);
+    check('starts as player', await getRole(player, 'auth1'), Role.PLAYER);
 
-    setRole(player, 'admin', null, 'auth1');
-    check('role change visible', getRole(player, 'auth1'), Role.ADMIN);
-    check('role durable', db.getAccount('auth1').role, 'admin');
+    await setRole(player, 'admin', null, 'auth1');
+    check('role change visible', await getRole(player, 'auth1'), Role.ADMIN);
+    const account = await db.getAccount('auth1');
+    check('role durable', account.role, 'admin');
 
     db.close();
-}
+})();
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
