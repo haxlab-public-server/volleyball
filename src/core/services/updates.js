@@ -75,7 +75,7 @@ module.exports = function createUpdatesUtils({
             HaxNotification.NONE
         );
 
-        setTimeout(() => {
+        setTimeout(async () => {
             let specs = getTeamArray(Team.SPECTATORS);
             let takeCount;
             const isWinstay = state.winstay_mode && state.winstay.streak > 0 && specs.length > state.teamSize*2 && specs.length-state.winstay.team.length >= state.teamSize;
@@ -105,16 +105,18 @@ module.exports = function createUpdatesUtils({
                 .filter(([, missed]) => missed >= playerThreshold)
                 .sort((a, b) => b[1] - a[1]);
 
-            const vips = specs.filter(p => {
-                if (!vipQueueRoles.includes(await getRole(p))) return false;
+            const vips = [];
+            for (const p of specs) {
+                const role = await getRole(p);
+                if (!vipQueueRoles.includes(role)) continue;
                 const queueData = state.queue.find(([id]) => id === p.id);
                 const missedCount = queueData ? queueData[1] : 0;
                 if (isWinstay) {
                     const vipThreshold = Math.max(0, queueMatches - 1);
-                    return missedCount >= vipThreshold;
+                    if (missedCount < vipThreshold) continue;
                 }
-                return true; 
-            });
+                vips.push(p);
+            }
 
             if (vips.length > 0) {
                 const vipLimit = state.teamSize <= 2 ? 1 : 2;

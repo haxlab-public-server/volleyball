@@ -365,7 +365,7 @@ module.exports = function createGameEvents({
                 );
 
                 state.randomize_sit = true;
-                state.onGameStopTimeout = setTimeout(() => {
+                state.onGameStopTimeout = setTimeout(async () => {
                     state.randomize_sit = false;
                     await randomizeTeams();
                 }, gamesTimeout * 1000);
