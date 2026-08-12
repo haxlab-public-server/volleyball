@@ -128,7 +128,7 @@ module.exports = function createMovementEvents({
         );
 
         updateVipSlots();
-        updateTeams();
+        await updateTeams();
         updateTeamSize();
 
         discordBot.sendLog(
@@ -136,7 +136,7 @@ module.exports = function createMovementEvents({
         );
     }
 
-    function onPlayerLeave(player) {
+    async function onPlayerLeave(player) {
         state.queue = state.queue.filter(p => p[0] !== player.id);
         state.afkList = state.afkList.filter(p => p[0] !== player.id);
         state.inactivityTicks[player.id] = 0;
@@ -166,7 +166,7 @@ module.exports = function createMovementEvents({
         }
 
         updateVipSlots();
-        updateTeams();
+        await updateTeams();
         updateTeamSize();
 
         discordBot.sendLog(

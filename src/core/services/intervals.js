@@ -69,7 +69,7 @@ module.exports = function createIntervals({
 
         await muteArray.checkMutes();
         await muteArray.updateMutes();
-        checkRoles();
+        await checkRoles();
 
         if (room.getPlayerList().length > 0) {
             const lastIdsList = Object.values(lastIds);
@@ -110,7 +110,7 @@ module.exports = function createIntervals({
     setInterval(() => {
         if (room.getScores() == null) return;
 
-        updateTeams();
+        await updateTeams();
 
         const ballPos = room.getBallPosition();
 

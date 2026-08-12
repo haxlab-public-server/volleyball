@@ -9,7 +9,7 @@ module.exports = function createRoleHelpers({
     HaxNotification
 }) {
 
-function checkRoles() {
+async function checkRoles() {
     const expiredAuths = await db.expireRoles();
     for (const auth of expiredAuths) {
         const id = getID(auth);
@@ -26,7 +26,7 @@ function checkRoles() {
     }
 }
 
-function setRole(player, role, time, auth = null) {
+async function setRole(player, role, time, auth = null) {
     if (auth == null) {
         player.auth = getAuth(player.id);
     } else {

@@ -29,7 +29,7 @@ module.exports = function createUpdatesUtils({
             : defaultTeamSize;
     }
 
-    function updateTeams() {
+    async function updateTeams() {
         if (state.mode !== Mods.PUBLIC || state.training_mode) return;
         if (state.randomize_sit) return;
 
@@ -59,7 +59,7 @@ module.exports = function createUpdatesUtils({
         }
 
         if (activeCount >= 2) {
-            randomizeTeams();
+            await randomizeTeams();
         }
     }
 

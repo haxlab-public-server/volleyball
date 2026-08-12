@@ -367,7 +367,7 @@ module.exports = function createGameEvents({
                 state.randomize_sit = true;
                 state.onGameStopTimeout = setTimeout(() => {
                     state.randomize_sit = false;
-                    randomizeTeams();
+                    await randomizeTeams();
                 }, gamesTimeout * 1000);
             } else {
                 room.sendAnnouncement(

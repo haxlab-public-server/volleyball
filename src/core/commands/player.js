@@ -533,7 +533,7 @@ module.exports = function createPlayerCommands({
         );
     }
 
-    function afkCommand(player) {
+    async function afkCommand(player) {
         const index = state.afkList.findIndex(p => p[0] === player.id);
 
         if (index !== -1) {
@@ -572,7 +572,7 @@ module.exports = function createPlayerCommands({
             );
         }
 
-        updateTeams();
+        await updateTeams();
         updateTeamSize();
     }
 
