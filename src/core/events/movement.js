@@ -27,7 +27,7 @@ module.exports = function createMovementEvents({
         [Role.VIP]: 'VIP'
     };
 
-    async function onPlayerJoin(player) {
+    function onPlayerJoin(player) {
         lastIds[player.auth] = [player.id, player.conn, player.auth];
 
         if (GhostKick && room.getPlayerList().length > 1) {
@@ -44,99 +44,102 @@ module.exports = function createMovementEvents({
             }
         }
 
-        await db.ensureAccount(player.auth, player.name);
+        (async () => {
+            await db.ensureAccount(player.auth, player.name);
 
-        const ban = await db.findBan(player.auth, player.conn);
+            const ban = await db.findBan(player.auth, player.conn);
 
-        if (ban) {
-            await db.updateBan(ban.rowid, {
-                id: player.id,
-                name: player.name,
-                conn: player.conn,
-                auth: player.auth
-            });
+            if (ban) {
+                await db.updateBan(ban.rowid, {
+                    id: player.id,
+                    name: player.name,
+                    conn: player.conn,
+                    auth: player.auth
+                });
 
-            const minsLeft = Math.round((ban.date - Date.now()) / 1000 / 60);
-            setTimeout(() => {
-                room.kickPlayer(
-                    player.id,
-                    `Вы забанены: ${minsLeft} мин\n discord: ${Discord}\n telegram: ${Telegram}`,
-                    true
-                );
-            }, 700);
-            return;
-        }
-
-        if (state.joinAuths && await getRole(player) < Role.ADMIN) {
-            if (!(await db.hasAuth(player.auth))) {
+                const minsLeft = Math.round((ban.date - Date.now()) / 1000 / 60);
                 setTimeout(() => {
                     room.kickPlayer(
                         player.id,
-                        `Сейчас в комнату могут зайти только авторизованные игроки\n discord: ${Discord}\n telegram: ${Telegram}`,
-                        false
+                        `Вы забанены: ${minsLeft} мин\n discord: ${Discord}\n telegram: ${Telegram}`,
+                        true
                     );
                 }, 700);
+                return;
             }
-        }
 
-        state.inactivityTicks[player.id] = 0;
-        state.queue.push([player.id, 0]);
+            if (state.joinAuths && await getRole(player) < Role.ADMIN) {
+                if (!(await db.hasAuth(player.auth))) {
+                    setTimeout(() => {
+                        room.kickPlayer(
+                            player.id,
+                            `Сейчас в комнату могут зайти только авторизованные игроки\n discord: ${Discord}\n telegram: ${Telegram}`,
+                            false
+                        );
+                    }, 700);
+                    return;
+                }
+            }
 
-        await db.addNickname(player.auth, player.name);
-        await db.ensureStat(player.auth, player.name);
+            state.inactivityTicks[player.id] = 0;
+            state.queue.push([player.id, 0]);
 
-        const role = await getRole(player);
-        const roleName = ROLE_NAMES[role];
+            await db.addNickname(player.auth, player.name);
+            await db.ensureStat(player.auth, player.name);
 
-        if (role >= Role.ADMIN) {
-            room.setPlayerAdmin(player.id, true);
-            room.sendAnnouncement(
-                `💥 ${roleName} ${player.name} зашёл на комнату!`,
-                null,
-                Color.RED,
-                'bold',
-                HaxNotification.CHAT
-            );
-        } else if (role === Role.VIP) {
-            if (state.mode === Mods.PRIVATE) {
+            const role = await getRole(player);
+            const roleName = ROLE_NAMES[role];
+
+            if (role >= Role.ADMIN) {
                 room.setPlayerAdmin(player.id, true);
+                room.sendAnnouncement(
+                    `💥 ${roleName} ${player.name} зашёл на комнату!`,
+                    null,
+                    Color.RED,
+                    'bold',
+                    HaxNotification.CHAT
+                );
+            } else if (role === Role.VIP) {
+                if (state.mode === Mods.PRIVATE) {
+                    room.setPlayerAdmin(player.id, true);
+                }
+                room.sendAnnouncement(
+                    `🌟 ${roleName} ${player.name} зашёл на комнату!`,
+                    null,
+                    Color.PINK,
+                    'bold',
+                    HaxNotification.CHAT
+                );
+            } else if (role === Role.PREADMIN) {
+                room.setPlayerAdmin(player.id, true);
+                room.sendAnnouncement(
+                    `💢 ${roleName} ${player.name} зашёл на комнату!`,
+                    null,
+                    Color.RED,
+                    'bold',
+                    HaxNotification.CHAT
+                );
             }
+
             room.sendAnnouncement(
-                `🌟 ${roleName} ${player.name} зашёл на комнату!`,
-                null,
-                Color.PINK,
-                'bold',
-                HaxNotification.CHAT
+                `Заходи на наш discord-сервер: ${Discord}\nПодписывайся на мой telegram: ${Telegram}\nНапиши "!help" чтобы узнать список доступных команд.\nНапиши перед сообщением "ч", чтобы писать в чат команды\nПо всем вопросам tg: chesdes`,
+                player.id,
+                Color.GR_GREEN,
+                'small',
+                HaxNotification.NONE
             );
-        } else if (role === Role.PREADMIN) {
-            room.setPlayerAdmin(player.id, true);
-            room.sendAnnouncement(
-                `💢 ${roleName} ${player.name} зашёл на комнату!`,
-                null,
-                Color.RED,
-                'bold',
-                HaxNotification.CHAT
+
+            updateVipSlots();
+            await updateTeams();
+            updateTeamSize();
+
+            discordBot.sendLog(
+                `${player.auth} / ${player.conn} | **${player.name}** join ${room.getPlayerList().length}/${maxPlayers}`
             );
-        }
-
-        room.sendAnnouncement(
-            `Заходи на наш discord-сервер: ${Discord}\nПодписывайся на мой telegram: ${Telegram}\nНапиши "!help" чтобы узнать список доступных команд.\nНапиши перед сообщением "ч", чтобы писать в чат команды\nПо всем вопросам tg: chesdes`,
-            player.id,
-            Color.GR_GREEN,
-            'small',
-            HaxNotification.NONE
-        );
-
-        updateVipSlots();
-        await updateTeams();
-        updateTeamSize();
-
-        discordBot.sendLog(
-            `${player.auth} / ${player.conn} | **${player.name}** join ${room.getPlayerList().length}/${maxPlayers}`
-        );
+        })();
     }
 
-    async function onPlayerLeave(player) {
+    function onPlayerLeave(player) {
         state.queue = state.queue.filter(p => p[0] !== player.id);
         state.afkList = state.afkList.filter(p => p[0] !== player.id);
         state.inactivityTicks[player.id] = 0;
@@ -165,33 +168,36 @@ module.exports = function createMovementEvents({
             }
         }
 
-        updateVipSlots();
-        await updateTeams();
-        updateTeamSize();
+        (async () => {
+            updateVipSlots();
+            await updateTeams();
+            updateTeamSize();
+        })();
 
         discordBot.sendLog(
             `[${player.auth}] **${player.name}** leave ${room.getPlayerList().length}/${maxPlayers}`
         );
     }
 
-    async function onPlayerKicked(kickedPlayer, reason, ban, byPlayer) {
+    function onPlayerKicked(kickedPlayer, reason, ban, byPlayer) {
         if (byPlayer != null) {
-            const byRole = await getRole(byPlayer);
-            const kickedRole = await getRole(kickedPlayer);
+            
+            (async () => {
+                const byRole = await getRole(byPlayer);
+                const kickedRole = await getRole(kickedPlayer);
 
-            if ((ban && byRole < Role.MASTER) || kickedPlayer.id === byPlayer.id) {
-                room.clearBan(kickedPlayer.id);
-                room.setPlayerAdmin(byPlayer.id, false);
-            }
-            else if (
-                (ban && byRole <= kickedRole) ||
-                (kickedPlayer.id !== byPlayer.id && byRole < Role.MASTER)
-            ) {
-                room.setPlayerAdmin(byPlayer.id, false);
-            }
-        }
+                if ((ban && byRole < Role.MASTER) || kickedPlayer.id === byPlayer.id) {
+                    room.clearBan(kickedPlayer.id);
+                    room.setPlayerAdmin(byPlayer.id, false);
+                }
+                else if (
+                    (ban && byRole <= kickedRole) ||
+                    (kickedPlayer.id !== byPlayer.id && byRole < Role.MASTER)
+                ) {
+                    room.setPlayerAdmin(byPlayer.id, false);
+                }
+            })();
 
-        if (byPlayer != null) {
             discordBot.sendLog(
                 `[${kickedPlayer.auth}] **${kickedPlayer.name}** was ${ban ? 'banned' : 'kicked'} by **${byPlayer.name}** | ${byPlayer.auth} / ${byPlayer.conn}`
             );

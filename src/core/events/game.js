@@ -33,7 +33,7 @@ module.exports = function createGameEvents({
         return team === Team.RED ? Color.TEAM_RED : Color.TEAM_BLUE;
     }
 
-    async function onTeamGoal(team) {
+    function onTeamGoal(team) {
         if (state.training_mode) return;
 
         state.scores = room.getScores();
@@ -76,19 +76,21 @@ module.exports = function createGameEvents({
                 );
 
                 if (isFullTeams() && state.mode === Mods.PUBLIC) {
-                    await db.incrementStat(getAuth(goal[1]), 3);
+                    (async () => {
+                        await db.incrementStat(getAuth(goal[1]), 3);
 
-                    if (goal[3]) {
-                        await db.incrementStat(getAuth(goal[1]), 4);
-                        await db.incrementStat(getAuth(state.lastTouches[1][1]), 7);
-                        await db.incrementStat(getAuth(state.lastTouches[1][1]), 6);
-                    } else if (goal[4]) {
-                        await db.incrementStat(getAuth(goal[1]), 8);
-                    }
+                        if (goal[3]) {
+                            await db.incrementStat(getAuth(goal[1]), 4);
+                            await db.incrementStat(getAuth(state.lastTouches[1][1]), 7);
+                            await db.incrementStat(getAuth(state.lastTouches[1][1]), 6);
+                        } else if (goal[4]) {
+                            await db.incrementStat(getAuth(goal[1]), 8);
+                        }
 
-                    if (assist != null) {
-                        await db.incrementStat(getAuth(assist[1]), 5);
-                    }
+                        if (assist != null) {
+                            await db.incrementStat(getAuth(assist[1]), 5);
+                        }
+                    })();
                 }
             } else {
                 let text;
@@ -110,14 +112,16 @@ module.exports = function createGameEvents({
                 );
 
                 if (isFullTeams() && state.mode === Mods.PUBLIC) {
-                    await db.incrementStat(getAuth(goal[1]), 7);
+                    (async () => {
+                        await db.incrementStat(getAuth(goal[1]), 7);
 
-                    if (assist != null) {
-                        await db.incrementStat(getAuth(assist[1]), 3);
-                    }
-                    if (assist != null && assist[4]) {
-                        await db.incrementStat(getAuth(assist[1]), 8);
-                    }
+                        if (assist != null) {
+                            await db.incrementStat(getAuth(assist[1]), 3);
+                        }
+                        if (assist != null && assist[4]) {
+                            await db.incrementStat(getAuth(assist[1]), 8);
+                        }
+                    })();
                 }
             }
         } else {
@@ -247,7 +251,7 @@ module.exports = function createGameEvents({
         }
     }
 
-    async function onGameStop(byPlayer) {
+    function onGameStop(byPlayer) {
         if (state.training_mode) {
             clearInterval(state.training_interval);
             room.setCustomStadium(noGoal_map);
@@ -320,12 +324,14 @@ module.exports = function createGameEvents({
                 const allPlayers = getTeamArray(Team.RED).concat(getTeamArray(Team.BLUE));
                 const winners = getTeamArray(red > blue ? Team.RED : Team.BLUE);
 
-                for (const p of allPlayers) {
-                    await db.incrementStat(getAuth(p.id), 1);
-                }
-                for (const p of winners) {
-                    await db.incrementStat(getAuth(p.id), 2);
-                }
+                (async () => {
+                    for (const p of allPlayers) {
+                        await db.incrementStat(getAuth(p.id), 1);
+                    }
+                    for (const p of winners) {
+                        await db.incrementStat(getAuth(p.id), 2);
+                    }
+                })();
             }
         }
 

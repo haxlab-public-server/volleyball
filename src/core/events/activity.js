@@ -53,144 +53,149 @@ module.exports = function createActivityEvents({
         await db.incrementStat(getAuth(player.id), index);
     }
 
-    async function onPlayerChat(player, message) {
+    function onPlayerChat(player, message) {
         discordBot.sendLog(`[${getAuth(player.id)}] **${player.name}**: ${message}`);
         state.inactivityTicks[player.id] = 0;
 
-        const msgArray = message.split(/ +/);
-        const firstWord = msgArray[0]?.toLowerCase() || '';
+        const processChatAsync = async () => {
+            const msgArray = message.split(/ +/);
+            const firstWord = msgArray[0]?.toLowerCase() || '';
 
-        if (firstWord.startsWith('!')) {
-            const commandName = firstWord.slice(1);
-            const command = getCommand(commandName);
+            if (firstWord.startsWith('!')) {
+                const commandName = firstWord.slice(1);
+                const command = getCommand(commandName);
+                const playerRole = await getRole(player);
+
+                if (command !== false && commands[command].roles <= playerRole) {
+                    commands[command].function(player, message);
+                } else {
+                    room.sendAnnouncement(
+                        `Команда, которую вы пытались ввести, для вас не существует. Пожалуйста, введите '!help', чтобы получить доступные команды.`,
+                        player.id,
+                        Color.GR_RED,
+                        'small',
+                        HaxNotification.CHAT
+                    );
+                }
+                return;
+            }
+
+            if (!player.admin) {
+                const mute = muteArray.getByAuth(getAuth(player.id));
+                if (mute) {
+                    const minsLeft = Math.round((mute.unmuteDate - Date.now()) / 1000 / 60);
+
+                    room.sendAnnouncement(
+                        `Вы в муте: ${minsLeft}мин (ваши сообщения видят админы)`,
+                        player.id,
+                        Color.GR_RED,
+                        'bold',
+                        HaxNotification.MENTION
+                    );
+
+                    const allPlayers = room.getPlayerList();
+                    const adminPlayers = [];
+                    for (const p of allPlayers) {
+                        if (await getRole(p) >= Role.PREADMIN) adminPlayers.push(p);
+                    }
+
+                    sendAnnouncementTeam(
+                        `*MUTED* ${player.name} (${player.id}): ${message}`,
+                        adminPlayers,
+                        Color.GREY,
+                        null,
+                        HaxNotification.NONE
+                    );
+                    return; 
+                }
+            }
+
+            if (firstWord === 'ч' || firstWord === 'x' || firstWord === 't') {
+                teamChatCommand(player, message);
+                return; 
+            }
+
+            const displayName = await getDisplayName(player);
+            const chatColor = await getChatColor(player);
+            const style = chatColor != null ? 'bold' : null;
             const playerRole = await getRole(player);
 
-            if (command !== false && commands[command].roles <= playerRole) {
-                commands[command].function(player, message);
-            } else {
-                room.sendAnnouncement(
-                    `Команда, которую вы пытались ввести, для вас не существует. Пожалуйста, введите '!help', чтобы получить доступные команды.`,
-                    player.id,
-                    Color.GR_RED,
-                    'small',
-                    HaxNotification.CHAT
-                );
+            const allPlayers = room.getPlayerList();
+            const preAdmins = [];
+            const normals = [];
+            
+            for (const p of allPlayers) {
+                const r = await getRole(p);
+                if (r >= Role.PREADMIN) preAdmins.push(p);
+                else normals.push(p);
             }
-            return false;
-        }
 
-        if (!player.admin) {
-            const mute = muteArray.getByAuth(getAuth(player.id));
-            if (mute) {
-                const minsLeft = Math.round((mute.unmuteDate - Date.now()) / 1000 / 60);
+            const isAllMention = playerRole >= Role.ADMIN && /@all\b/i.test(message);
 
-                room.sendAnnouncement(
-                    `Вы в муте: ${minsLeft}мин (ваши сообщения видят админы)`,
-                    player.id,
-                    Color.GR_RED,
+            if (isAllMention) {
+                sendAnnouncementTeam(
+                    `${displayName} (${player.id}): ${message}`,
+                    preAdmins,
+                    chatColor,
                     'bold',
                     HaxNotification.MENTION
                 );
 
-                const allPlayers = room.getPlayerList();
-                const adminPlayers = [];
-                for (const p of allPlayers) {
-                    if (await getRole(p) >= Role.PREADMIN) adminPlayers.push(p);
-                }
-
-                sendAnnouncementTeam(
-                    `*MUTED* ${player.name} (${player.id}): ${message}`,
-                    adminPlayers,
-                    Color.GREY,
-                    null,
-                    HaxNotification.NONE
-                );
-                return false;
-            }
-        }
-
-        if (firstWord === 'ч' || firstWord === 'x' || firstWord === 't') {
-            teamChatCommand(player, message);
-            return false;
-        }
-
-        const displayName = await getDisplayName(player);
-        const chatColor = await getChatColor(player);
-        const style = chatColor != null ? 'bold' : null;
-        const playerRole = await getRole(player);
-
-        const allPlayers = room.getPlayerList();
-        const preAdmins = [];
-        const normals = [];
-        for (const p of allPlayers) {
-            const r = await getRole(p);
-            if (r >= Role.PREADMIN) preAdmins.push(p);
-            else normals.push(p);
-        }
-
-        const isAllMention = playerRole >= Role.ADMIN && /@all\b/i.test(message);
-
-        if (isAllMention) {
-            sendAnnouncementTeam(
-                `${displayName} (${player.id}): ${message}`,
-                preAdmins,
-                chatColor,
-                'bold',
-                HaxNotification.MENTION
-            );
-
-            sendAnnouncementTeam(
-                `${displayName}: ${message}`,
-                normals,
-                chatColor,
-                'bold',
-                HaxNotification.MENTION
-            );
-        } else {
-            const mentionedIds = new Set();
-            const mentionRegex = /@([^\s@]+)/gi;
-            let match;
-            while ((match = mentionRegex.exec(message)) !== null) {
-                const name = match[1].toLowerCase();
-                const targets = allPlayers.filter(p => p.name.toLowerCase() === name);
-
-                for (const target of targets) {
-                    mentionedIds.add(target.id);
-                }
-            }
-
-            for (const id of mentionedIds) {
-                const isAdmin = preAdmins.some(p => p.id === id);
-                const text = isAdmin
-                    ? `${displayName} (${player.id}): ${message}`
-                    : `${displayName}: ${message}`;
-
-                room.sendAnnouncement(text, id, chatColor, 'bold', HaxNotification.MENTION);
-            }
-
-            const nonMentionedAdmins  = preAdmins.filter(p => !mentionedIds.has(p.id));
-            const nonMentionedNormals = normals.filter(p => !mentionedIds.has(p.id));
-
-            if (nonMentionedAdmins.length > 0) {
-                sendAnnouncementTeam(
-                    `${displayName} (${player.id}): ${message}`,
-                    nonMentionedAdmins,
-                    chatColor,
-                    style,
-                    HaxNotification.CHAT
-                );
-            }
-
-            if (nonMentionedNormals.length > 0) {
                 sendAnnouncementTeam(
                     `${displayName}: ${message}`,
-                    nonMentionedNormals,
+                    normals,
                     chatColor,
-                    style,
-                    HaxNotification.CHAT
+                    'bold',
+                    HaxNotification.MENTION
                 );
+            } else {
+                const mentionedIds = new Set();
+                const mentionRegex = /@([^\s@]+)/gi;
+                let match;
+                while ((match = mentionRegex.exec(message)) !== null) {
+                    const name = match[1].toLowerCase();
+                    const targets = allPlayers.filter(p => p.name.toLowerCase() === name);
+
+                    for (const target of targets) {
+                        mentionedIds.add(target.id);
+                    }
+                }
+
+                for (const id of mentionedIds) {
+                    const isAdmin = preAdmins.some(p => p.id === id);
+                    const text = isAdmin
+                        ? `${displayName} (${player.id}): ${message}`
+                        : `${displayName}: ${message}`;
+
+                    room.sendAnnouncement(text, id, chatColor, 'bold', HaxNotification.MENTION);
+                }
+
+                const nonMentionedAdmins  = preAdmins.filter(p => !mentionedIds.has(p.id));
+                const nonMentionedNormals = normals.filter(p => !mentionedIds.has(p.id));
+
+                if (nonMentionedAdmins.length > 0) {
+                    sendAnnouncementTeam(
+                        `${displayName} (${player.id}): ${message}`,
+                        nonMentionedAdmins,
+                        chatColor,
+                        style,
+                        HaxNotification.CHAT
+                    );
+                }
+
+                if (nonMentionedNormals.length > 0) {
+                    sendAnnouncementTeam(
+                        `${displayName}: ${message}`,
+                        nonMentionedNormals,
+                        chatColor,
+                        style,
+                        HaxNotification.CHAT
+                    );
+                }
             }
-        }
+        };
+
+        processChatAsync();
 
         return false;
     }

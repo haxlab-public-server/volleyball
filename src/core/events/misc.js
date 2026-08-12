@@ -24,7 +24,7 @@ module.exports = function createMiscEvents({
         discordBot.sendLog(`# [${dateStr}] ROOM ONLINE`);
     }
 
-    async function onPlayerAdminChange(changedPlayer, byPlayer) {
+    function onPlayerAdminChange(changedPlayer, byPlayer) {
         if (
             byPlayer == null ||
             byPlayer.id === changedPlayer.id ||
@@ -33,10 +33,15 @@ module.exports = function createMiscEvents({
             return;
         }
 
-        if (await getRole(byPlayer) <= await getRole(changedPlayer)) {
-            room.setPlayerAdmin(byPlayer.id, false);
-            room.setPlayerAdmin(changedPlayer.id, true);
-        }
+        (async () => {
+            const byPlayerRole = await getRole(byPlayer);
+            const changedPlayerRole = await getRole(changedPlayer);
+
+            if (byPlayerRole <= changedPlayerRole) {
+                room.setPlayerAdmin(byPlayer.id, false);
+                room.setPlayerAdmin(changedPlayer.id, true);
+            }
+        })();
     }
 
     return {
