@@ -14,10 +14,15 @@ class Game {
 
 class MuteList {
     constructor() {
-        this.list = await db.getMutes();
+        this.list = [];
     }
 
-    add(mutePlayer) {
+    async init() {
+        this.list = await db.getMutes();
+        return this;
+    }
+
+    async add(mutePlayer) {
         this.list.push(mutePlayer);
         await db.addMute(mutePlayer);
         return mutePlayer;
@@ -51,7 +56,7 @@ class MuteList {
         return null;
     }
 
-    removeById(id) {
+    async removeById(id) {
         var index = this.list.findIndex((mutePlayer) => mutePlayer.id === id);
         if (index !== -1) {
             this.list.splice(index, 1);
@@ -59,7 +64,7 @@ class MuteList {
         await db.removeMuteById(id);
     }
 
-    removeByAuth(auth) {
+    async removeByAuth(auth) {
         var index = this.list.findIndex(
             (mutePlayer) => mutePlayer.auth === auth
         );
@@ -69,23 +74,25 @@ class MuteList {
         await db.removeMuteByAuth(auth);
     }
 
-    checkMutes() {
-        for (var i of this.list) {
-            if (Date.now() > i.unmuteDate) {
-                room.sendAnnouncement(
-                    `${i.name} больше не в муте`,
-                    null,
-                    Color.WH_BLUE,
-                    "bold",
-                    HaxNotification.CHAT
-                );
-                i.unmuteDate = null;
-                this.removeById(i.id);
-            }
-        }
+    async checkMutes() {
+        const now = Date.now();
+        for (var i = this.list.length - 1; i >= 0; i--) { 
+            var player = this.list[i];
+            if (now > player.unmuteDate) { 
+                room.sendAnnouncement( 
+                    `${player.name} больше не в муте`, 
+                    null, 
+                    Color.WH_BLUE, 
+                    "bold", 
+                    HaxNotification.CHAT 
+                ); 
+                player.unmuteDate = null; 
+                await this.removeById(player.id); 
+            } 
+        } 
     }
 
-    updateMutes() {
+    async updateMutes() {
         this.list = await db.getMutes();
     }
 }
@@ -106,12 +113,12 @@ function createMutePlayer(muteArray, room, Color, HaxNotification) {
             return this.latestId;
         }
 
-        setDuration(time) {
+        async setDuration(time) {
             this.unmuteDate = Date.now() + time;
-            muteArray.add(this);
+            await muteArray.add(this);
         }
 
-        remove() {
+        async remove() {
             room.sendAnnouncement(
                 `Теперь ты можешь говорить.`,
                 this.playerId,
@@ -120,7 +127,7 @@ function createMutePlayer(muteArray, room, Color, HaxNotification) {
                 HaxNotification.CHAT
             );
             this.unmuteDate = null;
-            muteArray.removeById(this.id);
+            await muteArray.removeById(this.id);
         }
     };
 }

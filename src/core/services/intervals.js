@@ -67,8 +67,8 @@ module.exports = function createIntervals({
 
         await db.removeExpiredBans(now);
 
-        muteArray.checkMutes();
-        muteArray.updateMutes();
+        await muteArray.checkMutes();
+        await muteArray.updateMutes();
         checkRoles();
 
         if (room.getPlayerList().length > 0) {

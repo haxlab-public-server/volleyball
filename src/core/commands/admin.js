@@ -368,7 +368,7 @@ module.exports = function createAdminCommands({
         );
     }
 
-    function unMuteCommand(player, message) {
+    async function unMuteCommand(player, message) {
         const args = message.split(/ +/).slice(1);
 
         if (args.length === 0) {
@@ -391,7 +391,7 @@ module.exports = function createAdminCommands({
             if (target) {
                 const muteObj = muteArray.getByPlayerId(target.id);
                 if (muteObj) {
-                    muteArray.removeById(muteObj.id);
+                    await muteArray.removeById(muteObj.id);
                     room.sendAnnouncement(
                         `${player.name} размутил ${target.name}!`,
                         null,
@@ -418,7 +418,7 @@ module.exports = function createAdminCommands({
         if (muteId > 0) {
             const muteObj = muteArray.getById(muteId);
             if (muteObj) {
-                muteArray.removeById(muteId);
+                await muteArray.removeById(muteId);
                 room.sendAnnouncement(
                     `${player.name} размутил ${muteObj.name}!`,
                     null,
