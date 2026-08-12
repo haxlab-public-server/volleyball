@@ -167,7 +167,7 @@ function createDb(dbPath) {
     }
 
     function getAccountsByRole(role) {
-        return db.prepare('SELECT auth, nickname, role, date, discord, chat_color FROM accounts WHERE role = ? ORDER BY rowid').all();
+        return db.prepare('SELECT auth, nickname, role, date, discord, chat_color FROM accounts WHERE role = ? ORDER BY rowid').all(role);
     }
 
     function ensureAccount(auth, nickname) {
@@ -269,7 +269,7 @@ function createDb(dbPath) {
     }
 
     function getNicknames(auth) {
-        return db.prepare('SELECT name FROM nicknames WHERE auth = ? ORDER BY rowid').all().map(r => r.name);
+        return db.prepare('SELECT name FROM nicknames WHERE auth = ? ORDER BY rowid').all(auth).map(r => r.name);
     }
 
     function hasNicknames(auth) {

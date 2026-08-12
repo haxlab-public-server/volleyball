@@ -56,16 +56,17 @@ console.log('--- accounts ---');
 console.log('\n--- bans ---');
 {
     const db = createDb(':memory:');
+    const future = Date.now() + 60_000;
 
-    db.addBan({ id: 1, auth: 'a', conn: 'x', name: 'A', date: 999 });
-    db.addBan({ id: 2, auth: 'b', conn: 'y', name: 'B', date: 888 });
+    db.addBan({ id: 1, auth: 'a', conn: 'x', name: 'A', date: future });
+    db.addBan({ id: 2, auth: 'b', conn: 'y', name: 'B', date: future });
     check('getBans order', db.getBans().map(b => b.auth), ['a', 'b']);
 
     const removed = db.removeBanByIndex(0);
     check('removeBanByIndex returns ban', removed.auth, 'a');
     check('removeBanByIndex left', db.getBans().map(b => b.auth), ['b']);
 
-    db.addBan({ id: 3, auth: 'c', conn: 'z', name: 'C', date: 777 });
+    db.addBan({ id: 3, auth: 'c', conn: 'z', name: 'C', date: future });
     const byAuth = db.removeBanByAuth('b');
     check('removeBanByAuth', byAuth.auth, 'b');
     check('after removeBanByAuth', db.getBans().map(b => b.auth), ['c']);
