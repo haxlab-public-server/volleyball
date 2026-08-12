@@ -1,7 +1,7 @@
 module.exports = function createVipCommands({
     room,
     state,
-    fs,
+    db,
     getAuth,
     ballSpawner,
     noGoal_map,
@@ -9,17 +9,6 @@ module.exports = function createVipCommands({
     Color,
     HaxNotification
 }) {
-    // ===================== HELPERS =====================
-    function loadJson(filename) {
-        // TODO: migrate from fs to sqlite in the future
-        return JSON.parse(fs.readFileSync(filename, 'utf8'));
-    }
-
-    function saveJson(filename, data) {
-        // TODO: migrate from fs to sqlite in the future
-        fs.writeFileSync(filename, JSON.stringify(data));
-    }
-
     function startBallSpawn(settings) {
         state.training_mode_spawn = settings;
         clearInterval(state.training_interval);
@@ -49,11 +38,9 @@ module.exports = function createVipCommands({
         }
 
         const auth = getAuth(player.id);
-        const accounts = loadJson('accounts.json');
 
         if (args[0] === 'clear') {
-            accounts[auth].chat_color = null;
-            saveJson('accounts.json', accounts);
+            db.setChatColor(auth, null);
 
             room.sendAnnouncement(
                 `Цвет чата был выключен!`,
@@ -65,8 +52,7 @@ module.exports = function createVipCommands({
             return;
         }
 
-        accounts[auth].chat_color = args[0];
-        saveJson('accounts.json', accounts);
+        db.setChatColor(auth, args[0]);
 
         room.sendAnnouncement(
             `Теперь у вас вот такой цвет чата! \nВыключить цветной чат: !color clear`,

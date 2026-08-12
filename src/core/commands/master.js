@@ -1,7 +1,7 @@
 module.exports = function createMasterCommands({
     room,
     state,
-    fs,
+    db,
     getAuth,
     getRole,
     setRole,
@@ -15,16 +15,6 @@ module.exports = function createMasterCommands({
     HaxNotification,
     defaultTeamSize
 }) {
-    function loadJson(filename) {
-        // TODO: migrate from fs to sqlite in the future
-        return JSON.parse(fs.readFileSync(filename, 'utf8'));
-    }
-
-    function saveJson(filename, data) {
-        // TODO: migrate from fs to sqlite in the future
-        fs.writeFileSync(filename, JSON.stringify(data));
-    }
-
     function parsePlayerId(arg) {
         const idStr = arg.startsWith('#') ? arg.slice(1) : arg;
         const id = Number(idStr);
@@ -81,9 +71,8 @@ module.exports = function createMasterCommands({
         }
 
         const auth = args[0];
-        const auths = loadJson('auths.json');
 
-        if (auths.includes(auth)) {
+        if (!db.addAuth(auth)) {
             room.sendAnnouncement(
                 `Этот паблик уже в списке`,
                 player.id,
@@ -93,9 +82,6 @@ module.exports = function createMasterCommands({
             );
             return;
         }
-
-        auths.push(auth);
-        saveJson('auths.json', auths);
 
         room.sendAnnouncement(
             `${auth} был добавлен в список авторизированных игроков`,
@@ -121,10 +107,8 @@ module.exports = function createMasterCommands({
         }
 
         const auth = args[0];
-        const auths = loadJson('auths.json');
-        const index = auths.indexOf(auth);
 
-        if (index === -1) {
+        if (!db.removeAuth(auth)) {
             room.sendAnnouncement(
                 `Этого паблика нет в списке`,
                 player.id,
@@ -134,9 +118,6 @@ module.exports = function createMasterCommands({
             );
             return;
         }
-
-        auths.splice(index, 1);
-        saveJson('auths.json', auths);
 
         room.sendAnnouncement(
             `${auth} был удалён из списка авторизированных игроков`,
@@ -148,7 +129,7 @@ module.exports = function createMasterCommands({
     }
 
     function clearAuthsCommand(player) {
-        saveJson('auths.json', []);
+        db.clearAuths();
         room.sendAnnouncement(
             `Список авторизированных игроков был очищен`,
             player.id,
@@ -260,7 +241,7 @@ module.exports = function createMasterCommands({
     }
 
     function statsResetCommand() {
-        saveJson('stats.json', {});
+        db.clearStats();
         room.sendAnnouncement(
             `Статистика была сброшена`,
             null,
@@ -417,9 +398,7 @@ module.exports = function createMasterCommands({
             return;
         }
 
-        const accounts = loadJson('accounts.json');
-
-        if (!(target.auth in accounts)) {
+        if (!db.hasAccount(target.auth)) {
             room.sendAnnouncement(
                 `Аккаунт игрока не найден`,
                 player.id,
@@ -481,7 +460,6 @@ module.exports = function createMasterCommands({
 
     function getRoleListCommand(player, message) {
         const args = message.toLowerCase().split(/ +/).slice(1);
-        const accounts = loadJson('accounts.json');
 
         if (args.length === 0) {
             const rolesHint = Object.keys(RoleString).join(' | ');
@@ -508,10 +486,10 @@ module.exports = function createMasterCommands({
             return;
         }
 
+        const filtered = db.getAccountsByRole(roleName);
+
         if (args.length === 1) {
-            const list = Object.values(accounts)
-                .filter(acc => acc.role === roleName)
-                .map((acc, i) => `[${i}] ${acc.nickname}`);
+            const list = filtered.map((acc, i) => `[${i}] ${acc.nickname}`);
 
             if (list.length === 0) {
                 room.sendAnnouncement(
@@ -557,8 +535,6 @@ module.exports = function createMasterCommands({
         }
 
         const index = Number(args[1]);
-        const filtered = Object.entries(accounts)
-            .filter(([, acc]) => acc.role === roleName);
 
         if (isNaN(index) || index < 0 || index >= filtered.length) {
             room.sendAnnouncement(
@@ -571,11 +547,11 @@ module.exports = function createMasterCommands({
             return;
         }
 
-        const [publicId, obj] = filtered[index];
+        const obj = filtered[index];
         const toDate = obj.date != null ? getDate(obj.date) : 'бессрочно';
 
         room.sendAnnouncement(
-            `📋${obj.nickname}:\npublic_id: ${publicId}\nrole: ${obj.role}\nto_date: ${toDate}\ndiscord: ${obj.discord}`,
+            `📋${obj.nickname}:\npublic_id: ${obj.auth}\nrole: ${obj.role}\nto_date: ${toDate}\ndiscord: ${obj.discord}`,
             player.id,
             Color.WH_BLUE,
             'small',

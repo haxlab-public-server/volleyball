@@ -14,19 +14,9 @@ module.exports = function createAdminCommands({
     HaxNotification,
     Discord,
     Telegram,
-    fs,
+    db,
     discordBot
 }) {
-    function loadBans() {
-        // TODO: migrate from fs to sqlite in the future
-        return JSON.parse(fs.readFileSync('bans.json', 'utf8'));
-    }
-
-    function saveBans(banList) {
-        // TODO: migrate from fs to sqlite in the future
-        fs.writeFileSync('bans.json', JSON.stringify(banList));
-    }
-
     function parsePlayerId(arg) {
         const idStr = arg.startsWith('#') ? arg.slice(1) : arg;
         const id = Number(idStr);
@@ -48,19 +38,18 @@ module.exports = function createAdminCommands({
         }
 
         const input = args[0];
-        const banList = loadBans();
-        let index = -1;
+        let ban = null;
 
         if (input.length === 43) {
-            index = banList.findIndex(p => p.auth === input);
+            ban = db.removeBanByAuth(input);
         } else {
             const id = parsePlayerId(input);
-            if (id !== null && id < banList.length) {
-                index = id;
+            if (id !== null) {
+                ban = db.removeBanByIndex(id);
             }
         }
 
-        if (index === -1) {
+        if (!ban) {
             room.sendAnnouncement(
                 `Введенный вами идентификатор не связан с баном`,
                 player.id,
@@ -71,15 +60,11 @@ module.exports = function createAdminCommands({
             return;
         }
 
-        const ban = banList[index];
         const target = ban.name ?? ban.auth;
 
         if (ban.id != null) {
             room.clearBan(ban.id);
         }
-
-        const newList = banList.filter((_, i) => i !== index);
-        saveBans(newList);
 
         room.sendAnnouncement(
             `${player.name} разбанил ${target}`,
@@ -213,15 +198,13 @@ module.exports = function createAdminCommands({
         }
 
         const banDate = Date.now() + time;
-        const banList = loadBans();
-        banList.push({
+        db.addBan({
             id: banId,
             auth: banAuth,
             conn: banConn,
             name: banName,
             date: banDate
         });
-        saveBans(banList);
 
         const targetDisplay = banName ?? banAuth;
         const timeStr = getStringTime(timeArg);
@@ -254,7 +237,7 @@ module.exports = function createAdminCommands({
     }
 
     function banListCommand(player) {
-        const banList = loadBans();
+        const banList = db.getBans();
 
         if (banList.length === 0) {
             room.sendAnnouncement(

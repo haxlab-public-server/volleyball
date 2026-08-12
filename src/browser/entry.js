@@ -24,7 +24,7 @@ const lastIds = {} // "auth": [id, conn, auth]
 const room = HBInit(buildGameConfig(window.__secrets.token));
 
 const cf = room.CollisionFlags;
-const fs = window.__fs
+const db = window.__db;
 
 /* Models */
 const {
@@ -43,7 +43,7 @@ const {
     createMutePlayer
 } = createModels({
     room,
-    fs,
+    db,
     Color,
     HaxNotification
 });
@@ -147,7 +147,7 @@ const {
     getChatColor
 } = createRoleHelpers({
     room,
-    fs,
+    db,
     getAuth,
     getID,
     Role,
@@ -187,7 +187,7 @@ createIntervals({
     room,
     state,
     cf,
-    fs,
+    db,
     muteArray,
     lastIds,
     getRandomInt,
@@ -249,7 +249,7 @@ const {
 } = createPlayerCommands({
     room,
     state,
-    fs,
+    db,
     getAuth,
     getRole,
     getOnlyInt,
@@ -278,7 +278,7 @@ const {
 } = createVipCommands({
     room,
     state,
-    fs,
+    db,
     getAuth,
     ballSpawner,
     noGoal_map,
@@ -312,7 +312,7 @@ const {
     HaxNotification,
     Discord,
     Telegram,
-    fs,
+    db,
     discordBot
 })
 
@@ -334,7 +334,7 @@ const {
 } = createMasterCommands({
     room,
     state,
-    fs,
+    db,
     getAuth,
     getRole,
     setRole,
@@ -401,7 +401,7 @@ Object.assign(room, wrapEventHandlers(createMovementEvents({
     room,
     state,
     lastIds,
-    fs,
+    db,
     getAuth,
     getConn,
     getRole,
@@ -426,7 +426,7 @@ Object.assign(room, wrapEventHandlers(createActivityEvents({
     room,
     state,
     cf,
-    fs,
+    db,
     muteArray,
     getAuth,
     getRole,
@@ -451,7 +451,7 @@ const createGameEvents = require('../core/events/game');
 Object.assign(room, wrapEventHandlers(createGameEvents({
     room,
     state,
-    fs,
+    db,
     getAuth,
     getTeamArray,
     sendAnnouncementTeam,

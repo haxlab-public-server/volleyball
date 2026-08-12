@@ -6,7 +6,6 @@
   "main": "main.js",
   "scripts": {
     "start": "node main.js",
-    "migrate": "node scripts/migrate-json-to-sqlite.js",
     "test:smoke": "node tools/smoke-test.js"
   },
   "dependencies": {

@@ -2,7 +2,7 @@ module.exports = function createActivityEvents({
     room,
     state,
     cf,
-    fs,
+    db,
     muteArray,
     getAuth,
     getRole,
@@ -50,14 +50,7 @@ module.exports = function createActivityEvents({
 
     function incrementStat(player, index) {
         if (!isFullPublicTeams()) return;
-        // TODO: migrate from fs to sqlite in the future
-        const stats = JSON.parse(fs.readFileSync('stats.json', 'utf8'));
-        const auth = getAuth(player.id);
-        if (stats[auth]) {
-            stats[auth][index]++;
-            // TODO: migrate from fs to sqlite in the future
-            fs.writeFileSync('stats.json', JSON.stringify(stats));
-        }
+        db.incrementStat(getAuth(player.id), index);
     }
 
     function onPlayerChat(player, message) {

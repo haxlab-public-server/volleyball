@@ -1,7 +1,7 @@
 module.exports = function createGameEvents({
     room,
     state,
-    fs,
+    db,
     getAuth,
     getTeamArray,
     sendAnnouncementTeam,
@@ -22,16 +22,6 @@ module.exports = function createGameEvents({
     Color,
     HaxNotification
 }) {
-    function loadStats() {
-        // TODO: migrate from fs to sqlite in the future
-        return JSON.parse(fs.readFileSync('stats.json', 'utf8'));
-    }
-
-    function saveStats(stats) {
-        // TODO: migrate from fs to sqlite in the future
-        fs.writeFileSync('stats.json', JSON.stringify(stats));
-    }
-
     function isFullTeams() {
         return (
             getTeamArray(Team.BLUE).length >= state.teamSize &&
@@ -46,7 +36,6 @@ module.exports = function createGameEvents({
     function onTeamGoal(team) {
         if (state.training_mode) return;
 
-        const stats = loadStats();
         state.scores = room.getScores();
         state.goal_sit = true;
         state.saveBall = false;
@@ -86,19 +75,19 @@ module.exports = function createGameEvents({
                     HaxNotification.CHAT
                 );
 
-                if (isFullTeams()) {
-                    stats[getAuth(goal[1])][3]++;
+                if (isFullTeams() && state.mode === Mods.PUBLIC) {
+                    db.incrementStat(getAuth(goal[1]), 3);
 
                     if (goal[3]) {
-                        stats[getAuth(goal[1])][4]++;
-                        stats[getAuth(state.lastTouches[1][1])][7]++;
-                        stats[getAuth(state.lastTouches[1][1])][6]++;
+                        db.incrementStat(getAuth(goal[1]), 4);
+                        db.incrementStat(getAuth(state.lastTouches[1][1]), 7);
+                        db.incrementStat(getAuth(state.lastTouches[1][1]), 6);
                     } else if (goal[4]) {
-                        stats[getAuth(goal[1])][8]++;
+                        db.incrementStat(getAuth(goal[1]), 8);
                     }
 
                     if (assist != null) {
-                        stats[getAuth(assist[1])][5]++;
+                        db.incrementStat(getAuth(assist[1]), 5);
                     }
                 }
             } else {
@@ -120,14 +109,14 @@ module.exports = function createGameEvents({
                     HaxNotification.CHAT
                 );
 
-                if (isFullTeams()) {
-                    stats[getAuth(goal[1])][7]++;
+                if (isFullTeams() && state.mode === Mods.PUBLIC) {
+                    db.incrementStat(getAuth(goal[1]), 7);
 
                     if (assist != null) {
-                        stats[getAuth(assist[1])][3]++;
+                        db.incrementStat(getAuth(assist[1]), 3);
                     }
                     if (assist != null && assist[4]) {
-                        stats[getAuth(assist[1])][8]++;
+                        db.incrementStat(getAuth(assist[1]), 8);
                     }
                 }
             }
@@ -171,10 +160,6 @@ module.exports = function createGameEvents({
             } else if (red === mp || blue === mp) {
                 setTimeout(() => room.stopGame(), 2000);
             }
-        }
-
-        if (state.mode === Mods.PUBLIC) {
-            saveStats(stats);
         }
 
         state.ball_color = color;
@@ -332,18 +317,15 @@ module.exports = function createGameEvents({
                 red !== blue &&
                 isFullTeams()
             ) {
-                const stats = loadStats();
                 const allPlayers = getTeamArray(Team.RED).concat(getTeamArray(Team.BLUE));
                 const winners = getTeamArray(red > blue ? Team.RED : Team.BLUE);
 
                 for (const p of allPlayers) {
-                    stats[getAuth(p.id)][1]++;
+                    db.incrementStat(getAuth(p.id), 1);
                 }
                 for (const p of winners) {
-                    stats[getAuth(p.id)][2]++;
+                    db.incrementStat(getAuth(p.id), 2);
                 }
-
-                saveStats(stats);
             }
         }
 

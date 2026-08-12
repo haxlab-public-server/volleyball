@@ -2,7 +2,7 @@ module.exports = function createMovementEvents({
     room,
     state,
     lastIds,
-    fs,
+    db,
     getAuth,
     getConn,
     getRole,
@@ -20,16 +20,6 @@ module.exports = function createMovementEvents({
     maxPlayers,
     discordBot
 }) {
-    function loadJson(filename) {
-        // TODO: migrate from fs to sqlite in the future
-        return JSON.parse(fs.readFileSync(filename, 'utf8'));
-    }
-
-    function saveJson(filename, data) {
-        // TODO: migrate from fs to sqlite in the future
-        fs.writeFileSync(filename, JSON.stringify(data));
-    }
-
     const ROLE_NAMES = {
         [Role.MASTER]: 'Создатель',
         [Role.ADMIN]: 'Администратор',
@@ -54,32 +44,17 @@ module.exports = function createMovementEvents({
             }
         }
 
-        const accounts = loadJson('accounts.json');
-        if (accounts[player.auth] == null) {
-            accounts[player.auth] = {
-                nickname: player.name,
-                role: 'player',
-                date: null,
-                discord: null,
-                chat_color: null
-            };
-        } else {
-            accounts[player.auth].nickname = player.name;
-        }
-        saveJson('accounts.json', accounts);
+        db.ensureAccount(player.auth, player.name);
 
-        const banList = loadJson('bans.json');
-        const banIndex = banList.findIndex(
-            p => p.auth === player.auth || p.conn === player.conn
-        );
+        const ban = db.findBan(player.auth, player.conn);
 
-        if (banIndex !== -1) {
-            const ban = banList[banIndex];
-            ban.id = player.id;
-            ban.name = player.name;
-            ban.conn = player.conn;
-            ban.auth = player.auth;
-            saveJson('bans.json', banList);
+        if (ban) {
+            db.updateBan(ban.rowid, {
+                id: player.id,
+                name: player.name,
+                conn: player.conn,
+                auth: player.auth
+            });
 
             const minsLeft = Math.round((ban.date - Date.now()) / 1000 / 60);
             setTimeout(() => {
@@ -93,8 +68,7 @@ module.exports = function createMovementEvents({
         }
 
         if (state.joinAuths && getRole(player) < Role.ADMIN) {
-            const auths = loadJson('auths.json');
-            if (!auths.includes(player.auth)) {
+            if (!db.hasAuth(player.auth)) {
                 setTimeout(() => {
                     room.kickPlayer(
                         player.id,
@@ -108,21 +82,8 @@ module.exports = function createMovementEvents({
         state.inactivityTicks[player.id] = 0;
         state.queue.push([player.id, 0]);
 
-        const deanon = loadJson('nicknames.json');
-        if (player.auth in deanon) {
-            if (!deanon[player.auth].includes(player.name)) {
-                deanon[player.auth].push(player.name);
-            }
-        } else {
-            deanon[player.auth] = [player.name];
-        }
-        saveJson('nicknames.json', deanon);
-
-        const stats = loadJson('stats.json');
-        if (stats[player.auth] == null) {
-            stats[player.auth] = [player.name, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-            saveJson('stats.json', stats);
-        }
+        db.addNickname(player.auth, player.name);
+        db.ensureStat(player.auth, player.name);
 
         const role = getRole(player);
         const roleName = ROLE_NAMES[role];

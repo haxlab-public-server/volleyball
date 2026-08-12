@@ -1,6 +1,6 @@
 module.exports = function createRoleHelpers({
     room,
-    fs,
+    db,
     getAuth,
     getID,
     Role,
@@ -10,70 +10,55 @@ module.exports = function createRoleHelpers({
 }) {
 
 function checkRoles() {
-    // TODO: migrate from fs to sqlite in the future
-    var accounts = JSON.parse(fs.readFileSync('accounts.json', 'utf8'));
-    var keys = Object.keys(accounts)
-    for (var i of keys) {
-        if (accounts[i]["date"] != null && accounts[i]["date"] <= Date.now()) {
-            accounts[i]["role"] = "player"
-            accounts[i]["date"] = null
-            var id = getID(i)
-            if (id != null) {
-                room.setPlayerAdmin(id, false)
-                room.sendAnnouncement(
-                    `Срок вашей роли истёк =(`,
-                    id,
-                    Color.WH_BLUE,
-                    "bold",
-                    HaxNotification.MENTION
-                )
-            }
+    const expiredAuths = db.expireRoles();
+    for (const auth of expiredAuths) {
+        const id = getID(auth);
+        if (id != null) {
+            room.setPlayerAdmin(id, false);
+            room.sendAnnouncement(
+                `Срок вашей роли истёк =(`,
+                id,
+                Color.WH_BLUE,
+                "bold",
+                HaxNotification.MENTION
+            );
         }
     }
-    // TODO: migrate from fs to sqlite in the future
-    fs.writeFileSync("accounts.json", JSON.stringify(accounts))
 }
 
 function setRole(player, role, time, auth = null) {
     if (auth == null) {
-        player.auth = getAuth(player.id)
+        player.auth = getAuth(player.id);
     } else {
-        player.auth = auth
-        player.admin = false
+        player.auth = auth;
+        player.admin = false;
     }
-    // TODO: migrate from fs to sqlite in the future
-    var accounts = JSON.parse(fs.readFileSync('accounts.json', 'utf8'));
-    accounts[player.auth]["role"] = role
-    accounts[player.auth]["date"] = time
-    // TODO: migrate from fs to sqlite in the future
-    fs.writeFileSync("accounts.json", JSON.stringify(accounts))
-    if (RoleString[accounts[player.auth]["role"]] >= Role.PREADMIN) {
+    db.setRole(player.auth, role, time);
+    if (RoleString[role] >= Role.PREADMIN) {
         if (player.id == undefined) {
-            player.id = getID(player.auth)
+            player.id = getID(player.auth);
         }
         if (player.id != null) {
-            room.setPlayerAdmin(player.id, true)
+            room.setPlayerAdmin(player.id, true);
         }
     } else {
         if (player.id == undefined) {
-            player.id = getID(player.auth)
+            player.id = getID(player.auth);
         }
         if (player.id != null) {
-            room.setPlayerAdmin(player.id, false)
+            room.setPlayerAdmin(player.id, false);
         }
     }
 }
     
 function getRole(player, auth = null) {
     if (auth == null) {
-        player.auth = getAuth(player.id)
+        player.auth = getAuth(player.id);
     } else {
-        player.auth = auth
-        player.admin = false
+        player.auth = auth;
+        player.admin = false;
     }
-    // TODO: migrate from fs to sqlite in the future
-    var accounts = JSON.parse(fs.readFileSync('accounts.json', 'utf8'));
-    var account = accounts[player.auth];
+    const account = db.getAccount(player.auth);
     if (!account || account.role == null) {
         return Role.PLAYER;
     }
@@ -82,17 +67,15 @@ function getRole(player, auth = null) {
 
 function getChatColor(player) {
     if (getRole(player) >= Role.VIP) {
-        // TODO: migrate from fs to sqlite in the future
-        var accounts = JSON.parse(fs.readFileSync('accounts.json', 'utf8'));
-        var account = accounts[getAuth(player.id)];
-        var color = account && account.chat_color != null ? account.chat_color : null;
+        const account = db.getAccount(getAuth(player.id));
+        const color = account && account.chat_color != null ? account.chat_color : null;
         if (color != null) {
-            return `0x${color}`
+            return `0x${color}`;
         } else {
-            return null
+            return null;
         }
     } else {
-        return null
+        return null;
     }
 }
 

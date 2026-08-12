@@ -1,6 +1,6 @@
 module.exports = function createModels({
     room,
-    fs,
+    db,
     Color,
     HaxNotification
 }) {
@@ -14,14 +14,12 @@ class Game {
 
 class MuteList {
     constructor() {
-        // TODO: migrate from fs to sqlite in the future
-        this.list = JSON.parse(fs.readFileSync('mutes.json', 'utf8'));
+        this.list = db.getMutes();
     }
 
     add(mutePlayer) {
         this.list.push(mutePlayer);
-        // TODO: migrate from fs to sqlite in the future
-        fs.writeFileSync('mutes.json', JSON.stringify(this.list));
+        db.addMute(mutePlayer);
         return mutePlayer;
     }
 
@@ -58,8 +56,7 @@ class MuteList {
         if (index !== -1) {
             this.list.splice(index, 1);
         }
-        // TODO: migrate from fs to sqlite in the future
-        fs.writeFileSync('mutes.json', JSON.stringify(this.list));
+        db.removeMuteById(id);
     }
 
     removeByAuth(auth) {
@@ -69,8 +66,7 @@ class MuteList {
         if (index !== -1) {
             this.list.splice(index, 1);
         }
-        // TODO: migrate from fs to sqlite in the future
-        fs.writeFileSync('mutes.json', JSON.stringify(this.list));
+        db.removeMuteByAuth(auth);
     }
 
     checkMutes() {
@@ -90,8 +86,7 @@ class MuteList {
     }
 
     updateMutes() {
-        // TODO: migrate from fs to sqlite in the future
-        this.list = JSON.parse(fs.readFileSync('mutes.json', 'utf8'));
+        this.list = db.getMutes();
     }
 }
 

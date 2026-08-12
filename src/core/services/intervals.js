@@ -4,7 +4,7 @@ module.exports = function createIntervals({
     room,
     state,
     cf,
-    fs,
+    db,
     muteArray,
     lastIds,
     getRandomInt,
@@ -20,16 +20,6 @@ module.exports = function createIntervals({
     updateVipSlots,
     updateBallColor
 }) {
-    function loadJson(filename) {
-        // TODO: migrate from fs to sqlite in the future
-        return JSON.parse(fs.readFileSync(filename, 'utf8'));
-    }
-
-    function saveJson(filename, data) {
-        // TODO: migrate from fs to sqlite in the future
-        fs.writeFileSync(filename, JSON.stringify(data));
-    }
-
     function formatDate(d = new Date()) {
         const day = String(d.getDate()).padStart(2, '0');
         const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -68,33 +58,28 @@ module.exports = function createIntervals({
     }, 60 * 60 * 1000);
 
     setInterval(() => {
-        let banList = loadJson('bans.json');
         const now = Date.now();
+        const expired = db.getExpiredBans(now);
 
-        banList = banList.filter(ban => {
-            if (ban.date >= now) return true;
+        for (const ban of expired) {
             if (ban.id != null) room.clearBan(ban.id);
-            return false;
-        });
+        }
 
-        saveJson('bans.json', banList);
+        db.removeExpiredBans(now);
 
         muteArray.checkMutes();
         muteArray.updateMutes();
         checkRoles();
 
         if (room.getPlayerList().length > 0) {
-            const stats = loadJson('stats.json');
             const lastIdsList = Object.values(lastIds);
 
             for (const player of room.getPlayerList()) {
                 const entry = lastIdsList.find(k => k[0] === player.id);
                 if (entry) {
-                    stats[entry[2]][10] += 1;
+                    db.incrementStat(entry[2], 10);
                 }
             }
-
-            saveJson('stats.json', stats);
         }
     }, 60 * 1000);
 
