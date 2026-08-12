@@ -14,12 +14,12 @@ class Game {
 
 class MuteList {
     constructor() {
-        this.list = db.getMutes();
+        this.list = await db.getMutes();
     }
 
     add(mutePlayer) {
         this.list.push(mutePlayer);
-        db.addMute(mutePlayer);
+        await db.addMute(mutePlayer);
         return mutePlayer;
     }
 
@@ -56,7 +56,7 @@ class MuteList {
         if (index !== -1) {
             this.list.splice(index, 1);
         }
-        db.removeMuteById(id);
+        await db.removeMuteById(id);
     }
 
     removeByAuth(auth) {
@@ -66,7 +66,7 @@ class MuteList {
         if (index !== -1) {
             this.list.splice(index, 1);
         }
-        db.removeMuteByAuth(auth);
+        await db.removeMuteByAuth(auth);
     }
 
     checkMutes() {
@@ -86,7 +86,7 @@ class MuteList {
     }
 
     updateMutes() {
-        this.list = db.getMutes();
+        this.list = await db.getMutes();
     }
 }
 

@@ -23,7 +23,7 @@ module.exports = function createAdminCommands({
         return Number.isInteger(id) && id >= 0 ? id : null;
     }
 
-    function unBanCommand(player, message) {
+    async function unBanCommand(player, message) {
         const args = message.split(/ +/).slice(1);
 
         if (args.length !== 1) {
@@ -41,11 +41,11 @@ module.exports = function createAdminCommands({
         let ban = null;
 
         if (input.length === 43) {
-            ban = db.removeBanByAuth(input);
+            ban = await db.removeBanByAuth(input);
         } else {
             const id = parsePlayerId(input);
             if (id !== null) {
-                ban = db.removeBanByIndex(id);
+                ban = await db.removeBanByIndex(id);
             }
         }
 
@@ -76,7 +76,7 @@ module.exports = function createAdminCommands({
         discordBot.sendReport(player.name, target, 'unban', null, null);
     }
 
-    function banCommand(player, message) {
+    async function banCommand(player, message) {
         const args = message.split(/ +/).slice(1);
 
         if (args.length < 2) {
@@ -116,7 +116,7 @@ module.exports = function createAdminCommands({
 
             if (
                 banAuth === getAuth(player.id) ||
-                (getRole({}, banAuth) >= Role.PREADMIN && getRole(player) !== Role.MASTER)
+                (await getRole({}, banAuth) >= Role.PREADMIN && await getRole(player) !== Role.MASTER)
             ) {
                 room.sendAnnouncement(
                     `Вы не можете забанить себя или у этого игрока защита от бана`,
@@ -157,7 +157,7 @@ module.exports = function createAdminCommands({
 
             if (
                 banId === player.id ||
-                (getRole(banPlayer) >= Role.PREADMIN && getRole(player) !== Role.MASTER)
+                (await getRole(banPlayer) >= Role.PREADMIN && await getRole(player) !== Role.MASTER)
             ) {
                 room.sendAnnouncement(
                     `Вы не можете забанить себя или у этого игрока защита от бана`,
@@ -186,7 +186,7 @@ module.exports = function createAdminCommands({
             return;
         }
 
-        if (getRole(player) === Role.PREADMIN && time > 30 * 60 * 1000) {
+        if (await getRole(player) === Role.PREADMIN && time > 30 * 60 * 1000) {
             room.sendAnnouncement(
                 `У вашей роли ограничение на время бана: максимум 30min`,
                 player.id,
@@ -198,7 +198,7 @@ module.exports = function createAdminCommands({
         }
 
         const banDate = Date.now() + time;
-        db.addBan({
+        await db.addBan({
             id: banId,
             auth: banAuth,
             conn: banConn,
@@ -236,8 +236,8 @@ module.exports = function createAdminCommands({
         }
     }
 
-    function banListCommand(player) {
-        const banList = db.getBans();
+    async function banListCommand(player) {
+        const banList = await db.getBans();
 
         if (banList.length === 0) {
             room.sendAnnouncement(
@@ -265,7 +265,7 @@ module.exports = function createAdminCommands({
         );
     }
 
-    function muteCommand(player, message) {
+    async function muteCommand(player, message) {
         const args = message.split(/ +/).slice(1);
 
         if (args.length < 2) {
@@ -315,7 +315,7 @@ module.exports = function createAdminCommands({
             return;
         }
 
-        if (getRole(player) === Role.PREADMIN && time > 60 * 60 * 1000) {
+        if (await getRole(player) === Role.PREADMIN && time > 60 * 60 * 1000) {
             room.sendAnnouncement(
                 `У вашей роли ограничение на время мута: максимум 1h (1 час)`,
                 player.id,
@@ -327,8 +327,8 @@ module.exports = function createAdminCommands({
         }
 
         if (
-            getRole(target) >= Role.PREADMIN &&
-            getRole(player) !== Role.MASTER
+            await getRole(target) >= Role.PREADMIN &&
+            await getRole(player) !== Role.MASTER
         ) {
             room.sendAnnouncement(
                 `У игрока защита от мута.`,

@@ -33,7 +33,7 @@ module.exports = function createGameEvents({
         return team === Team.RED ? Color.TEAM_RED : Color.TEAM_BLUE;
     }
 
-    function onTeamGoal(team) {
+    async function onTeamGoal(team) {
         if (state.training_mode) return;
 
         state.scores = room.getScores();
@@ -76,18 +76,18 @@ module.exports = function createGameEvents({
                 );
 
                 if (isFullTeams() && state.mode === Mods.PUBLIC) {
-                    db.incrementStat(getAuth(goal[1]), 3);
+                    await db.incrementStat(getAuth(goal[1]), 3);
 
                     if (goal[3]) {
-                        db.incrementStat(getAuth(goal[1]), 4);
-                        db.incrementStat(getAuth(state.lastTouches[1][1]), 7);
-                        db.incrementStat(getAuth(state.lastTouches[1][1]), 6);
+                        await db.incrementStat(getAuth(goal[1]), 4);
+                        await db.incrementStat(getAuth(state.lastTouches[1][1]), 7);
+                        await db.incrementStat(getAuth(state.lastTouches[1][1]), 6);
                     } else if (goal[4]) {
-                        db.incrementStat(getAuth(goal[1]), 8);
+                        await db.incrementStat(getAuth(goal[1]), 8);
                     }
 
                     if (assist != null) {
-                        db.incrementStat(getAuth(assist[1]), 5);
+                        await db.incrementStat(getAuth(assist[1]), 5);
                     }
                 }
             } else {
@@ -110,13 +110,13 @@ module.exports = function createGameEvents({
                 );
 
                 if (isFullTeams() && state.mode === Mods.PUBLIC) {
-                    db.incrementStat(getAuth(goal[1]), 7);
+                    await db.incrementStat(getAuth(goal[1]), 7);
 
                     if (assist != null) {
-                        db.incrementStat(getAuth(assist[1]), 3);
+                        await db.incrementStat(getAuth(assist[1]), 3);
                     }
                     if (assist != null && assist[4]) {
-                        db.incrementStat(getAuth(assist[1]), 8);
+                        await db.incrementStat(getAuth(assist[1]), 8);
                     }
                 }
             }
@@ -247,7 +247,7 @@ module.exports = function createGameEvents({
         }
     }
 
-    function onGameStop(byPlayer) {
+    async function onGameStop(byPlayer) {
         if (state.training_mode) {
             clearInterval(state.training_interval);
             room.setCustomStadium(noGoal_map);
@@ -321,10 +321,10 @@ module.exports = function createGameEvents({
                 const winners = getTeamArray(red > blue ? Team.RED : Team.BLUE);
 
                 for (const p of allPlayers) {
-                    db.incrementStat(getAuth(p.id), 1);
+                    await db.incrementStat(getAuth(p.id), 1);
                 }
                 for (const p of winners) {
-                    db.incrementStat(getAuth(p.id), 2);
+                    await db.incrementStat(getAuth(p.id), 2);
                 }
             }
         }

@@ -56,7 +56,7 @@ module.exports = function createMasterCommands({
         );
     }
 
-    function addAuthCommand(player, message) {
+    async function addAuthCommand(player, message) {
         const args = message.split(/ +/).slice(1);
 
         if (args.length === 0 || args[0].length !== 43) {
@@ -72,7 +72,7 @@ module.exports = function createMasterCommands({
 
         const auth = args[0];
 
-        if (!db.addAuth(auth)) {
+        if (!(await db.addAuth(auth))) {
             room.sendAnnouncement(
                 `Этот паблик уже в списке`,
                 player.id,
@@ -92,7 +92,7 @@ module.exports = function createMasterCommands({
         );
     }
 
-    function deleteAuthCommand(player, message) {
+    async function deleteAuthCommand(player, message) {
         const args = message.split(/ +/).slice(1);
 
         if (args.length === 0 || args[0].length !== 43) {
@@ -108,7 +108,7 @@ module.exports = function createMasterCommands({
 
         const auth = args[0];
 
-        if (!db.removeAuth(auth)) {
+        if (!(await db.removeAuth(auth))) {
             room.sendAnnouncement(
                 `Этого паблика нет в списке`,
                 player.id,
@@ -128,8 +128,8 @@ module.exports = function createMasterCommands({
         );
     }
 
-    function clearAuthsCommand(player) {
-        db.clearAuths();
+    async function clearAuthsCommand(player) {
+        await db.clearAuths();
         room.sendAnnouncement(
             `Список авторизированных игроков был очищен`,
             player.id,
@@ -240,8 +240,8 @@ module.exports = function createMasterCommands({
         );
     }
 
-    function statsResetCommand() {
-        db.clearStats();
+    async function statsResetCommand() {
+        await db.clearStats();
         room.sendAnnouncement(
             `Статистика была сброшена`,
             null,
@@ -334,7 +334,7 @@ module.exports = function createMasterCommands({
         );
     }
 
-    function setRoleCommand(player, message) {
+    async function setRoleCommand(player, message) {
         const args = message.split(/ +/).slice(1);
 
         if (args.length < 2) {
@@ -398,7 +398,7 @@ module.exports = function createMasterCommands({
             return;
         }
 
-        if (!db.hasAccount(target.auth)) {
+        if (!(await db.hasAccount(target.auth))) {
             room.sendAnnouncement(
                 `Аккаунт игрока не найден`,
                 player.id,
@@ -432,7 +432,7 @@ module.exports = function createMasterCommands({
             return;
         }
 
-        if (getRole(target, target.auth) === RoleString[roleName]) {
+        if (await getRole(target, target.auth) === RoleString[roleName]) {
             room.sendAnnouncement(
                 `У игрока и так эта роль`,
                 player.id,
@@ -444,7 +444,7 @@ module.exports = function createMasterCommands({
         }
 
         const date = args.length >= 3 ? Date.now() + stringToTime(args[2]) : null;
-        setRole(target, roleName, date, target.auth);
+        await setRole(target, roleName, date, target.auth);
 
         const timeStr = date == null ? '' : ` на ${getStringTime(args[2])}`;
         const displayName = target.name ?? target.auth;
@@ -458,7 +458,7 @@ module.exports = function createMasterCommands({
         );
     }
 
-    function getRoleListCommand(player, message) {
+    async function getRoleListCommand(player, message) {
         const args = message.toLowerCase().split(/ +/).slice(1);
 
         if (args.length === 0) {
@@ -486,7 +486,7 @@ module.exports = function createMasterCommands({
             return;
         }
 
-        const filtered = db.getAccountsByRole(roleName);
+        const filtered = await db.getAccountsByRole(roleName);
 
         if (args.length === 1) {
             const list = filtered.map((acc, i) => `[${i}] ${acc.nickname}`);

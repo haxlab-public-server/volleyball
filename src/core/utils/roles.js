@@ -10,7 +10,7 @@ module.exports = function createRoleHelpers({
 }) {
 
 function checkRoles() {
-    const expiredAuths = db.expireRoles();
+    const expiredAuths = await db.expireRoles();
     for (const auth of expiredAuths) {
         const id = getID(auth);
         if (id != null) {
@@ -33,7 +33,7 @@ function setRole(player, role, time, auth = null) {
         player.auth = auth;
         player.admin = false;
     }
-    db.setRole(player.auth, role, time);
+    await db.setRole(player.auth, role, time);
     if (RoleString[role] >= Role.PREADMIN) {
         if (player.id == undefined) {
             player.id = getID(player.auth);
@@ -51,23 +51,23 @@ function setRole(player, role, time, auth = null) {
     }
 }
     
-function getRole(player, auth = null) {
+async function getRole(player, auth = null) {
     if (auth == null) {
         player.auth = getAuth(player.id);
     } else {
         player.auth = auth;
         player.admin = false;
     }
-    const account = db.getAccount(player.auth);
+    const account = await db.getAccount(player.auth);
     if (!account || account.role == null) {
         return Role.PLAYER;
     }
     return RoleString[account.role] ?? Role.PLAYER;
 }
 
-function getChatColor(player) {
-    if (getRole(player) >= Role.VIP) {
-        const account = db.getAccount(getAuth(player.id));
+async function getChatColor(player) {
+    if (await getRole(player) >= Role.VIP) {
+        const account = await db.getAccount(getAuth(player.id));
         const color = account && account.chat_color != null ? account.chat_color : null;
         if (color != null) {
             return `0x${color}`;

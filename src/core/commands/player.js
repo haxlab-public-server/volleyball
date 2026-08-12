@@ -70,10 +70,11 @@ module.exports = function createPlayerCommands({
         );
     }
 
-    function helpCommand(player) {
+    async function helpCommand(player) {
         const commands = getCommands();
+        const role = await getRole(player);
         const available = Object.entries(commands)
-            .filter(([, cmd]) => cmd.roles <= getRole(player))
+            .filter(([, cmd]) => cmd.roles <= role)
             .map(([key]) => `!${key}`);
 
         room.sendAnnouncement(
@@ -85,9 +86,9 @@ module.exports = function createPlayerCommands({
         );
     }
 
-    function admCommand(player) {
+    async function admCommand(player) {
         player.auth = getAuth(player.id);
-        const role = getRole(player);
+        const role = await getRole(player);
         const hasAdmin = room.getPlayerList().some(p => p.admin);
 
         if (state.mode === Mods.PRIVATE) {
@@ -185,11 +186,11 @@ module.exports = function createPlayerCommands({
         room.kickPlayer(player.id, 'Пока!', false);
     }
 
-    function statsCommand(player, message) {
+    async function statsCommand(player, message) {
         const args = message.split(/ +/).slice(1);
 
         if (args.length === 0) {
-            const stat = db.getStat(getAuth(player.id));
+            const stat = await db.getStat(getAuth(player.id));
             if (!stat) {
                 room.sendAnnouncement(
                     `Вас нет в статистике сыграйте хотя бы одну игру!`,
@@ -237,7 +238,7 @@ module.exports = function createPlayerCommands({
                 return;
             }
 
-            const stat = db.getStat(getAuth(id));
+            const stat = await db.getStat(getAuth(id));
             if (!stat) {
                 room.sendAnnouncement(
                     `Вас нет в статистике сыграйте хотя бы одну игру!`,
@@ -260,7 +261,7 @@ module.exports = function createPlayerCommands({
         }
 
         const pname = arg.slice(1).replace(/_/g, ' ').toLowerCase();
-        const matches = db.findStatsByName(pname);
+        const matches = await db.findStatsByName(pname);
 
         if (matches.length === 0) {
             room.sendAnnouncement(
@@ -274,15 +275,15 @@ module.exports = function createPlayerCommands({
         }
 
         if (matches.length > 1 && (args[1] === undefined || isNaN(args[1]))) {
-            const names = matches
-                .map(([auth], i) => {
-                    const nicks = db.getNicknames(auth);
-                    return `${i + 1}) ${nicks.length > 0 ? nicks.join(', ') : auth}`;
-                })
-                .join('\n');
+            const names = [];
+            for (let i = 0; i < matches.length; i++) {
+                const [auth] = matches[i];
+                const nicks = await db.getNicknames(auth);
+                names.push(`${i + 1}) ${nicks.length > 0 ? nicks.join(', ') : auth}`);
+            }
 
             room.sendAnnouncement(
-                `Игроков с таким именем в статистике ${matches.length}, введите команду ещё раз, но после имени введите номер нужного вам\nВот их имена из deanon команды:\n${names}`,
+                `Игроков с таким именем в статистике ${matches.length}, введите команду ещё раз, но после имени введите номер нужного вам\nВот их имена из deanon команды:\n${names.join('\n')}`,
                 player.id,
                 Color.WH_BLUE,
                 'small',
@@ -314,12 +315,12 @@ module.exports = function createPlayerCommands({
         );
     }
 
-    function renameCommand(player, message) {
+    async function renameCommand(player, message) {
         const args = message.split(/ +/).slice(1);
         const auth = getAuth(player.id);
         const newName = args.length === 0 ? player.name : args.join(' ');
 
-        if (!db.setStatName(auth, newName)) {
+        if (!(await db.setStatName(auth, newName))) {
             room.sendAnnouncement(
                 `Ошибка!`,
                 player.id,
@@ -349,7 +350,7 @@ module.exports = function createPlayerCommands({
         time: 10
     };
 
-    function topsCommand(player, message) {
+    async function topsCommand(player, message) {
         const args = message.split(/ +/).slice(1);
         const validTops = [...Object.keys(TOPS), 'all'];
         const top = args[0]?.toLowerCase();
@@ -380,7 +381,7 @@ module.exports = function createPlayerCommands({
             }
         }
 
-        const list = db.getTopStats(5);
+        const list = await db.getTopStats(5);
 
         if (list.length < len) {
             room.sendAnnouncement(
@@ -454,7 +455,7 @@ module.exports = function createPlayerCommands({
             room.sendAnnouncement(
                 `Игрока с таким ID не существует`,
                 player.id,
-                Color.GR_RED,
+                Color.WH_BLUE,
                 'small',
                 HaxNotification.CHAT
             );
@@ -470,7 +471,7 @@ module.exports = function createPlayerCommands({
         );
     }
 
-    function queueCommand(player) {
+    async function queueCommand(player) {
         if (state.queue.length === 0) {
             room.sendAnnouncement(
                 `📝В очереди никого нет`,
@@ -486,9 +487,14 @@ module.exports = function createPlayerCommands({
         const realQueue = sorted.filter(
             ([id]) => state.afkList.findIndex(p => p[0] === id) === -1
         );
-        const vipQueue = realQueue.filter(
-            ([id]) => vipQueueRoles.includes(getRole(room.getPlayer(id)))
-        );
+
+        const vipQueue = [];
+        for (const [id] of realQueue) {
+            const p = room.getPlayer(id);
+            if (p && vipQueueRoles.includes(await getRole(p))) {
+                vipQueue.push([id, realQueue.find(q => q[0] === id)[1]]);
+            }
+        }
 
         let result = realQueue.length > 0
             ? `📝Очередь (игрок [пропущ. игр]): ${realQueue.map(([id, missed]) => `${room.getPlayer(id).name} [${missed}]`).join(', ')}.`
@@ -606,7 +612,7 @@ module.exports = function createPlayerCommands({
         );
     }
 
-    function deanonCommand(player, message) {
+    async function deanonCommand(player, message) {
         const args = message.split(/ +/).slice(1);
 
         if (args.length === 0) {
@@ -646,7 +652,7 @@ module.exports = function createPlayerCommands({
 
         const auth = getAuth(target.id);
 
-        if (!db.hasNicknames(auth)) {
+        if (!(await db.hasNicknames(auth))) {
             room.sendAnnouncement(
                 `Ошибка, невозможно узнать имена игрока`,
                 player.id,
@@ -657,7 +663,7 @@ module.exports = function createPlayerCommands({
             return;
         }
 
-        const names = db.getNicknames(auth).join(', ');
+        const names = (await db.getNicknames(auth)).join(', ');
         room.sendAnnouncement(
             `🔍${target.name} также известен как: ${names}.`,
             player.id,

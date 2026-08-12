@@ -59,13 +59,13 @@ module.exports = function createIntervals({
 
     setInterval(() => {
         const now = Date.now();
-        const expired = db.getExpiredBans(now);
+        const expired = await db.getExpiredBans(now);
 
         for (const ban of expired) {
             if (ban.id != null) room.clearBan(ban.id);
         }
 
-        db.removeExpiredBans(now);
+        await db.removeExpiredBans(now);
 
         muteArray.checkMutes();
         muteArray.updateMutes();
@@ -77,7 +77,7 @@ module.exports = function createIntervals({
             for (const player of room.getPlayerList()) {
                 const entry = lastIdsList.find(k => k[0] === player.id);
                 if (entry) {
-                    db.incrementStat(entry[2], 10);
+                    await db.incrementStat(entry[2], 10);
                 }
             }
         }

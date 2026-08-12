@@ -22,8 +22,8 @@ module.exports = function createActivityEvents({
     updateBallColor
 }) {
 
-    function getDisplayName(player) {
-        const role = getRole(player);
+    async function getDisplayName(player) {
+        const role = await getRole(player);
         const prefix = {
             [Role.MASTER]:   '[👑]',
             [Role.ADMIN]:    '[🛡]',
@@ -48,12 +48,12 @@ module.exports = function createActivityEvents({
                state.mode === Mods.PUBLIC;
     }
 
-    function incrementStat(player, index) {
+    async function incrementStat(player, index) {
         if (!isFullPublicTeams()) return;
-        db.incrementStat(getAuth(player.id), index);
+        await db.incrementStat(getAuth(player.id), index);
     }
 
-    function onPlayerChat(player, message) {
+    async function onPlayerChat(player, message) {
         discordBot.sendLog(`[${getAuth(player.id)}] **${player.name}**: ${message}`);
         state.inactivityTicks[player.id] = 0;
 
@@ -63,8 +63,9 @@ module.exports = function createActivityEvents({
         if (firstWord.startsWith('!')) {
             const commandName = firstWord.slice(1);
             const command = getCommand(commandName);
+            const playerRole = await getRole(player);
 
-            if (command !== false && commands[command].roles <= getRole(player)) {
+            if (command !== false && commands[command].roles <= playerRole) {
                 commands[command].function(player, message);
             } else {
                 room.sendAnnouncement(
@@ -91,9 +92,15 @@ module.exports = function createActivityEvents({
                     HaxNotification.MENTION
                 );
 
+                const allPlayers = room.getPlayerList();
+                const adminPlayers = [];
+                for (const p of allPlayers) {
+                    if (await getRole(p) >= Role.PREADMIN) adminPlayers.push(p);
+                }
+
                 sendAnnouncementTeam(
                     `*MUTED* ${player.name} (${player.id}): ${message}`,
-                    room.getPlayerList().filter(p => getRole(p) >= Role.PREADMIN),
+                    adminPlayers,
                     Color.GREY,
                     null,
                     HaxNotification.NONE
@@ -107,15 +114,21 @@ module.exports = function createActivityEvents({
             return false;
         }
 
-        const displayName = getDisplayName(player);
-        const chatColor = getChatColor(player);
+        const displayName = await getDisplayName(player);
+        const chatColor = await getChatColor(player);
         const style = chatColor != null ? 'bold' : null;
+        const playerRole = await getRole(player);
 
         const allPlayers = room.getPlayerList();
-        const preAdmins = allPlayers.filter(p => getRole(p) >= Role.PREADMIN);
-        const normals   = allPlayers.filter(p => getRole(p) < Role.PREADMIN);
+        const preAdmins = [];
+        const normals = [];
+        for (const p of allPlayers) {
+            const r = await getRole(p);
+            if (r >= Role.PREADMIN) preAdmins.push(p);
+            else normals.push(p);
+        }
 
-        const isAllMention = getRole(player) >= Role.ADMIN && /@all\b/i.test(message);
+        const isAllMention = playerRole >= Role.ADMIN && /@all\b/i.test(message);
 
         if (isAllMention) {
             sendAnnouncementTeam(

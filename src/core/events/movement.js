@@ -27,7 +27,7 @@ module.exports = function createMovementEvents({
         [Role.VIP]: 'VIP'
     };
 
-    function onPlayerJoin(player) {
+    async function onPlayerJoin(player) {
         lastIds[player.auth] = [player.id, player.conn, player.auth];
 
         if (GhostKick && room.getPlayerList().length > 1) {
@@ -44,12 +44,12 @@ module.exports = function createMovementEvents({
             }
         }
 
-        db.ensureAccount(player.auth, player.name);
+        await db.ensureAccount(player.auth, player.name);
 
-        const ban = db.findBan(player.auth, player.conn);
+        const ban = await db.findBan(player.auth, player.conn);
 
         if (ban) {
-            db.updateBan(ban.rowid, {
+            await db.updateBan(ban.rowid, {
                 id: player.id,
                 name: player.name,
                 conn: player.conn,
@@ -67,8 +67,8 @@ module.exports = function createMovementEvents({
             return;
         }
 
-        if (state.joinAuths && getRole(player) < Role.ADMIN) {
-            if (!db.hasAuth(player.auth)) {
+        if (state.joinAuths && await getRole(player) < Role.ADMIN) {
+            if (!(await db.hasAuth(player.auth))) {
                 setTimeout(() => {
                     room.kickPlayer(
                         player.id,
@@ -82,10 +82,10 @@ module.exports = function createMovementEvents({
         state.inactivityTicks[player.id] = 0;
         state.queue.push([player.id, 0]);
 
-        db.addNickname(player.auth, player.name);
-        db.ensureStat(player.auth, player.name);
+        await db.addNickname(player.auth, player.name);
+        await db.ensureStat(player.auth, player.name);
 
-        const role = getRole(player);
+        const role = await getRole(player);
         const roleName = ROLE_NAMES[role];
 
         if (role >= Role.ADMIN) {
@@ -174,10 +174,10 @@ module.exports = function createMovementEvents({
         );
     }
 
-    function onPlayerKicked(kickedPlayer, reason, ban, byPlayer) {
+    async function onPlayerKicked(kickedPlayer, reason, ban, byPlayer) {
         if (byPlayer != null) {
-            const byRole = getRole(byPlayer);
-            const kickedRole = getRole(kickedPlayer);
+            const byRole = await getRole(byPlayer);
+            const kickedRole = await getRole(kickedPlayer);
 
             if ((ban && byRole < Role.MASTER) || kickedPlayer.id === byPlayer.id) {
                 room.clearBan(kickedPlayer.id);

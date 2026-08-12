@@ -63,7 +63,7 @@ module.exports = function createUpdatesUtils({
         }
     }
 
-    function randomizeTeams() {
+    async function randomizeTeams() {
         if (state.randomize_sit) return;
         state.randomize_sit = true;
 
@@ -106,7 +106,7 @@ module.exports = function createUpdatesUtils({
                 .sort((a, b) => b[1] - a[1]);
 
             const vips = specs.filter(p => {
-                if (!vipQueueRoles.includes(getRole(p))) return false;
+                if (!vipQueueRoles.includes(await getRole(p))) return false;
                 const queueData = state.queue.find(([id]) => id === p.id);
                 const missedCount = queueData ? queueData[1] : 0;
                 if (isWinstay) {

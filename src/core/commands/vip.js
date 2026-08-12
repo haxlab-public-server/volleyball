@@ -23,7 +23,7 @@ module.exports = function createVipCommands({
         clearInterval(state.training_interval);
     }
 
-    function chatColorCommand(player, message) {
+    async function chatColorCommand(player, message) {
         const args = message.toLowerCase().split(/ +/).slice(1);
 
         if (args.length === 0) {
@@ -40,7 +40,7 @@ module.exports = function createVipCommands({
         const auth = getAuth(player.id);
 
         if (args[0] === 'clear') {
-            db.setChatColor(auth, null);
+            await db.setChatColor(auth, null);
 
             room.sendAnnouncement(
                 `Цвет чата был выключен!`,
@@ -52,7 +52,7 @@ module.exports = function createVipCommands({
             return;
         }
 
-        db.setChatColor(auth, args[0]);
+        await db.setChatColor(auth, args[0]);
 
         room.sendAnnouncement(
             `Теперь у вас вот такой цвет чата! \nВыключить цветной чат: !color clear`,
