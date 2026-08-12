@@ -57,7 +57,7 @@ module.exports = function createIntervals({
         updateVipSlots();
     }, 60 * 60 * 1000);
 
-    setInterval(() => {
+    setInterval(async () => {
         const now = Date.now();
         const expired = await db.getExpiredBans(now);
 
@@ -66,7 +66,6 @@ module.exports = function createIntervals({
         }
 
         await db.removeExpiredBans(now);
-
         await muteArray.checkMutes();
         await muteArray.updateMutes();
         await checkRoles();
@@ -107,7 +106,7 @@ module.exports = function createIntervals({
     }, 1000);
 
     // onGameTick replacement
-    setInterval(() => {
+    setInterval(async () => {
         if (room.getScores() == null) return;
 
         await updateTeams();
