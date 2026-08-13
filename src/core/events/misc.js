@@ -14,14 +14,18 @@ module.exports = function createMiscEvents({
         return `${day}.${month}.${year} ${hours}:${minutes}`;
     }
 
+    let hasFirstRoomLink = false;
     function onRoomLink(url) {
-        const dateStr = formatDate();
+        if (hasFirstRoomLink) return;
 
+        const dateStr = formatDate();
         console.log(`[${dateStr}] ${roomName} - ${url}`);
         console.log(`[${dateStr}] 🌟VIP-Пароль: ${state.vipPassword}`);
 
         discordBot.sendVipPassword(state.vipPassword);
         discordBot.sendLog(`# [${dateStr}] ROOM ONLINE`);
+
+        hasFirstRoomLink = true;
     }
 
     function onPlayerAdminChange(changedPlayer, byPlayer) {
