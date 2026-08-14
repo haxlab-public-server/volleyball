@@ -216,7 +216,7 @@ module.exports = function createUpdatesUtils({
             } catch (_) {}
         }
 
-        const captain = await getCaptain(pickTeam);
+        const captain = getCaptain(pickTeam);
         if (captain == null) {
             specs = getTeamArray(Team.SPECTATORS);
             if (specs[0]) {

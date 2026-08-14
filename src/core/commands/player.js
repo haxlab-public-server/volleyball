@@ -550,6 +550,10 @@ module.exports = function createPlayerCommands({
                 room.setPlayerTeam(player.id, Team.SPECTATORS);
             }
             state.afkList.push([player.id, player.name, Date.now()]);
+            if (state.winstay?.team) {
+                state.winstay.team = state.winstay.team.filter(p => p.id !== player.id);
+                if (state.winstay.team.length === 0) state.winstay.streak = 0;
+            }
             room.sendAnnouncement(
                 `💤${player.name} теперь АФК`,
                 null,

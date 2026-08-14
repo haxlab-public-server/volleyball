@@ -154,6 +154,11 @@ module.exports = function createMovementEvents({
             HaxNotification.NONE
         );
 
+        if (state.winstay?.team) {
+            state.winstay.team = state.winstay.team.filter(p => p.id !== player.id);
+            if (state.winstay.team.length === 0) state.winstay.streak = 0;
+        }
+
         (async () => {
             updateVipSlots();
             await updateTeams();
