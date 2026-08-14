@@ -550,19 +550,6 @@ module.exports = function createPlayerCommands({
                 room.setPlayerTeam(player.id, Team.SPECTATORS);
             }
             state.afkList.push([player.id, player.name, Date.now()]);
-            if (state.winstay_mode && state.winstay.team.some(p => p.id === player.id)) {
-                room.sendAnnouncement(
-                    `Стрик был сброшен, так как один из игроков покинул команду`,
-                    null,
-                    Color.GR_RED,
-                    'small',
-                    HaxNotification.MENTION
-                );
-                state.winstay = {
-                    streak: 0,
-                    team: [],
-                }
-            }
             room.sendAnnouncement(
                 `💤${player.name} теперь АФК`,
                 null,

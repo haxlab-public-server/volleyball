@@ -7,7 +7,7 @@ module.exports = function createGameEvents({
     sendAnnouncementTeam,
     getTimeGame,
     ballSpawner,
-    randomizeTeams,
+    startPickingTeams,
     fetchRecording,
     discordBot,
     getIdReplay,
@@ -20,7 +20,9 @@ module.exports = function createGameEvents({
     Team,
     Mods,
     Color,
-    HaxNotification
+    HaxNotification,
+    TeamPickMode,
+    Sits
 }) {
     function isFullTeams() {
         return (
@@ -198,9 +200,9 @@ module.exports = function createGameEvents({
     }
 
     function onGameStart() {
+        state.sit = Sits.GAME;
         if (state.mode === Mods.PUBLIC && !state.training_mode) {
             clearTimeout(state.onGameStopTimeout);
-            state.randomize_sit = false;
 
             for (const p of getTeamArray(Team.SPECTATORS)) {
                 const idx = state.queue.findIndex(q => q[0] === p.id);
@@ -252,6 +254,7 @@ module.exports = function createGameEvents({
     }
 
     function onGameStop(byPlayer) {
+        state.sit = Sits.NONE;
         if (state.training_mode) {
             clearInterval(state.training_interval);
             room.setCustomStadium(noGoal_map);
@@ -369,11 +372,10 @@ module.exports = function createGameEvents({
                     'small',
                     HaxNotification.NONE
                 );
-
-                state.randomize_sit = true;
+                state.sit = Sits.TIMEOUT; 
                 state.onGameStopTimeout = setTimeout(async () => {
-                    state.randomize_sit = false;
-                    await randomizeTeams();
+                    state.sit = Sits.NONE;
+                    await startPickingTeams();
                 }, gamesTimeout * 1000);
             } else {
                 room.sendAnnouncement(

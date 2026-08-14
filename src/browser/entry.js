@@ -33,7 +33,10 @@ const {
     HaxNotification,
     Color,
     Team,
-    Mods
+    Mods,
+    TeamPickMode,
+    TeamPickModeString,
+    Sits
 } = require('../core/models/enums');
 
 const createModels = require('../core/models/models');
@@ -89,7 +92,10 @@ state.serveBall = false
 state.waitingForServe = true;
 state.newMatchPoint = 0
 state.afkList = []
-state.randomize_sit = false
+state.sit = Sits.NONE
+state.teamPickMode = TeamPickMode.CAPTAINS;
+state.captainPickTimer = null;
+state.captainPickForTeam = null;
 state.serve = null
 state.teamSize = defaultTeamSize
 state.joinAuths = false
@@ -157,11 +163,29 @@ const {
 })
 
 /* Services */
+const createCaptainsHelpers = require('../core/services/captains');
+const {
+    getPickTeam,
+    getCaptain,
+    isCurrentPickingCaptain,
+    sendPickList,
+    capPick
+} = createCaptainsHelpers({
+    room,
+    state,
+    getTeamArray,
+    Team,
+    Color,
+    HaxNotification
+})
+
 const createUpdatesUtils = require('../core/services/updates');
 const {
     updateTeamSize,
     updateTeams,
-    randomizeTeams,
+    startPickingTeams,
+    startCaptains,
+    stopCaptainPick,
     updateVipSlots,
     updateBallColor
 } = createUpdatesUtils({
@@ -179,7 +203,12 @@ const {
     queueMatches,
     vipQueueRoles,
     maxPlayers,
-    vipSlots
+    vipSlots,
+    Sits,
+    TeamPickMode,
+    getPickTeam,
+    getCaptain,
+    sendPickList
 })
 
 const createIntervals = require('../core/services/intervals');
@@ -330,7 +359,8 @@ const {
     teamSizeCommand,
     setRoleCommand,
     getRoleListCommand,
-    winstayCommand
+    winstayCommand,
+    teamPickCommand
 } = createMasterCommands({
     room,
     state,
@@ -346,7 +376,8 @@ const {
     Mods,
     Color,
     HaxNotification,
-    defaultTeamSize
+    defaultTeamSize,
+    TeamPickModeString
 })
 
 /* Commands init */
@@ -389,7 +420,8 @@ const commands = createCommands({
     trainingSettingCommands,
     myPointCommand,
     chatColorCommand,
-    winstayCommand
+    winstayCommand,
+    teamPickCommand
 })
 
 /* EVENTS */
@@ -443,7 +475,10 @@ Object.assign(room, wrapEventHandlers(createActivityEvents({
     Color,
     HaxNotification,
     discordBot,
-    updateBallColor
+    updateBallColor,
+    Sits,
+    isCurrentPickingCaptain,
+    capPick
 })));
 
 /* Game events */
@@ -457,7 +492,7 @@ Object.assign(room, wrapEventHandlers(createGameEvents({
     sendAnnouncementTeam,
     getTimeGame,
     ballSpawner,
-    randomizeTeams,
+    startPickingTeams,
     fetchRecording,
     discordBot,
     getIdReplay,
@@ -470,7 +505,9 @@ Object.assign(room, wrapEventHandlers(createGameEvents({
     Team,
     Mods,
     Color,
-    HaxNotification
+    HaxNotification,
+    TeamPickMode,
+    Sits
 })));
 
 /* Misc events */

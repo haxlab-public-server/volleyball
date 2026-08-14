@@ -13,59 +13,257 @@ module.exports = function createUpdatesUtils({
     queueMatches,
     vipQueueRoles,
     maxPlayers,
-    vipSlots
+    vipSlots,
+    Sits,
+    TeamPickMode,
+    getPickTeam,
+    getCaptain,
+    sendPickList
 }) {
+    const CAPTAIN_PICK_TIMEOUT_MS = 7000;
+
     function _getActivePlayers() {
         return room.getPlayerList().filter(
             p => state.afkList.findIndex(a => a[0] === p.id) === -1
         );
     }
 
+    function _getTeamSize() {
+        if (room.getScores() != null && state.game && state.game.teamSize) {
+            return state.game.teamSize;
+        }
+        return state.teamSize;
+    }
+
+    function _isWinstay() {
+        const specs = getTeamArray(Team.SPECTATORS);
+        return (
+            state.winstay_mode &&
+            state.winstay.streak > 0 &&
+            specs.length > state.teamSize * 2 &&
+            specs.length - state.winstay.team.length >= state.teamSize
+        );
+    }
+
+    function _canUseCaptains() {
+        return (
+            state.teamPickMode === TeamPickMode.CAPTAINS &&
+            _getActivePlayers().length >= state.teamSize * 2 + 1
+        );
+    }
+
+    function _hasPickChoice() {
+        return getTeamArray(Team.SPECTATORS).length >= 2;
+    }
+
+    function _clearCaptainPickTimer() {
+        if (state.captainPickTimer != null) {
+            clearTimeout(state.captainPickTimer);
+            state.captainPickTimer = null;
+        }
+    }
+
+    function stopCaptainPick() {
+        _clearCaptainPickTimer();
+        state.captainPickForTeam = null;
+        if (state.sit === Sits.CHOICE) {
+            state.sit = room.getScores() != null ? Sits.GAME : Sits.NONE;
+        }
+        try {
+            room.pauseGame(false);
+        } catch (_) {}
+    }
+
+    function _autoFillSlot(red, blue, size) {
+        const specs = getTeamArray(Team.SPECTATORS);
+        if (specs.length === 0) return;
+
+        if (red.length !== blue.length) {
+            room.setPlayerTeam(
+                specs[0].id,
+                red.length < blue.length ? Team.RED : Team.BLUE
+            );
+            return;
+        }
+
+        if (blue.length < size && specs.length >= 2) {
+            room.setPlayerTeam(specs[0].id, Team.RED);
+            room.setPlayerTeam(getTeamArray(Team.SPECTATORS)[0].id, Team.BLUE);
+            return;
+        }
+
+        if (blue.length < size && specs.length === 1) {
+            room.setPlayerTeam(specs[0].id, Team.RED);
+        }
+    }
+
     function updateTeamSize() {
         if (state.training_mode || state.winstay_mode || state.mode !== Mods.PUBLIC) return;
 
         state.teamSize = _getActivePlayers().length >= upTeamSizePlayers
-            ? defaultTeamSize + 1   
+            ? defaultTeamSize + 1
             : defaultTeamSize;
     }
 
     async function updateTeams() {
         if (state.mode !== Mods.PUBLIC || state.training_mode) return;
-        if (state.randomize_sit) return;
+        if (state.sit === Sits.RANDOMIZE || state.sit === Sits.TIMEOUT) return;
 
         const red = getTeamArray(Team.RED);
         const blue = getTeamArray(Team.BLUE);
-        const specs = getTeamArray(Team.SPECTATORS);
         const scores = room.getScores();
         const activeCount = _getActivePlayers().length;
+        const size = _getTeamSize();
+
+        if (state.sit === Sits.CHOICE) {
+            await startCaptains();
+            return;
+        }
 
         if (scores != null) {
-            if (red.length !== blue.length && specs.length > 0) {
-                const targetTeam = red.length < blue.length ? Team.RED : Team.BLUE;
-                room.setPlayerTeam(specs[0].id, targetTeam);
-            } else if (
-                red.length === blue.length &&
-                blue.length < state.game.teamSize &&
-                specs.length >= 2
-            ) {
-                room.setPlayerTeam(specs[0].id, Team.RED);
-                room.setPlayerTeam(getTeamArray(Team.SPECTATORS)[0].id, Team.BLUE);
-            }
-
             if (activeCount <= 1 || red.length === 0 || blue.length === 0) {
                 room.stopGame();
+                return;
+            }
+
+            if (red.length < size || blue.length < size) {
+                if (_canUseCaptains() && _hasPickChoice()) {
+                    await startCaptains();
+                    return;
+                }
+                _autoFillSlot(red, blue, size);
             }
             return;
         }
 
-        if (activeCount >= 2) {
-            await randomizeTeams();
+        if (activeCount >= 2 && state.sit === Sits.NONE) {
+            await startPickingTeams();
         }
     }
 
+    async function startPickingTeams() {
+        if (_getActivePlayers().length < 2) return;
+
+        if (state.teamPickMode === TeamPickMode.RANDOM || !_canUseCaptains()) {
+            await randomizeTeams();
+            return;
+        }
+
+        await startCaptains();
+    }
+
+    async function startCaptains() {
+        if (!_canUseCaptains()) {
+            stopCaptainPick();
+            return;
+        }
+
+        const size = _getTeamSize();
+        const red = getTeamArray(Team.RED);
+        const blue = getTeamArray(Team.BLUE);
+        const scores = room.getScores();
+        let specs = getTeamArray(Team.SPECTATORS);
+
+        if (red.length >= size && blue.length >= size) {
+            stopCaptainPick();
+            if (scores == null) {
+                room.startGame();
+            }
+            return;
+        }
+
+        if (state.sit === Sits.NONE) {
+            if (_isWinstay()) {
+                const championIds = new Set(state.winstay.team.map(p => p.id));
+                for (const p of state.winstay.team) {
+                    room.setPlayerTeam(p.id, Team.RED);
+                }
+                specs = getTeamArray(Team.SPECTATORS).filter(p => !championIds.has(p.id));
+                if (specs[0]) {
+                    room.setPlayerTeam(specs[0].id, Team.BLUE);
+                }
+            } else {
+                state.winstay = { streak: 0, team: [] };
+                if (specs[0]) {
+                    room.setPlayerTeam(specs[0].id, Team.RED);
+                }
+                specs = getTeamArray(Team.SPECTATORS);
+                if (specs[0]) {
+                    room.setPlayerTeam(specs[0].id, Team.BLUE);
+                }
+            }
+            state.sit = Sits.CHOICE;
+            return;
+        }
+
+        if (!_hasPickChoice()) {
+            _clearCaptainPickTimer();
+            return;
+        }
+
+        const pickTeam = getPickTeam();
+        if (pickTeam == null) {
+            stopCaptainPick();
+            if (scores == null) {
+                room.startGame();
+            }
+            return;
+        }
+
+        state.sit = Sits.CHOICE;
+        if (scores != null) {
+            try {
+                room.pauseGame(true);
+            } catch (_) {}
+        }
+
+        const captain = getCaptain(pickTeam);
+        if (captain == null) {
+            specs = getTeamArray(Team.SPECTATORS);
+            if (specs[0]) {
+                room.setPlayerTeam(specs[0].id, pickTeam);
+            }
+            return;
+        }
+
+        if (state.captainPickForTeam === pickTeam && state.captainPickTimer != null) {
+            return;
+        }
+
+        state.captainPickForTeam = pickTeam;
+        _clearCaptainPickTimer();
+        sendPickList(captain);
+
+        room.sendAnnouncement(
+            `🧢 Ход капитана ${captain.name}`,
+            null,
+            pickTeam === Team.RED ? Color.TEAM_RED : Color.TEAM_BLUE,
+            'bold',
+            HaxNotification.CHAT
+        );
+
+        state.captainPickTimer = setTimeout(() => {
+            state.captainPickTimer = null;
+            if (state.sit !== Sits.CHOICE) return;
+
+            const team = getPickTeam();
+            const auto = getTeamArray(Team.SPECTATORS);
+            if (team != null && auto[0]) {
+                room.setPlayerTeam(auto[0].id, team);
+                room.sendAnnouncement(
+                    `⏰ Время вышло — выбран ${auto[0].name}`,
+                    null,
+                    Color.GR_RED,
+                    'small',
+                    HaxNotification.CHAT
+                );
+            }
+        }, CAPTAIN_PICK_TIMEOUT_MS);
+    }
+
     async function randomizeTeams() {
-        if (state.randomize_sit) return;
-        state.randomize_sit = true;
+        stopCaptainPick();
+        state.sit = Sits.RANDOMIZE;
 
         room.sendAnnouncement(
             `⚖️ Рандомизация команд...`,
@@ -78,7 +276,7 @@ module.exports = function createUpdatesUtils({
         setTimeout(async () => {
             let specs = getTeamArray(Team.SPECTATORS);
             let takeCount;
-            const isWinstay = state.winstay_mode && state.winstay.streak > 0 && specs.length > state.teamSize*2 && specs.length-state.winstay.team.length >= state.teamSize;
+            const isWinstay = _isWinstay();
 
             if (isWinstay) {
                 const championIds = new Set(state.winstay.team.map(p => p.id));
@@ -89,12 +287,12 @@ module.exports = function createUpdatesUtils({
                 takeCount = state.teamSize;
             } else {
                 specs = getTeamArray(Team.SPECTATORS);
-                state.winstay = {streak: 0, team: []}
+                state.winstay = { streak: 0, team: [] };
                 const maxOnField = state.teamSize * 2;
                 takeCount = Math.min(specs.length, maxOnField);
                 if (takeCount % 2 === 1) takeCount -= 1;
                 if (takeCount < 2) {
-                    state.randomize_sit = false;
+                    state.sit = Sits.NONE;
                     return;
                 }
             }
@@ -137,31 +335,31 @@ module.exports = function createUpdatesUtils({
 
             for (const [id] of priorityQueue) {
                 if (selectedIds.length >= takeCount) break;
-                if (specs.some(p => p.id === id)) { 
-                    selectedIds.push(id); 
-                    used.add(id); 
-                } 
-            } 
+                if (specs.some(p => p.id === id)) {
+                    selectedIds.push(id);
+                    used.add(id);
+                }
+            }
 
-            const rest = specs.filter(p => !used.has(p.id)); 
+            const rest = specs.filter(p => !used.has(p.id));
 
-            while (selectedIds.length < takeCount && rest.length > 0) { 
-                const idx = getRandomInt(0, rest.length - 1); 
-                selectedIds.push(rest[idx].id); 
+            while (selectedIds.length < takeCount && rest.length > 0) {
+                const idx = getRandomInt(0, rest.length - 1);
+                selectedIds.push(rest[idx].id);
                 used.add(rest[idx].id);
-                rest.splice(idx, 1); 
-            } 
+                rest.splice(idx, 1);
+            }
 
             if (isWinstay) {
                 for (const id of selectedIds) {
                     room.setPlayerTeam(id, Team.BLUE);
                 }
-            } else { 
+            } else {
                 for (let i = selectedIds.length - 1; i > 0; i--) {
                     const j = getRandomInt(0, i);
                     [selectedIds[i], selectedIds[j]] = [selectedIds[j], selectedIds[i]];
                 }
-                
+
                 const half = selectedIds.length / 2;
                 for (let i = 0; i < selectedIds.length; i++) {
                     room.setPlayerTeam(
@@ -214,7 +412,7 @@ module.exports = function createUpdatesUtils({
             const ballPos = room.getBallPosition();
 
             const onEnemySide =
-                (lastTeam === Team.RED  && (ballPos.x > 0.1 || (ballPos.y >= 68 && ballPos.x >= 0))) ||
+                (lastTeam === Team.RED && (ballPos.x > 0.1 || (ballPos.y >= 68 && ballPos.x >= 0))) ||
                 (lastTeam === Team.BLUE && (ballPos.x < -0.1 || (ballPos.y >= 68 && ballPos.x <= 0)));
 
             if (onEnemySide) {
@@ -231,7 +429,9 @@ module.exports = function createUpdatesUtils({
     return {
         updateTeamSize,
         updateTeams,
-        randomizeTeams,
+        startPickingTeams,
+        startCaptains,
+        stopCaptainPick,
         updateVipSlots,
         updateBallColor
     };

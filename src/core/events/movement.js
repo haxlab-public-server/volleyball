@@ -154,20 +154,6 @@ module.exports = function createMovementEvents({
             HaxNotification.NONE
         );
 
-        if (state.winstay_mode && state.winstay.team.some(p => p.id === player.id)) {
-            room.sendAnnouncement(
-                `Стрик был сброшен, так как один из игроков покинул команду`,
-                null,
-                Color.GR_RED,
-                'small',
-                HaxNotification.MENTION
-            );
-            state.winstay = {
-                streak: 0,
-                team: [],
-            }
-        }
-
         (async () => {
             updateVipSlots();
             await updateTeams();

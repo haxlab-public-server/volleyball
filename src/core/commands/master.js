@@ -13,7 +13,8 @@ module.exports = function createMasterCommands({
     Mods,
     Color,
     HaxNotification,
-    defaultTeamSize
+    defaultTeamSize,
+    TeamPickModeString
 }) {
     function parsePlayerId(arg) {
         const idStr = arg.startsWith('#') ? arg.slice(1) : arg;
@@ -615,6 +616,71 @@ module.exports = function createMasterCommands({
         );
     }
 
+    function teamPickCommand(player, message) {
+        const args = message.split(/ +/).slice(1);
+
+        if (args.length === 0 || args[0].toLowerCase() === 'mode') {
+            const current = Object.keys(TeamPickModeString).find(
+                (k) => TeamPickModeString[k] === state.teamPickMode
+            ) ?? 'random';
+
+            room.sendAnnouncement(
+                `Сейчас распределение команд: ${current}`,
+                player.id,
+                Color.WH_GREEN,
+                'small',
+                HaxNotification.CHAT
+            );
+            return;
+        }
+
+        if (args[0].toLowerCase() === 'list') {
+            const list = Object.keys(TeamPickModeString).join(', ');
+            room.sendAnnouncement(
+                `Список режимов распределения команд: ${list}.`,
+                player.id,
+                Color.WH_BLUE,
+                'small',
+                HaxNotification.CHAT
+            );
+            return;
+        }
+
+        const key = args[0].toLowerCase();
+
+        if (!(key in TeamPickModeString)) {
+            room.sendAnnouncement(
+                `Некорректный режим. "!teampick list" — список доступных режимов`,
+                player.id,
+                Color.GR_RED,
+                'small',
+                HaxNotification.CHAT
+            );
+            return;
+        }
+
+        if (TeamPickModeString[key] === state.teamPickMode) {
+            room.sendAnnouncement(
+                `Этот режим уже стоит`,
+                player.id,
+                Color.GR_RED,
+                'small',
+                HaxNotification.CHAT
+            );
+            return;
+        }
+
+        state.teamPickMode = TeamPickModeString[key];
+
+        room.sendAnnouncement(
+            `Теперь распределение команд: ${key} — ${player.name}`,
+            null,
+            Color.WH_GREEN,
+            'small',
+            HaxNotification.CHAT
+        );
+    }
+
     return {
         passwordCommand,
         addAuthCommand,
@@ -627,6 +693,7 @@ module.exports = function createMasterCommands({
         teamSizeCommand,
         setRoleCommand,
         getRoleListCommand,
-        winstayCommand
+        winstayCommand,
+        teamPickCommand
     };
 };

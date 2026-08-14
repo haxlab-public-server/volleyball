@@ -43,11 +43,32 @@ const Mods = {
     PRIVATE: 1
 } 
 
+const TeamPickMode = {
+    RANDOM: 0,
+    CAPTAINS: 1,
+};
+
+const TeamPickModeString = {
+    random: TeamPickMode.RANDOM,
+    captains: TeamPickMode.CAPTAINS,
+};
+
+const Sits = {
+    NONE: 0,
+    GAME: 1,
+    RANDOMIZE: 2,
+    CHOICE: 3,
+    TIMEOUT: 4,
+}
+
 module.exports = {
     Role,
     RoleString,
     HaxNotification,
     Color,
     Team,
-    Mods
+    Mods,
+    TeamPickMode,
+    TeamPickModeString,
+    Sits
 }

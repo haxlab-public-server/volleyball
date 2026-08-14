@@ -19,7 +19,10 @@ module.exports = function createActivityEvents({
     Color,
     HaxNotification,
     discordBot,
-    updateBallColor
+    updateBallColor,
+    Sits,
+    isCurrentPickingCaptain,
+    capPick
 }) {
 
     async function getDisplayName(player) {
@@ -53,6 +56,14 @@ module.exports = function createActivityEvents({
         await db.incrementStat(getAuth(player.id), index);
     }
 
+    function isPickMessage(message) {
+        if (!/^\d+$/.test(message)) return false;
+        const pickedNumber = parseInt(message, 10);
+        const specsCount = getTeamArray(Team.SPECTATORS).length;
+        return pickedNumber >= 1 && pickedNumber <= specsCount;
+    }
+
+
     function onPlayerChat(player, message) {
         discordBot.sendLog(`[${getAuth(player.id)}] **${player.name}**: ${message}`);
         state.inactivityTicks[player.id] = 0;
@@ -60,6 +71,11 @@ module.exports = function createActivityEvents({
         const processChatAsync = async () => {
             const msgArray = message.split(/ +/);
             const firstWord = msgArray[0]?.toLowerCase() || '';
+
+            if (state.sit === Sits.CHOICE && isCurrentPickingCaptain(player) && isPickMessage(message)) {
+                capPick(player, player.team, parseInt(message, 10));
+                return;
+            }
 
             if (firstWord.startsWith('!')) {
                 const commandName = firstWord.slice(1);
