@@ -6,19 +6,19 @@ module.exports = function createRoomUtils({
     Team
 }) {
 
-function getAuth(id) {
+function getAuth(id) { // "auth": [id, conn, auth]
     const values = Object.values(lastIds);
     const found = values.find(i => i && i[0] == id);
     return found ? found[2] : null;
 }
 
-function getConn(id) {
+function getConn(id) { // "auth": [id, conn, auth]
     const values = Object.values(lastIds);
     const found = values.find(i => i && i[0] == id);
     return found ? found[1] : null;
 }
 
-function getID(auth) {
+function getID(auth) { // "auth": [id, conn, auth]
     if (lastIds && lastIds[auth]) {
         return lastIds[auth][0];
     }

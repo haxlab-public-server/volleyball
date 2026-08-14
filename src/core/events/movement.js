@@ -28,8 +28,6 @@ module.exports = function createMovementEvents({
     };
 
     function onPlayerJoin(player) {
-        lastIds[player.auth] = [player.id, player.conn, player.auth];
-
         if (GhostKick && room.getPlayerList().length > 1) {
             const alreadyOnline = room.getPlayerList()
                 .filter(p => p.id !== player.id)
@@ -43,6 +41,8 @@ module.exports = function createMovementEvents({
                 return;
             }
         }
+
+        lastIds[player.auth] = [player.id, player.conn, player.auth];
 
         (async () => {
             await db.ensureAccount(player.auth, player.name);
