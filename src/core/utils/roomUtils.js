@@ -6,30 +6,27 @@ module.exports = function createRoomUtils({
     Team
 }) {
 
-function getAuth(id) { // lastIds = {"auth": [id, conn, auth]}
-    let values = Object.values(lastIds)
-    let index = values.findIndex(i => i[0] == id)
-    return values[index][2]
+function getAuth(id) {
+    const values = Object.values(lastIds);
+    const found = values.find(i => i && i[0] == id);
+    return found ? found[2] : null;
 }
 
-function getConn(id) { // lastIds = {"auth": [id, conn, auth]}
-    let values = Object.values(lastIds)
-    let index = values.findIndex(i => i[0] == id)
-    return values[index][1]
+function getConn(id) {
+    const values = Object.values(lastIds);
+    const found = values.find(i => i && i[0] == id);
+    return found ? found[1] : null;
 }
 
-function getID(auth) { // lastIds = {"auth": [id, conn, auth]}
-    let keys = Object.keys(lastIds)
-    let index = keys.findIndex(i => i == auth)
-    if (index != -1) {
-        return lastIds[keys[index]][0]
-    } else {
-        return null
+function getID(auth) {
+    if (lastIds && lastIds[auth]) {
+        return lastIds[auth][0];
     }
+    return null;
 }
 
 function getTeamArray(team) {
-    players = room.getPlayerList();
+    const players = room.getPlayerList();
     if (team == Team.RED) return players.filter((p) => p.team == Team.RED)
     else if (team == Team.BLUE) return players.filter((p) => p.team == Team.BLUE)
     else return players.filter((p) => p.team == 0).filter((p) => state.afkList.findIndex((i) => i[0] == p.id) == -1)

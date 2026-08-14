@@ -48,7 +48,8 @@ module.exports = function createUpdatesUtils({
     function _canUseCaptains() {
         return (
             state.teamPickMode === TeamPickMode.CAPTAINS &&
-            _getActivePlayers().length >= state.teamSize * 2 + 1
+            _getActivePlayers().length >= state.teamSize * 2 + 1 &&
+            state.teamSize > 1
         );
     }
 
@@ -88,12 +89,8 @@ module.exports = function createUpdatesUtils({
 
         if (blue.length < size && specs.length >= 2) {
             room.setPlayerTeam(specs[0].id, Team.RED);
-            room.setPlayerTeam(getTeamArray(Team.SPECTATORS)[0].id, Team.BLUE);
+            room.setPlayerTeam(specs[1].id, Team.BLUE);
             return;
-        }
-
-        if (blue.length < size && specs.length === 1) {
-            room.setPlayerTeam(specs[0].id, Team.RED);
         }
     }
 
@@ -107,7 +104,7 @@ module.exports = function createUpdatesUtils({
 
     async function updateTeams() {
         if (state.mode !== Mods.PUBLIC || state.training_mode) return;
-        if (state.sit === Sits.RANDOMIZE || state.sit === Sits.TIMEOUT) return;
+        if (state.sit === Sits.RANDOMIZE || state.sit === Sits.TIMEOUT || state.sit === Sits.FORMING) return;
 
         const red = getTeamArray(Team.RED);
         const blue = getTeamArray(Team.BLUE);
@@ -116,6 +113,11 @@ module.exports = function createUpdatesUtils({
         const size = _getTeamSize();
 
         if (state.sit === Sits.CHOICE) {
+            if (red.length >= size && blue.length >= size) {
+                stopCaptainPick();
+                room.startGame();
+                return;
+            }
             await startCaptains();
             return;
         }
@@ -153,32 +155,22 @@ module.exports = function createUpdatesUtils({
     }
 
     async function startCaptains() {
-        if (!_canUseCaptains()) {
-            stopCaptainPick();
-            return;
-        }
-
+        if (state.sit === Sits.FORMING) return;
+        
         const size = _getTeamSize();
         const red = getTeamArray(Team.RED);
         const blue = getTeamArray(Team.BLUE);
         const scores = room.getScores();
         let specs = getTeamArray(Team.SPECTATORS);
 
-        if (red.length >= size && blue.length >= size) {
-            stopCaptainPick();
-            if (scores == null) {
-                room.startGame();
-            }
-            return;
-        }
-
         if (state.sit === Sits.NONE) {
+            state.sit = Sits.FORMING;
             if (_isWinstay()) {
                 const championIds = new Set(state.winstay.team.map(p => p.id));
                 for (const p of state.winstay.team) {
                     room.setPlayerTeam(p.id, Team.RED);
                 }
-                specs = getTeamArray(Team.SPECTATORS).filter(p => !championIds.has(p.id));
+                specs = specs.filter(p => !championIds.has(p.id));
                 if (specs[0]) {
                     room.setPlayerTeam(specs[0].id, Team.BLUE);
                 }
@@ -187,12 +179,19 @@ module.exports = function createUpdatesUtils({
                 if (specs[0]) {
                     room.setPlayerTeam(specs[0].id, Team.RED);
                 }
-                specs = getTeamArray(Team.SPECTATORS);
-                if (specs[0]) {
-                    room.setPlayerTeam(specs[0].id, Team.BLUE);
+                if (specs[1]) {
+                    room.setPlayerTeam(specs[1].id, Team.BLUE);
                 }
             }
             state.sit = Sits.CHOICE;
+            return;
+        }
+
+        if (getTeamArray(Team.RED).length >= size && getTeamArray(Team.BLUE).length >= size) {
+            stopCaptainPick();
+            if (scores == null) {
+                room.startGame();
+            }
             return;
         }
 
@@ -217,22 +216,22 @@ module.exports = function createUpdatesUtils({
             } catch (_) {}
         }
 
-        const captain = getCaptain(pickTeam);
+        const captain = await getCaptain(pickTeam);
         if (captain == null) {
             specs = getTeamArray(Team.SPECTATORS);
             if (specs[0]) {
                 room.setPlayerTeam(specs[0].id, pickTeam);
             }
+            _clearCaptainPickTimer();
             return;
         }
 
-        if (state.captainPickForTeam === pickTeam && state.captainPickTimer != null) {
+        if (state.captainPickForTeam === pickTeam && state.captainPickTimer != null) {  
             return;
         }
 
         state.captainPickForTeam = pickTeam;
         _clearCaptainPickTimer();
-        sendPickList(captain);
 
         room.sendAnnouncement(
             `🧢 Ход капитана ${captain.name}`,
@@ -241,6 +240,7 @@ module.exports = function createUpdatesUtils({
             'bold',
             HaxNotification.CHAT
         );
+        sendPickList(captain);
 
         state.captainPickTimer = setTimeout(() => {
             state.captainPickTimer = null;
@@ -384,7 +384,7 @@ module.exports = function createUpdatesUtils({
     }
 
     function updateBallColor() {
-        if (state.goal_sit) return;
+        if (state.goal_sit || room.getScores() == null) return;
 
         if (state.waitingForServe) {
             room.setDiscProperties(0, { color: state.ball_color });

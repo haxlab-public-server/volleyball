@@ -213,7 +213,7 @@ module.exports = function createMovementEvents({
             state.queue[queueIdx][1] = 0;
         }
 
-        if (changedPlayer.team !== Team.SPECTATORS && byPlayer == null) {
+        if (room.getScores() != null && changedPlayer.team !== Team.SPECTATORS && byPlayer == null) {
             room.sendAnnouncement(
                 `@${changedPlayer.name} ты в игре!`,
                 changedPlayer.id,

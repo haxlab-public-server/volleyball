@@ -7,6 +7,13 @@ module.exports = function createCaptainsHelpers({
     HaxNotification
 }) {
 
+function _clearCaptainPickTimer() {
+    if (state.captainPickTimer != null) {
+        clearTimeout(state.captainPickTimer);
+        state.captainPickTimer = null;
+    }
+}
+
 function getPickTeam() {
     const size = (room.getScores() != null && state.game?.teamSize)
         ? state.game.teamSize
@@ -62,6 +69,7 @@ function capPick(captain, team, num) {
             'bold',
             HaxNotification.CHAT
         );
+        _clearCaptainPickTimer();
         return true;
     }
 

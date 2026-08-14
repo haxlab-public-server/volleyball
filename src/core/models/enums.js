@@ -59,6 +59,7 @@ const Sits = {
     RANDOMIZE: 2,
     CHOICE: 3,
     TIMEOUT: 4,
+    FORMING: 5
 }
 
 module.exports = {

@@ -230,7 +230,8 @@ createIntervals({
     Color,
     HaxNotification,
     updateVipSlots,
-    updateBallColor
+    updateBallColor,
+    Sits
 })
 
 const createChatHelpers = require('../core/services/chat');

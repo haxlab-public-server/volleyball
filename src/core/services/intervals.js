@@ -18,7 +18,8 @@ module.exports = function createIntervals({
     Color,
     HaxNotification,
     updateVipSlots,
-    updateBallColor
+    updateBallColor,
+    Sits
 }) {
     function formatDate(d = new Date()) {
         const day = String(d.getDate()).padStart(2, '0');
@@ -83,6 +84,7 @@ module.exports = function createIntervals({
     }, 60 * 1000);
 
     setInterval(() => {
+        if (room.getScores() == null || state.sit == Sits.CHOICE) return;
         if (state.mode !== Mods.PUBLIC) return;
 
         const warningThreshold = maxInactivity - Math.round(maxInactivity / 3);
@@ -107,9 +109,8 @@ module.exports = function createIntervals({
 
     // onGameTick replacement
     setInterval(async () => {
-        if (room.getScores() == null) return;
-
         await updateTeams();
+        if (room.getScores() == null) return;
 
         const ballPos = room.getBallPosition();
 

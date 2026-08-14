@@ -52,18 +52,29 @@ async function setRole(player, role, time, auth = null) {
 }
     
 async function getRole(player, auth = null) {
-    if (auth == null) {
-        player.auth = getAuth(player.id);
+    let targetAuth = auth;
+
+    if (targetAuth == null) {
+        targetAuth = getAuth(player.id);
+        if (targetAuth == null && player && player.auth) {
+            targetAuth = player.auth;
+        }
     } else {
-        player.auth = auth;
         player.admin = false;
     }
-    const account = await db.getAccount(player.auth);
+
+    if (!targetAuth) {
+        return Role.PLAYER;
+    }
+
+    const account = await db.getAccount(targetAuth);
     if (!account || account.role == null) {
         return Role.PLAYER;
     }
+
     return RoleString[account.role] ?? Role.PLAYER;
 }
+
 
 async function getChatColor(player) {
     if (await getRole(player) >= Role.VIP) {
