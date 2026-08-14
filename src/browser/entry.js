@@ -94,6 +94,7 @@ state.newMatchPoint = 0
 state.afkList = []
 state.sit = Sits.NONE
 state.teamPickMode = TeamPickMode.CAPTAINS;
+state.captainAlertTimer = null;
 state.captainPickTimer = null;
 state.captainPickForTeam = null;
 state.serve = null
@@ -169,7 +170,8 @@ const {
     getCaptain,
     isCurrentPickingCaptain,
     sendPickList,
-    capPick
+    capPick,
+    clearCaptainPickTimer
 } = createCaptainsHelpers({
     room,
     state,
@@ -208,7 +210,8 @@ const {
     TeamPickMode,
     getPickTeam,
     getCaptain,
-    sendPickList
+    sendPickList,
+    clearCaptainPickTimer
 })
 
 const createIntervals = require('../core/services/intervals');

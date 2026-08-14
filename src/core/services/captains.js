@@ -7,7 +7,11 @@ module.exports = function createCaptainsHelpers({
     HaxNotification
 }) {
 
-function _clearCaptainPickTimer() {
+function clearCaptainPickTimer() {
+    if (state.captainAlertTimer != null) {
+        clearTimeout(state.captainAlertTimer);
+        state.captainAlertTimer = null;
+    }
     if (state.captainPickTimer != null) {
         clearTimeout(state.captainPickTimer);
         state.captainPickTimer = null;
@@ -48,7 +52,7 @@ function sendPickList(captain) {
         .join(', ');
 
     room.sendAnnouncement(
-        `Выберите игрока: ${specsList}`,
+        `Выберите игрока: ${specsList}\nДля выбора игрока напишите его номер в чат.`,
         captain.id,
         Color.GREY,
         'bold',
@@ -69,7 +73,7 @@ function capPick(captain, team, num) {
             'bold',
             HaxNotification.CHAT
         );
-        _clearCaptainPickTimer();
+        clearCaptainPickTimer();
         return true;
     }
 
@@ -89,7 +93,8 @@ return {
     getCaptain,
     isCurrentPickingCaptain,
     sendPickList,
-    capPick
+    capPick,
+    clearCaptainPickTimer
 };
 
 };

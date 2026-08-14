@@ -18,9 +18,10 @@ module.exports = function createUpdatesUtils({
     TeamPickMode,
     getPickTeam,
     getCaptain,
-    sendPickList
+    sendPickList,
+    clearCaptainPickTimer
 }) {
-    const CAPTAIN_PICK_TIMEOUT_MS = 7000;
+    const CAPTAIN_PICK_TIMEOUT_MS = 10000;
 
     function _getActivePlayers() {
         return room.getPlayerList().filter(
@@ -57,15 +58,8 @@ module.exports = function createUpdatesUtils({
         return getTeamArray(Team.SPECTATORS).length >= 2;
     }
 
-    function _clearCaptainPickTimer() {
-        if (state.captainPickTimer != null) {
-            clearTimeout(state.captainPickTimer);
-            state.captainPickTimer = null;
-        }
-    }
-
     function stopCaptainPick() {
-        _clearCaptainPickTimer();
+        clearCaptainPickTimer();
         state.captainPickForTeam = null;
         if (state.sit === Sits.CHOICE) {
             state.sit = room.getScores() != null ? Sits.GAME : Sits.NONE;
@@ -196,7 +190,7 @@ module.exports = function createUpdatesUtils({
         }
 
         if (!_hasPickChoice()) {
-            _clearCaptainPickTimer();
+            clearCaptainPickTimer();
             return;
         }
 
@@ -222,7 +216,7 @@ module.exports = function createUpdatesUtils({
             if (specs[0]) {
                 room.setPlayerTeam(specs[0].id, pickTeam);
             }
-            _clearCaptainPickTimer();
+            clearCaptainPickTimer();
             return;
         }
 
@@ -231,7 +225,7 @@ module.exports = function createUpdatesUtils({
         }
 
         state.captainPickForTeam = pickTeam;
-        _clearCaptainPickTimer();
+        clearCaptainPickTimer();
 
         room.sendAnnouncement(
             `🧢 Ход капитана ${captain.name}`,
@@ -242,16 +236,34 @@ module.exports = function createUpdatesUtils({
         );
         sendPickList(captain);
 
+        state.captainAlertTimer = setTimeout(() => {
+            state.captainAlertTimer = null;
+            if (state.sit !== Sits.CHOICE) return;
+            
+            room.sendAnnouncement(
+                `⏳ Осталось 4 секунды для выбора!`,
+                captain.id,
+                Color.GR_RED,
+                'small',
+                HaxNotification.CHAT
+            );
+            sendPickList(captain);
+        }, CAPTAIN_PICK_TIMEOUT_MS - 4000);
+
         state.captainPickTimer = setTimeout(() => {
             state.captainPickTimer = null;
             if (state.sit !== Sits.CHOICE) return;
-
+            
             const team = getPickTeam();
             const auto = getTeamArray(Team.SPECTATORS);
-            if (team != null && auto[0]) {
-                room.setPlayerTeam(auto[0].id, team);
+            
+            if (team != null && auto.length > 0) {
+                const randomIndex = getRandomInt(0, auto.length);
+                const randomPlayer = auto[randomIndex];
+
+                room.setPlayerTeam(randomPlayer.id, team);
                 room.sendAnnouncement(
-                    `⏰ Время вышло — выбран ${auto[0].name}`,
+                    `⏰ Время вышло — случайно выбран ${randomPlayer.name}`,
                     null,
                     Color.GR_RED,
                     'small',
