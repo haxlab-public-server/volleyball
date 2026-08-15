@@ -1,9 +1,16 @@
-/* Constants */
+/* Config build */
+const {
+    buildGameConfig
+} = require('../core/roomConstants');
+
+async function main() {
+
+const lastIds = {} // "auth": [id, conn, auth]
+
+const config = window.__roomConfig;
 const {
     roomName,
     maxPlayers,
-    roomPublic,
-    geo,
     Discord,
     Telegram,
     gamesTimeout,
@@ -14,14 +21,14 @@ const {
     vipSlots,
     GhostKick,
     vipQueueRoles,
-    buildGameConfig
-} = require('../core/roomConstants');
+    defaultMatchPoint,
+    defaultTeamPickMode,
+    joinAuths,
+    mode,
+    roomLabel
+} = config;
 
-async function main() {
-
-const lastIds = {} // "auth": [id, conn, auth]
-
-const room = HBInit(buildGameConfig(window.__secrets.token));
+const room = HBInit(buildGameConfig(window.__secrets.token, config));
 
 const cf = room.CollisionFlags;
 const db = window.__db;
@@ -75,9 +82,17 @@ const {
 
 /* State */
 const state = {};
+
+/* Settings */
 state.roomPassword = window.__secrets.roomPassword;
 room.setPassword(state.roomPassword != '' ? state.roomPassword : null);
-state.matchPoint = 6
+state.matchPoint = defaultMatchPoint;
+state.teamPickMode = defaultTeamPickMode;
+state.teamSize = defaultTeamSize;
+state.joinAuths = joinAuths;
+state.mode = mode;
+
+/* Utils */
 state.lastTouches = [];
 state.inactivityTicks = [];
 state.queue = []
@@ -93,19 +108,14 @@ state.waitingForServe = true;
 state.newMatchPoint = 0
 state.afkList = []
 state.sit = Sits.NONE
-state.teamPickMode = TeamPickMode.CAPTAINS;
 state.captainAlertTimer = null;
 state.captainPickTimer = null;
 state.captainPickForTeam = null;
 state.serve = null
-state.teamSize = defaultTeamSize
-state.joinAuths = false
 state.training_mode = false
 state.training_mode_spawn = []
-state.mode = Mods.PUBLIC
 state.game = new Game(defaultTeamSize);
 state.vipPassword = getRandomInt(100000, 999999)
-
 state.winstay_mode = true
 state.winstay = {
   streak: 0,
@@ -118,11 +128,12 @@ const logWebhook = window.__secrets.logWebhookUrl;
 const reportWebhook = window.__secrets.reportWebhookUrl;
 
 const discordBot = new DiscordBot({
-    replayWebhook: replayWebhook,
-    vipWebhook: vipWebhook,
-    logWebhook: logWebhook,
-    reportWebhook: reportWebhook
-})
+    replayWebhook,
+    vipWebhook,
+    logWebhook,
+    reportWebhook,
+    roomLabel
+});
 
 /* Room Utils */
 const createRoomUtils = require('../core/utils/roomUtils');

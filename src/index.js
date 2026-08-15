@@ -3,7 +3,18 @@ const puppeteer = require('puppeteer');
 const esbuild = require('esbuild');
 
 const { createDb } = require('../db/sqlite');
-const { roomPassword, token, replayWebhookUrl, vipWebhookUrl, logWebhookUrl, reportWebhookUrl } = require('./core/config');
+const {
+    publicToken,
+    privateToken,
+    publicPassword,
+    privatePassword,
+    replayWebhookUrl,
+    vipWebhookUrl,
+    logWebhookUrl,
+    reportWebhookUrl
+} = require('./core/config');
+
+const { publicConfig, privateConfig } = require('./core/roomConstants');
 
 const projectRoot = path.resolve(__dirname, '..');
 const db = createDb(path.join(projectRoot, 'db', 'volleyball.sqlite'));
@@ -28,10 +39,10 @@ async function buildEntryBundle() {
     return result.outputFiles[0].text;
 }
 
-async function launchRoom() {
+async function launchRoom(type, config, secrets) {
     const browser = await puppeteer.launch({
         args: [
-            '--remote-debugging-port=9222',
+            '--remote-debugging-port=0',
             '--disable-features=WebRtcHideLocalIpsWithMdns,AsyncDns',
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -39,28 +50,41 @@ async function launchRoom() {
     });
 
     browser.on('disconnected', () => {
-        console.error('[FATAL] Browser disconnected/crashed.');
+        console.error(`[FATAL] Browser (${type}) disconnected/crashed.`);
         setTimeout(() => process.exit(1), 2000);
     });
 
-    const newPage = await browser.newPage();
+    const page = await browser.newPage();
 
-    await newPage.exposeFunction('__dbCall', handleDbCall);
+    await page.exposeFunction('__dbCall', handleDbCall);
 
-    newPage.on('console', (msg) => {
-        console.log(`[PAGE ${msg.type()}]`, msg.text());
+    page.on('console', (msg) => {
+        console.log(`[${type.toUpperCase()} ${msg.type()}]`, msg.text());
     });
-    newPage.on('pageerror', (err) => {
-        console.error('[PAGE ERROR]', err);
+    page.on('pageerror', (err) => {
+        console.error(`[${type.toUpperCase()} ERROR]`, err);
     });
 
-    await newPage.goto('https://www.haxball.com/headless', { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await newPage.waitForFunction(() => typeof window.HBInit === 'function', { timeout: 60000 });
-    await newPage.evaluate((secrets) => {
-        window.__secrets = secrets;
-    }, { token, roomPassword, replayWebhookUrl, vipWebhookUrl, logWebhookUrl, reportWebhookUrl });
+    await page.goto('https://www.haxball.com/headless', {
+        waitUntil: 'domcontentloaded',
+        timeout: 60000
+    });
 
-    await newPage.evaluate(() => {
+    await page.waitForFunction(() => typeof window.HBInit === 'function', {
+        timeout: 60000
+    });
+
+    await page.evaluate((payload) => {
+        window.__secrets = payload.secrets;
+        window.__roomConfig = payload.config;
+        window.__roomType = payload.type;
+    }, {
+        secrets,
+        config,
+        type
+    });
+
+    await page.evaluate(() => {
         const methods = [
             'getBans', 'addBan', 'removeBanByIndex', 'removeBanByAuth', 'findBan', 'updateBan',
             'getExpiredBans', 'removeExpiredBans',
@@ -80,13 +104,37 @@ async function launchRoom() {
     });
 
     const bundle = await buildEntryBundle();
-    await newPage.addScriptTag({ content: bundle });
+    await page.addScriptTag({ content: bundle });
 
-    return { browser, page: newPage };
+    return { browser, page, type };
 }
 
-launchRoom().catch((err) => {
-    console.error('[FATAL] Failed to launch room:', err);
+async function main() {
+    const commonSecrets = {
+        replayWebhookUrl,
+        vipWebhookUrl,
+        logWebhookUrl,
+        reportWebhookUrl
+    };
+
+    const [publicRoom, privateRoom] = await Promise.all([
+        launchRoom('public', publicConfig, {
+            ...commonSecrets,
+            token: publicToken,
+            roomPassword: publicPassword
+        }),
+        launchRoom('private', privateConfig, {
+            ...commonSecrets,
+            token: privateToken,
+            roomPassword: privatePassword
+        })
+    ]);
+
+    console.log('[OK] Public and Private rooms launched');
+}
+
+main().catch((err) => {
+    console.error('[FATAL] Failed to launch rooms:', err);
     process.exitCode = 1;
 });
 

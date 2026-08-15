@@ -1,32 +1,60 @@
-const { Role } = require('../core/models/enums');
+const {
+    Role,
+    Mods,
+    TeamPickMode,
+} = require('../core/models/enums');
 
-const roomName = "🏐 chesdes x HaxLab | VOLLEYBALL 🏐"
-const maxPlayers = 14
-const roomPublic = true
-const geo = { code: 'RU', lat: 55.7558, lon: 37.6173 };
+/* 
+default settings: if a specific parameter is not found
+in the config, the value from here will be used.
+*/
+const base = {
+    roomName: "🏐 Volleyball [chds] 🏐",
+    roomLabel: "Room",
+    maxPlayers: 14,
+    roomPublic: true,
+    geo: { code: 'RU', lat: 55.7558, lon: 37.6173 },
+    mode: Mods.PUBLIC,
+    defaultMatchPoint: 6,
+    defaultTeamPickMode: TeamPickMode.RANDOM,
+    defaultTeamSize: 2,
+    queueMatches: 2,
+    upTeamSizePlayers: 10,
+    vipSlots: 2,
+    vipQueueRoles: [Role.VIP, Role.PREADMIN, Role.MASTER],
+    GhostKick: true,
+    gamesTimeout: 10,
+    maxInactivity: 20,
+    joinAuths: false,
+    Discord: "https://dsc.gg/chds",
+    Telegram: "https://t.me/chesdesq",
+};
 
-const Discord = "https://dsc.gg/chds"
-const Telegram = "https://t.me/chesdesq"
-const gamesTimeout = 10
-const defaultTeamSize = 2
-const maxInactivity = 20
-const queueMatches = 2
-const upTeamSizePlayers = 10
-const vipSlots = 2
-const GhostKick = true
-const vipQueueRoles = [
-    Role.VIP, Role.PREADMIN, Role.MASTER
-]
+const publicConfig = {
+    ...base,
+    roomName: "🏐 Volleyball [chds] | CAPTAINS NOW 🏐",
+    roomLabel: "Public",
+    defaultTeamPickMode: TeamPickMode.CAPTAINS,
+};
+
+const privateConfig = {
+    ...base,
+    roomName: "🏐 Volleyball [chds] | PRIVATE 🏐",
+    roomLabel: "Private",
+    maxPlayers: 20,
+    mode: Mods.PRIVATE,
+    defaultMatchPoint: 25,
+};
 
 const HAXBALL_TOKEN_LENGTH = 39;
 
-function buildGameConfig(token) {
+function buildGameConfig(token, config = base) {
     const gameConfig = {
-        roomName,
-        maxPlayers,
-        public: roomPublic,
+        roomName: config.roomName,
+        maxPlayers: config.maxPlayers,
+        public: config.roomPublic,
         noPlayer: true,
-        geo
+        geo: config.geo,
     };
 
     if (typeof token === 'string' && token.length === HAXBALL_TOKEN_LENGTH) {
@@ -37,19 +65,8 @@ function buildGameConfig(token) {
 }
 
 module.exports = {
-    roomName,
-    maxPlayers,
-    roomPublic,
-    geo,
-    Discord,
-    Telegram,
-    gamesTimeout,
-    defaultTeamSize,
-    maxInactivity,
-    queueMatches,
-    upTeamSizePlayers,
-    vipSlots,
-    GhostKick,
-    vipQueueRoles,
-    buildGameConfig
-}
+    base,
+    publicConfig,
+    privateConfig,
+    buildGameConfig,
+};

@@ -23,7 +23,7 @@ module.exports = function createMiscEvents({
         console.log(`[${dateStr}] 🌟VIP-Пароль: ${state.vipPassword}`);
 
         discordBot.sendVipPassword(state.vipPassword);
-        discordBot.sendLog(`# [${dateStr}] ROOM ONLINE`);
+        discordBot.sendLog(`**[${dateStr}] ROOM ONLINE**`);
 
         hasFirstRoomLink = true;
     }
