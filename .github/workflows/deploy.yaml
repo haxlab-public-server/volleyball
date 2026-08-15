@@ -12,7 +12,7 @@ jobs:
       - name: Deploy
         run: |
           cd /home/runner/volleyball
-          git reset --hard HEAD
-          git pull origin main
+          git fetch origin main
+          git reset --hard origin/main
           npm ci
           pm2 restart volleyball || pm2 start main.js --name "volleyball"
