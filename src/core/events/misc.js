@@ -6,12 +6,16 @@ module.exports = function createMiscEvents({
     discordBot
 }) {
     function formatDate(d = new Date()) {
-        const day = String(d.getDate()).padStart(2, '0');
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const year = d.getFullYear();
-        const hours = String(d.getHours()).padStart(2, '0');
-        const minutes = String(d.getMinutes()).padStart(2, '0');
-        return `${day}.${month}.${year} ${hours}:${minutes}`;
+        const formatter = new Intl.DateTimeFormat('ru-RU', {
+            timeZone: 'Europe/Moscow',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+
+        return formatter.format(d).replace(', ', ' ');
     }
 
     let hasFirstRoomLink = false;
