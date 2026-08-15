@@ -2,10 +2,6 @@ const {
     findFirstNumberCharString
 } = require('./utils')
 
-const {
-    roomName
-} = require('../roomConstants')
-
 function getRecordingName() {
     let d = new Date();
     let day = d.getDate() < 10 ? "0" + d.getDate() : d.getDate();
@@ -27,7 +23,7 @@ function getIdReplay() {
         d.getHours() < 10 ? "0" : ""
     }${d.getHours()}${d.getMinutes() < 10 ? "0" : ""}${d.getMinutes()}${
         d.getSeconds() < 10 ? "0" : ""
-    }${d.getSeconds()}${findFirstNumberCharString(roomName)}`;
+    }${d.getSeconds()}`;
 }
 
 function fetchRecording(game, discord) {

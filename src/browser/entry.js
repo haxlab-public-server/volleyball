@@ -245,7 +245,9 @@ createIntervals({
     HaxNotification,
     updateVipSlots,
     updateBallColor,
-    Sits
+    Sits,
+    Discord,
+    Telegram
 })
 
 const createChatHelpers = require('../core/services/chat');

@@ -1,4 +1,4 @@
-const announcementMessages = require('../announcementMessages');
+const createAnnouncementMessages = require('../announcementMessages');
 
 module.exports = function createIntervals({
     room,
@@ -19,8 +19,12 @@ module.exports = function createIntervals({
     HaxNotification,
     updateVipSlots,
     updateBallColor,
-    Sits
+    Sits,
+    Discord,
+    Telegram
 }) {
+    const announcementMessages = createAnnouncementMessages({ Discord, Telegram });
+
     function formatDate(d = new Date()) {
         const day = String(d.getDate()).padStart(2, '0');
         const month = String(d.getMonth() + 1).padStart(2, '0');
