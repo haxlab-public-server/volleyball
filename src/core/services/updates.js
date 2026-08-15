@@ -111,7 +111,7 @@ module.exports = function createUpdatesUtils({
                 `⏳ Осталось 4 секунды для выбора!`,
                 captain.id,
                 Color.GR_RED,
-                'small',
+                'bold',
                 HaxNotification.CHAT
             );
             sendPickList(captain);
@@ -132,7 +132,7 @@ module.exports = function createUpdatesUtils({
                     `⏰ Время вышло — случайно выбран ${randomPlayer.name}`,
                     null,
                     Color.GR_RED,
-                    'small',
+                    'bold',
                     HaxNotification.CHAT
                 );
             }

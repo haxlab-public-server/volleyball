@@ -290,7 +290,11 @@ module.exports = function createGameEvents({
                 HaxNotification.NONE
             );
 
-            if (state.winstay_mode && isFullTeams()) {
+            if (
+                state.mode === Mods.PUBLIC && 
+                state.winstay_mode && 
+                isFullTeams()
+            ) {
                 if (red === blue) {
                     state.winstay = { streak: 0, team: [] };
                 } else {
