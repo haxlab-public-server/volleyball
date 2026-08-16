@@ -17,6 +17,7 @@ const base = {
     mode: Mods.PUBLIC,
     defaultMatchPoint: 6,
     defaultTeamPickMode: TeamPickMode.RANDOM,
+    defaultWinstay: false,
     defaultTeamSize: 2,
     queueMatches: 2,
     upTeamSizePlayers: 10,
@@ -35,6 +36,7 @@ const publicConfig = {
     roomName: "🏐 Volleyball [chds] | CAPTAINS NOW 🏐",
     roomLabel: "Public",
     defaultTeamPickMode: TeamPickMode.CAPTAINS,
+    defaultWinstay: true
 };
 
 const privateConfig = {

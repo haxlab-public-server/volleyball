@@ -23,6 +23,7 @@ const {
     vipQueueRoles,
     defaultMatchPoint,
     defaultTeamPickMode,
+    defaultWinstay,
     joinAuths,
     mode,
     roomLabel
@@ -88,6 +89,7 @@ state.roomPassword = window.__secrets.roomPassword;
 room.setPassword(state.roomPassword != '' ? state.roomPassword : null);
 state.matchPoint = defaultMatchPoint;
 state.teamPickMode = defaultTeamPickMode;
+state.winstay_mode = defaultWinstay;
 state.teamSize = defaultTeamSize;
 state.joinAuths = joinAuths;
 state.mode = mode;
@@ -116,7 +118,6 @@ state.training_mode = false
 state.training_mode_spawn = []
 state.game = new Game(defaultTeamSize);
 state.vipPassword = getRandomInt(100000, 999999)
-state.winstay_mode = true
 state.winstay = {
   streak: 0,
   team: [],
