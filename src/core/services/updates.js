@@ -79,6 +79,17 @@ module.exports = function createUpdatesUtils({
         return allChampionIds;
     }
 
+    function _tryFinishIfTeamsFull(size) {
+        const red = getTeamArray(Team.RED);
+        const blue = getTeamArray(Team.BLUE);
+
+        if (red.length < size || blue.length < size) return false;
+
+        stopCaptainPick();
+        if (room.getScores() == null) room.startGame();
+        return true;
+    }
+
     function stopCaptainPick() {
         clearCaptainPickTimer();
         state.captainPickForTeam = null;
@@ -157,6 +168,23 @@ module.exports = function createUpdatesUtils({
         }
     }
 
+    function _fillTeamsUntilFullOrStuck(size) {
+        let guard = 0;
+        while (guard++ < 20) {
+            const red = getTeamArray(Team.RED);
+            const blue = getTeamArray(Team.BLUE);
+            const specs = getTeamArray(Team.SPECTATORS);
+
+            if (red.length >= size && blue.length >= size) return;
+            if (specs.length === 0) return;
+
+            const team = getPickTeam();
+            if (team == null) return;
+
+            room.setPlayerTeam(specs[0].id, team);
+        }
+    }
+
     function updateTeamSize() {
         if (state.training_mode || state.winstay_mode || state.mode !== Mods.PUBLIC) {
             return;
@@ -171,21 +199,32 @@ module.exports = function createUpdatesUtils({
         if (state.mode !== Mods.PUBLIC || state.training_mode) return;
         if ([Sits.RANDOMIZE, Sits.TIMEOUT, Sits.FORMING].includes(state.sit)) return;
 
+        const size = _getTeamSize();
+
+        if (state.sit === Sits.CHOICE) {
+            if (_tryFinishIfTeamsFull(size)) return;
+
+            if (!_canUseCaptains() || !_hasPickChoice()) {
+                _fillTeamsUntilFullOrStuck(size);
+
+                if (_tryFinishIfTeamsFull(size)) return;
+
+                if (!_canUseCaptains()) {
+                    stopCaptainPick();
+                } else {
+                    clearCaptainPickTimer();
+                }
+                return;
+            }
+
+            await _advanceCaptainPick(size);
+            return;
+        }
+
         const red = getTeamArray(Team.RED);
         const blue = getTeamArray(Team.BLUE);
         const scores = room.getScores();
         const activeCount = _getActivePlayers().length;
-        const size = _getTeamSize();
-
-        if (state.sit === Sits.CHOICE) {
-            if (red.length >= size && blue.length >= size) {
-                stopCaptainPick();
-                room.startGame();
-                return;
-            }
-            await startCaptains();
-            return;
-        }
 
         if (scores != null) {
             if (activeCount <= 1 || red.length === 0 || blue.length === 0) {
@@ -222,34 +261,36 @@ module.exports = function createUpdatesUtils({
     async function startCaptains() {
         if (state.sit === Sits.FORMING) return;
 
-        const size = _getTeamSize();
-        const scores = room.getScores();
+        if (state.sit === Sits.NONE) {
+            await _initCaptainPick();
+            return;
+        }
+
+        await _advanceCaptainPick(_getTeamSize());
+    }
+
+    async function _initCaptainPick() {
+        state.sit = Sits.FORMING;
+
         let specs = getTeamArray(Team.SPECTATORS);
 
-        if (state.sit === Sits.NONE) {
-            state.sit = Sits.FORMING;
-            if (_isWinstay()) {
-                const championIds = _applyWinstayToRed();
-                specs = specs.filter(p => !championIds.has(p.id));
-                if (specs[0]) {
-                    room.setPlayerTeam(specs[0].id, Team.BLUE);
-                }
-            } else {
-                state.winstay = { streak: 0, team: [] };
-                if (specs[0]) room.setPlayerTeam(specs[0].id, Team.RED);
-                if (specs[1]) room.setPlayerTeam(specs[1].id, Team.BLUE);
+        if (_isWinstay()) {
+            const championIds = _applyWinstayToRed();
+            specs = specs.filter(p => !championIds.has(p.id));
+            if (specs[0]) {
+                room.setPlayerTeam(specs[0].id, Team.BLUE);
             }
-            state.sit = Sits.CHOICE;
-            return;
+        } else {
+            state.winstay = { streak: 0, team: [] };
+            if (specs[0]) room.setPlayerTeam(specs[0].id, Team.RED);
+            if (specs[1]) room.setPlayerTeam(specs[1].id, Team.BLUE);
         }
 
-        const currentRed = getTeamArray(Team.RED);
-        const currentBlue = getTeamArray(Team.BLUE);
-        if (currentRed.length >= size && currentBlue.length >= size) {
-            stopCaptainPick();
-            if (scores == null) room.startGame();
-            return;
-        }
+        state.sit = Sits.CHOICE;
+    }
+
+    async function _advanceCaptainPick(size) {
+        if (_tryFinishIfTeamsFull(size)) return;
 
         if (!_hasPickChoice()) {
             clearCaptainPickTimer();
@@ -259,12 +300,12 @@ module.exports = function createUpdatesUtils({
         const pickTeam = getPickTeam();
         if (pickTeam == null) {
             stopCaptainPick();
-            if (scores == null) room.startGame();
+            if (room.getScores() == null) room.startGame();
             return;
         }
 
         state.sit = Sits.CHOICE;
-        if (scores != null) {
+        if (room.getScores() != null) {
             try { room.pauseGame(true); } catch (_) {}
         }
 

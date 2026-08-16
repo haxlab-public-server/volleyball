@@ -18,7 +18,11 @@ module.exports = function createPlayerCommands({
     HaxNotification,
     Discord,
     Telegram,
-    vipQueueRoles
+    vipQueueRoles,
+    Sits,
+    getPickTeam,
+    getCaptain,
+    sendPickList
 }) {
     function parsePlayerId(arg) {
         const idStr = arg.startsWith('#') ? arg.slice(1) : arg;
@@ -557,6 +561,10 @@ module.exports = function createPlayerCommands({
                 'small',
                 HaxNotification.CHAT
             );
+        }
+
+        if (state.sit == Sits.CHOICE) {
+            sendPickList(getCaptain(getPickTeam()));
         }
 
         await updateTeams();

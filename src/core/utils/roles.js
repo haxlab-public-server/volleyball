@@ -6,7 +6,8 @@ module.exports = function createRoleHelpers({
     Role,
     RoleString,
     Color,
-    HaxNotification
+    HaxNotification,
+    discordBot
 }) {
 
 async function checkRoles() {
@@ -23,6 +24,10 @@ async function checkRoles() {
                 HaxNotification.MENTION
             );
         }
+        // Temporary log until the full‑fledged Discord bot is implemented.
+        discordBot.sendLog(
+            `<@&1535329225563840542> Роль **${auth}** истекла`
+        );
     }
 }
 

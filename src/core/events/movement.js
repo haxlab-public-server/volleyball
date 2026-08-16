@@ -18,7 +18,11 @@ module.exports = function createMovementEvents({
     Discord,
     Telegram,
     maxPlayers,
-    discordBot
+    discordBot,
+    Sits,
+    getPickTeam,
+    getCaptain,
+    sendPickList
 }) {
     const ROLE_NAMES = {
         [Role.MASTER]: 'Создатель',
@@ -129,6 +133,10 @@ module.exports = function createMovementEvents({
                 HaxNotification.NONE
             );
 
+            if (state.sit == Sits.CHOICE) {
+                sendPickList(getCaptain(getPickTeam()));
+            }
+
             updateVipSlots();
             await updateTeams();
             updateTeamSize();
@@ -153,6 +161,10 @@ module.exports = function createMovementEvents({
             'small',
             HaxNotification.NONE
         );
+
+        if (state.sit == Sits.CHOICE) {
+            sendPickList(getCaptain(getPickTeam()));
+        }
 
         (async () => {
             updateVipSlots();

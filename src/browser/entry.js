@@ -171,7 +171,8 @@ const {
     Role,
     RoleString,
     Color,
-    HaxNotification
+    HaxNotification,
+    discordBot
 })
 
 /* Services */
@@ -312,7 +313,11 @@ const {
     HaxNotification,
     Discord,
     Telegram,
-    vipQueueRoles
+    vipQueueRoles,
+    Sits,
+    getPickTeam,
+    getCaptain,
+    sendPickList
 })
 
 /* VIP commands */
@@ -466,7 +471,11 @@ Object.assign(room, wrapEventHandlers(createMovementEvents({
     Discord,
     Telegram,
     maxPlayers,
-    discordBot
+    discordBot,
+    Sits,
+    getPickTeam,
+    getCaptain,
+    sendPickList
 })));
 
 /* Activity events */
