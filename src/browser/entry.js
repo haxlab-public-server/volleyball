@@ -200,7 +200,6 @@ const {
     updateTeams,
     startPickingTeams,
     startCaptains,
-    stopCaptainPick,
     updateVipSlots,
     updateBallColor
 } = createUpdatesUtils({

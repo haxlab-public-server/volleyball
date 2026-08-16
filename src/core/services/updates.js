@@ -85,12 +85,12 @@ module.exports = function createUpdatesUtils({
 
         if (red.length < size || blue.length < size) return false;
 
-        stopCaptainPick();
+        _stopCaptainPick();
         if (room.getScores() == null) room.startGame();
         return true;
     }
 
-    function stopCaptainPick() {
+    function _stopCaptainPick() {
         clearCaptainPickTimer();
         state.captainPickForTeam = null;
         if (state.sit === Sits.CHOICE) {
@@ -210,7 +210,7 @@ module.exports = function createUpdatesUtils({
                 if (_tryFinishIfTeamsFull(size)) return;
 
                 if (!_canUseCaptains()) {
-                    stopCaptainPick();
+                    _stopCaptainPick();
                 } else {
                     clearCaptainPickTimer();
                 }
@@ -299,7 +299,7 @@ module.exports = function createUpdatesUtils({
 
         const pickTeam = getPickTeam();
         if (pickTeam == null) {
-            stopCaptainPick();
+            _stopCaptainPick();
             if (room.getScores() == null) room.startGame();
             return;
         }
@@ -327,7 +327,7 @@ module.exports = function createUpdatesUtils({
     }
 
     async function randomizeTeams() {
-        stopCaptainPick();
+        _stopCaptainPick();
         state.sit = Sits.RANDOMIZE;
 
         room.sendAnnouncement(
@@ -492,7 +492,6 @@ module.exports = function createUpdatesUtils({
         updateTeams,
         startPickingTeams,
         startCaptains,
-        stopCaptainPick,
         updateVipSlots,
         updateBallColor
     };
