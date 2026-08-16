@@ -206,6 +206,7 @@ const {
     room,
     state,
     getTeamArray,
+    getAuth,
     getRole,
     getRandomInt,
     Mods,

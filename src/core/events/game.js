@@ -300,15 +300,23 @@ module.exports = function createGameEvents({
                 } else {
                     const winnerTeam = red > blue ? Team.RED : Team.BLUE;
                     const winnerArr = getTeamArray(winnerTeam)
+                    const winnerAuths = winnerArr.map(p => getAuth(p.id));
+
+                    const WINSTAY_MATCH_THRESHOLD = 2 / 3;
+                    const requiredMatches = Math.ceil(
+                        state.winstay.team.length * WINSTAY_MATCH_THRESHOLD
+                    );
+                    const matchedCount = state.winstay.team.filter(
+                        auth => winnerAuths.includes(auth)
+                    ).length;
 
                     const sameTeam =
                         state.winstay.team.length > 0 &&
-                        winnerArr.length === state.winstay.team.length &&
-                        winnerArr.every(a => state.winstay.team.some(p => p.id === a.id));
+                        matchedCount >= requiredMatches;
 
                     state.winstay = {
                         streak: sameTeam ? state.winstay.streak + 1 : 1,
-                        team: winnerArr
+                        team: winnerAuths
                     };
                     
                     if (getTeamArray(Team.SPECTATORS).length > 0) {

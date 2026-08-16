@@ -2,6 +2,7 @@ module.exports = function createUpdatesUtils({
     room,
     state,
     getTeamArray,
+    getAuth,
     getRole,
     getRandomInt,
     Mods,
@@ -37,8 +38,8 @@ module.exports = function createUpdatesUtils({
     }
 
     function _getPresentWinstayPlayers() {
-        const presentIds = new Set(room.getPlayerList().map(p => p.id));
-        return state.winstay.team.filter(p => presentIds.has(p.id));
+        const winstayAuths = new Set(state.winstay.team);
+        return room.getPlayerList().filter(p => winstayAuths.has(getAuth(p.id)));
     }
 
     function _isWinstay() {
@@ -68,15 +69,21 @@ module.exports = function createUpdatesUtils({
         return getTeamArray(Team.SPECTATORS).length >= 2;
     }
 
-    function _applyWinstayToRed() {
+    function _applyWinstayToRed(size) {
         const present = _getPresentWinstayPlayers();
-        const allChampionIds = new Set(state.winstay.team.map(p => p.id));
+        const toField = present.slice(0, size);
 
-        for (const p of present) {
+        for (const p of toField) {
             room.setPlayerTeam(p.id, Team.RED);
         }
 
-        return allChampionIds;
+        for (const p of present.slice(size)) {
+            if (p.team !== Team.SPECTATORS) {
+                room.setPlayerTeam(p.id, Team.SPECTATORS);
+            }
+        }
+
+        return new Set(toField.map(p => p.id));
     }
 
     function _tryFinishIfTeamsFull(size) {
@@ -186,9 +193,7 @@ module.exports = function createUpdatesUtils({
     }
 
     function updateTeamSize() {
-        if (state.training_mode || state.winstay_mode || state.mode !== Mods.PUBLIC) {
-            return;
-        }
+        if (state.training_mode || state.mode !== Mods.PUBLIC) return;
 
         state.teamSize = _getActivePlayers().length >= upTeamSizePlayers
             ? defaultTeamSize + 1
@@ -275,7 +280,8 @@ module.exports = function createUpdatesUtils({
         let specs = getTeamArray(Team.SPECTATORS);
 
         if (_isWinstay()) {
-            const championIds = _applyWinstayToRed();
+            const size = _getTeamSize();
+            const championIds = _applyWinstayToRed(size);
             specs = specs.filter(p => !championIds.has(p.id));
             if (specs[0]) {
                 room.setPlayerTeam(specs[0].id, Team.BLUE);
@@ -344,9 +350,10 @@ module.exports = function createUpdatesUtils({
             let takeCount;
 
             if (isWinstay) {
-                const championIds = _applyWinstayToRed();
+                const size = state.teamSize;
+                const championIds = _applyWinstayToRed(size);
                 specs = specs.filter(p => !championIds.has(p.id));
-                takeCount = state.teamSize;
+                takeCount = size;
             } else {
                 state.winstay = { streak: 0, team: [] };
                 const maxOnField = state.teamSize * 2;
