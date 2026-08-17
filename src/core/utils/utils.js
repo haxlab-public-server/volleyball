@@ -67,6 +67,11 @@ function getRandomInt(min, max) {
     return Math.floor(Math.random() * (max - min) + min)
 }
 
+function getRandomFloat(min, max) {
+    if (min === max) return min;
+    return Math.random() * (max - min) + min;
+}
+
 function getMinutesGame(time) {
     var t = Math.floor(time / 60);
     return `${Math.floor(t / 10)}${Math.floor(t % 10)}`;
@@ -90,6 +95,7 @@ module.exports = {
     getDate,
     findFirstNumberCharString,
     getRandomInt,
+    getRandomFloat,
     getMinutesGame,
     getSecondsGame,
     getTimeGame,

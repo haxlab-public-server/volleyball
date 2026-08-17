@@ -5,9 +5,9 @@ const {
 } = require('../core/models/enums');
 
 /* 
-default settings: if a specific parameter is not found
-in the config, the value from here will be used.
-*/
+ * default settings: if a specific parameter is not found
+ * in the config, the value from here will be used.
+ */
 const base = {
     roomName: "🏐 Volleyball [chds] 🏐",
     roomLabel: "Room",

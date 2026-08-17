@@ -72,6 +72,7 @@ const {
     getDate,
     findFirstNumberCharString,
     getRandomInt,
+    getRandomFloat,
     getMinutesGame,
     getSecondsGame,
     getTimeGame,
@@ -149,7 +150,8 @@ const {
     state,
     lastIds,
     cf,
-    Team
+    Team,
+    getRandomFloat
 })
 
 const {
