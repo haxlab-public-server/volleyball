@@ -22,12 +22,13 @@ module.exports = function createGameEvents({
     Color,
     HaxNotification,
     TeamPickMode,
-    Sits
+    Sits,
+    defaultTeamSize
 }) {
     function isFullTeams() {
         return (
-            getTeamArray(Team.BLUE).length >= state.teamSize &&
-            getTeamArray(Team.RED).length >= state.teamSize
+            getTeamArray(Team.BLUE).length >= state.game.teamSize &&
+            getTeamArray(Team.RED).length >= state.game.teamSize
         );
     }
 
@@ -186,8 +187,8 @@ module.exports = function createGameEvents({
         room.setDiscProperties(0, { color: state.ball_color });
 
         if (
-            getTeamArray(Team.BLUE).length >= state.teamSize &&
-            getTeamArray(Team.RED).length >= state.teamSize
+            getTeamArray(Team.BLUE).length >= defaultTeamSize &&
+            getTeamArray(Team.RED).length >= defaultTeamSize
         ) {
             sendAnnouncementTeam(
                 `Напиши "!serve" или "!sr", чтобы подать силовую подачу`,

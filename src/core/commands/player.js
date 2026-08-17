@@ -22,7 +22,8 @@ module.exports = function createPlayerCommands({
     Sits,
     getPickTeam,
     getCaptain,
-    sendPickList
+    sendPickList,
+    defaultTeamSize
 }) {
     function parsePlayerId(arg) {
         const idStr = arg.startsWith('#') ? arg.slice(1) : arg;
@@ -128,8 +129,8 @@ module.exports = function createPlayerCommands({
         }
 
         if (
-            getTeamArray(Team.BLUE).length < state.game.teamSize ||
-            getTeamArray(Team.RED).length < state.game.teamSize
+            getTeamArray(Team.BLUE).length < defaultTeamSize ||
+            getTeamArray(Team.RED).length < defaultTeamSize
         ) {
             room.sendAnnouncement(
                 `Недостаточно игроков на поле для силовой подачи`,

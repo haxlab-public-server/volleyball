@@ -320,7 +320,8 @@ const {
     Sits,
     getPickTeam,
     getCaptain,
-    sendPickList
+    sendPickList,
+    defaultTeamSize
 })
 
 /* VIP commands */
@@ -536,7 +537,8 @@ Object.assign(room, wrapEventHandlers(createGameEvents({
     Color,
     HaxNotification,
     TeamPickMode,
-    Sits
+    Sits,
+    defaultTeamSize
 })));
 
 /* Misc events */

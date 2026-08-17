@@ -37,6 +37,13 @@ module.exports = function createUpdatesUtils({
         return state.teamSize;
     }
 
+    function _getEffectivePickSize() {
+        if (state.sit === Sits.CHOICE && state.pickSize != null) {
+            return state.pickSize;
+        }
+        return _getTeamSize();
+    }
+
     function _getPresentWinstayPlayers() {
         const winstayAuths = new Set(state.winstay.team);
         return room.getPlayerList().filter(p => winstayAuths.has(getAuth(p.id)));
@@ -91,6 +98,7 @@ module.exports = function createUpdatesUtils({
         const blue = getTeamArray(Team.BLUE);
 
         if (red.length < size || blue.length < size) return false;
+        if (red.length !== blue.length) return false;
 
         _stopCaptainPick();
         if (room.getScores() == null) room.startGame();
@@ -100,12 +108,37 @@ module.exports = function createUpdatesUtils({
     function _stopCaptainPick() {
         clearCaptainPickTimer();
         state.captainPickForTeam = null;
+        state.pickSize = null;
         if (state.sit === Sits.CHOICE) {
             state.sit = room.getScores() != null ? Sits.GAME : Sits.NONE;
         }
         try {
             room.pauseGame(false);
         } catch (_) {}
+    }
+
+    function _abandonStuckPick() {
+        clearCaptainPickTimer();
+        state.captainPickForTeam = null;
+        state.pickSize = null;
+
+        const red = getTeamArray(Team.RED);
+        const blue = getTeamArray(Team.BLUE);
+        const isUnresolved = (red.length > 0 || blue.length > 0) &&
+                              (red.length !== blue.length || room.getScores() == null);
+
+        if (isUnresolved) {
+            for (const p of red.concat(blue)) {
+                room.setPlayerTeam(p.id, Team.SPECTATORS);
+            }
+        }
+
+        state.sit = room.getScores() != null ? Sits.GAME : Sits.NONE;
+        try {
+            room.pauseGame(false);
+        } catch (_) {}
+
+        return isUnresolved;
     }
 
     function _startCaptainTimer(captain, pickTeam) {
@@ -204,9 +237,9 @@ module.exports = function createUpdatesUtils({
         if (state.mode !== Mods.PUBLIC || state.training_mode) return;
         if ([Sits.RANDOMIZE, Sits.TIMEOUT, Sits.FORMING].includes(state.sit)) return;
 
-        const size = _getTeamSize();
-
         if (state.sit === Sits.CHOICE) {
+            const size = _getEffectivePickSize();
+
             if (_tryFinishIfTeamsFull(size)) return;
 
             if (!_canUseCaptains() || !_hasPickChoice()) {
@@ -215,7 +248,10 @@ module.exports = function createUpdatesUtils({
                 if (_tryFinishIfTeamsFull(size)) return;
 
                 if (!_canUseCaptains()) {
-                    _stopCaptainPick();
+                    const wasUnresolved = _abandonStuckPick();
+                    if (wasUnresolved && _getActivePlayers().length >= 2) {
+                        await startPickingTeams();
+                    }
                 } else {
                     clearCaptainPickTimer();
                 }
@@ -226,6 +262,7 @@ module.exports = function createUpdatesUtils({
             return;
         }
 
+        const size = _getTeamSize();
         const red = getTeamArray(Team.RED);
         const blue = getTeamArray(Team.BLUE);
         const scores = room.getScores();
@@ -271,16 +308,18 @@ module.exports = function createUpdatesUtils({
             return;
         }
 
-        await _advanceCaptainPick(_getTeamSize());
+        await _advanceCaptainPick(_getEffectivePickSize());
     }
 
     async function _initCaptainPick() {
         state.sit = Sits.FORMING;
 
+        const size = _getTeamSize();
+        state.pickSize = size;
+
         let specs = getTeamArray(Team.SPECTATORS);
 
         if (_isWinstay()) {
-            const size = _getTeamSize();
             const championIds = _applyWinstayToRed(size);
             specs = specs.filter(p => !championIds.has(p.id));
             if (specs[0]) {
@@ -333,6 +372,11 @@ module.exports = function createUpdatesUtils({
     }
 
     async function randomizeTeams() {
+        if (getTeamArray(Team.SPECTATORS).length < 2) {
+            _stopCaptainPick();
+            return;
+        }
+
         _stopCaptainPick();
         state.sit = Sits.RANDOMIZE;
 
