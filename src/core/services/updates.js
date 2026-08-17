@@ -7,6 +7,7 @@ module.exports = function createUpdatesUtils({
     getRandomInt,
     Mods,
     Team,
+    Role,
     Color,
     HaxNotification,
     defaultTeamSize,
@@ -93,6 +94,26 @@ module.exports = function createUpdatesUtils({
         return new Set(toField.map(p => p.id));
     }
 
+    async function _resolveVipUpBooking(specs) {
+        const booking = state.vipUpBooking;
+        if (booking == null) return null;
+
+        const candidate = specs.find(p => getAuth(p.id) === booking.auth);
+
+        if (candidate == null) {
+            state.vipUpBooking = null;
+            return null;
+        }
+
+        const role = await getRole(candidate);
+        if (role < Role.VIP) {
+            state.vipUpBooking = null;
+            return null;
+        }
+
+        return candidate;
+    }
+
     function _tryFinishIfTeamsFull(size) {
         const red = getTeamArray(Team.RED);
         const blue = getTeamArray(Team.BLUE);
@@ -109,6 +130,7 @@ module.exports = function createUpdatesUtils({
         clearCaptainPickTimer();
         state.captainPickForTeam = null;
         state.pickSize = null;
+        state.pickUsedVipUpFor = null;
         if (state.sit === Sits.CHOICE) {
             state.sit = room.getScores() != null ? Sits.GAME : Sits.NONE;
         }
@@ -131,8 +153,13 @@ module.exports = function createUpdatesUtils({
             for (const p of red.concat(blue)) {
                 room.setPlayerTeam(p.id, Team.SPECTATORS);
             }
+
+            if (state.pickUsedVipUpFor != null && state.vipUpBooking == null) {
+                state.vipUpBooking = state.pickUsedVipUpFor;
+            }
         }
 
+        state.pickUsedVipUpFor = null;
         state.sit = room.getScores() != null ? Sits.GAME : Sits.NONE;
         try {
             room.pauseGame(false);
@@ -316,18 +343,52 @@ module.exports = function createUpdatesUtils({
 
         const size = _getTeamSize();
         state.pickSize = size;
+        state.pickUsedVipUpFor = null;
 
         let specs = getTeamArray(Team.SPECTATORS);
 
         if (_isWinstay()) {
             const championIds = _applyWinstayToRed(size);
             specs = specs.filter(p => !championIds.has(p.id));
-            if (specs[0]) {
+
+            const vipCandidate = await _resolveVipUpBooking(specs);
+            if (vipCandidate != null) {
+                room.setPlayerTeam(vipCandidate.id, Team.BLUE);
+                state.pickUsedVipUpFor = { auth: getAuth(vipCandidate.id), name: vipCandidate.name };
+                state.vipUpBooking = null;
+                specs = specs.filter(p => p.id !== vipCandidate.id);
+
+                room.sendAnnouncement(
+                    `🌟 ${vipCandidate.name} стал капитаном СИНИХ по брони !up!`,
+                    null,
+                    Color.PINK,
+                    'bold',
+                    HaxNotification.CHAT
+                );
+            } else if (specs[0]) {
                 room.setPlayerTeam(specs[0].id, Team.BLUE);
             }
         } else {
             state.winstay = { streak: 0, team: [] };
-            if (specs[0]) room.setPlayerTeam(specs[0].id, Team.RED);
+
+            const vipCandidate = await _resolveVipUpBooking(specs);
+            if (vipCandidate != null) {
+                room.setPlayerTeam(vipCandidate.id, Team.RED);
+                state.pickUsedVipUpFor = { auth: getAuth(vipCandidate.id), name: vipCandidate.name };
+                state.vipUpBooking = null;
+                specs = specs.filter(p => p.id !== vipCandidate.id);
+
+                room.sendAnnouncement(
+                    `🌟 ${vipCandidate.name} стал капитаном КРАСНЫХ по брони !up!`,
+                    null,
+                    Color.PINK,
+                    'bold',
+                    HaxNotification.CHAT
+                );
+            } else if (specs[0]) {
+                room.setPlayerTeam(specs[0].id, Team.RED);
+            }
+
             if (specs[1]) room.setPlayerTeam(specs[1].id, Team.BLUE);
         }
 

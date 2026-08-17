@@ -23,6 +23,7 @@ const base = {
     upTeamSizePlayers: 8,
     vipSlots: 2,
     vipQueueRoles: [Role.VIP, Role.PREADMIN, Role.MASTER],
+    vipUpCooldownMs: 10*60*1000,
     GhostKick: true,
     gamesTimeout: 5,
     maxInactivity: 20,

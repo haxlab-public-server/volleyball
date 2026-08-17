@@ -26,7 +26,8 @@ module.exports = function createVipCommands({
     noGoal_map,
     Mods,
     Color,
-    HaxNotification
+    HaxNotification,
+    vipUpCooldownMs
 }) {
     function announce(message, targetId = null, color = Color.WH_GREEN) {
         room.sendAnnouncement(message, targetId, color, 'small', HaxNotification.CHAT);
@@ -215,9 +216,38 @@ module.exports = function createVipCommands({
         announceError(player, 'Ошибка. Такого варианта нет: mode / on / off');
     }
 
+    async function upCommand(player) {
+        const now = Date.now();
+
+        if (state.vipUpCooldownUntil > now) {
+            const minsLeft = Math.ceil((state.vipUpCooldownUntil - now) / 1000 / 60);
+            announceError(player, `Команда !up сейчас на КД для всей комнаты: ещё ${minsLeft}мин`);
+            return;
+        }
+
+        if (state.vipUpBooking != null) {
+            announceError(
+                player,
+                `Место капитана на следующем пике уже забронировано игроком ${state.vipUpBooking.name}`
+            );
+            return;
+        }
+
+        const auth = getAuth(player.id);
+        state.vipUpBooking = { auth, name: player.name };
+        state.vipUpCooldownUntil = now + vipUpCooldownMs;
+
+        announce(
+            `🌟 ${player.name} забронировал место капитана на следующем формировании команд!`,
+            null,
+            Color.PINK
+        );
+    }
+
     return {
         chatColorCommand,
         trainingSettingCommands,
-        trainingCommand
+        trainingCommand,
+        upCommand
     };
 };

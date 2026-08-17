@@ -26,7 +26,8 @@ const {
     defaultWinstay,
     joinAuths,
     mode,
-    roomLabel
+    roomLabel,
+    vipUpCooldownMs
 } = config;
 
 const room = HBInit(buildGameConfig(window.__secrets.token, config));
@@ -119,6 +120,10 @@ state.training_mode = false
 state.training_mode_spawn = []
 state.game = new Game(defaultTeamSize);
 state.vipPassword = getRandomInt(100000, 999999)
+state.vipUpBooking = null;
+state.vipUpCooldownUntil = 0;
+state.pickSize = null;
+state.pickUsedVipUpFor = null;
 state.winstay = {
   streak: 0,
   team: [],
@@ -213,6 +218,7 @@ const {
     getRandomInt,
     Mods,
     Team,
+    Role,
     Color,
     HaxNotification,
     defaultTeamSize,
@@ -329,7 +335,8 @@ const createVipCommands = require('../core/commands/vip');
 const {
     chatColorCommand,
     trainingSettingCommands,
-    trainingCommand
+    trainingCommand,
+    upCommand
 } = createVipCommands({
     room,
     state,
@@ -339,7 +346,8 @@ const {
     noGoal_map,
     Mods,
     Color,
-    HaxNotification
+    HaxNotification,
+    vipUpCooldownMs
 })
 
 /* Admin commands */
@@ -447,7 +455,8 @@ const commands = createCommands({
     myPointCommand,
     chatColorCommand,
     winstayCommand,
-    teamPickCommand
+    teamPickCommand,
+    upCommand
 })
 
 /* EVENTS */

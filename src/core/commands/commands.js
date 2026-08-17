@@ -37,7 +37,8 @@ module.exports = function createCommands({
     myPointCommand,
     chatColorCommand,
     winstayCommand,
-    teamPickCommand
+    teamPickCommand,
+    upCommand
 }) {
 
 return {
@@ -230,6 +231,11 @@ return {
         aliases: ['tp', 'pickmode', 'team_pick'],
         roles: Role.MASTER,
         function: teamPickCommand
+    },
+    up: {
+        aliases: [],
+        roles: Role.VIP,
+        function: upCommand
     }
 }
 
