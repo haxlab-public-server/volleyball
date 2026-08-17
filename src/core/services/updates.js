@@ -23,41 +23,42 @@ module.exports = function createUpdatesUtils({
     sendPickList,
     clearCaptainPickTimer
 }) {
-    const CAPTAIN_PICK_TIMEOUT_MS = 10000;
+    const CAPTAIN_PICK_TIMEOUT_MS = 10_000;
+    const CAPTAIN_ALERT_OFFSET_MS = 4_000;
+    const RANDOMIZE_DELAY_MS = 3_000;
+    const FILL_GUARD_LIMIT = 20;
 
-    function _getActivePlayers() {
+    function getActivePlayers() {
         return room.getPlayerList().filter(
             p => state.afkList.findIndex(a => a[0] === p.id) === -1
         );
     }
 
-    function _getTeamSize() {
+    function getTeamSize() {
         if (room.getScores() != null && state.game?.teamSize) {
             return state.game.teamSize;
         }
         return state.teamSize;
     }
 
-    function _getEffectivePickSize() {
-        if (state.sit === Sits.CHOICE && state.pickSize != null) {
-            return state.pickSize;
-        }
-        return _getTeamSize();
+    function getEffectivePickSize() {
+        return state.sit === Sits.CHOICE && state.pickSize != null
+            ? state.pickSize
+            : getTeamSize();
     }
 
-    function _getPresentWinstayPlayers() {
-        const winstayAuths = new Set(state.winstay.team);
-        return room.getPlayerList().filter(p => winstayAuths.has(getAuth(p.id)));
+    function getPresentWinstayPlayers() {
+        const auths = new Set(state.winstay.team);
+        return room.getPlayerList().filter(p => auths.has(getAuth(p.id)));
     }
 
-    function _isWinstay() {
+    function isWinstayActive() {
         if (!state.winstay_mode || state.winstay.streak <= 0) return false;
 
         const specs = getTeamArray(Team.SPECTATORS);
-        const presentChampions = _getPresentWinstayPlayers();
-        const championsInSpecs = presentChampions.filter(p =>
-            specs.some(s => s.id === p.id)
-        ).length;
+        const championsInSpecs = getPresentWinstayPlayers()
+            .filter(p => specs.some(s => s.id === p.id))
+            .length;
 
         return (
             specs.length > state.teamSize * 2 &&
@@ -65,41 +66,42 @@ module.exports = function createUpdatesUtils({
         );
     }
 
-    function _canUseCaptains() {
+    function canUseCaptains() {
         return (
             state.teamPickMode === TeamPickMode.CAPTAINS &&
-            _getActivePlayers().length >= state.teamSize * 2 + 1 &&
+            getActivePlayers().length >= state.teamSize * 2 + 1 &&
             state.teamSize > 1
         );
     }
 
-    function _hasPickChoice() {
+    function hasPickChoice() {
         return getTeamArray(Team.SPECTATORS).length >= 2;
     }
 
-    function _applyWinstayToRed(size) {
-        const present = _getPresentWinstayPlayers();
+    function resetWinstay() {
+        state.winstay = { streak: 0, team: [] };
+    }
+
+    function applyWinstayToRed(size) {
+        const present = getPresentWinstayPlayers();
         const toField = present.slice(0, size);
 
         for (const p of toField) {
             room.setPlayerTeam(p.id, Team.RED);
         }
-
         for (const p of present.slice(size)) {
             if (p.team !== Team.SPECTATORS) {
                 room.setPlayerTeam(p.id, Team.SPECTATORS);
             }
         }
-
         return new Set(toField.map(p => p.id));
     }
 
-    async function _resolveVipUpBooking(specs) {
+    async function resolveVipUpBooking(specs) {
         const booking = state.vipUpBooking;
         if (booking == null) return null;
 
         const candidate = specs.find(p => getAuth(p.id) === booking.auth);
-
         if (candidate == null) {
             state.vipUpBooking = null;
             return null;
@@ -110,50 +112,52 @@ module.exports = function createUpdatesUtils({
             state.vipUpBooking = null;
             return null;
         }
-
         return candidate;
     }
 
-    function _tryFinishIfTeamsFull(size) {
+    function tryFinishIfTeamsFull(size) {
         const red = getTeamArray(Team.RED);
         const blue = getTeamArray(Team.BLUE);
 
-        if (red.length < size || blue.length < size) return false;
-        if (red.length !== blue.length) return false;
+        if (red.length < size || blue.length < size || red.length !== blue.length) {
+            return false;
+        }
 
-        _stopCaptainPick();
+        stopCaptainPick();
         if (room.getScores() == null) room.startGame();
         return true;
     }
 
-    function _stopCaptainPick() {
+    function stopCaptainPick() {
         clearCaptainPickTimer();
         state.captainPickForTeam = null;
         state.pickSize = null;
         state.pickUsedVipUpFor = null;
+
         if (state.sit === Sits.CHOICE) {
             state.sit = room.getScores() != null ? Sits.GAME : Sits.NONE;
         }
+
         try {
             room.pauseGame(false);
         } catch (_) {}
     }
 
-    function _abandonStuckPick() {
+    function abandonStuckPick() {
         clearCaptainPickTimer();
         state.captainPickForTeam = null;
         state.pickSize = null;
 
         const red = getTeamArray(Team.RED);
         const blue = getTeamArray(Team.BLUE);
-        const isUnresolved = (red.length > 0 || blue.length > 0) &&
-                              (red.length !== blue.length || room.getScores() == null);
+        const isUnresolved =
+            (red.length > 0 || blue.length > 0) &&
+            (red.length !== blue.length || room.getScores() == null);
 
         if (isUnresolved) {
             for (const p of red.concat(blue)) {
                 room.setPlayerTeam(p.id, Team.SPECTATORS);
             }
-
             if (state.pickUsedVipUpFor != null && state.vipUpBooking == null) {
                 state.vipUpBooking = state.pickUsedVipUpFor;
             }
@@ -161,6 +165,7 @@ module.exports = function createUpdatesUtils({
 
         state.pickUsedVipUpFor = null;
         state.sit = room.getScores() != null ? Sits.GAME : Sits.NONE;
+
         try {
             room.pauseGame(false);
         } catch (_) {}
@@ -168,14 +173,16 @@ module.exports = function createUpdatesUtils({
         return isUnresolved;
     }
 
-    function _startCaptainTimer(captain, pickTeam) {
+    function startCaptainTimer(captain, pickTeam) {
         state.captainPickForTeam = pickTeam;
         clearCaptainPickTimer();
+
+        const teamColor = pickTeam === Team.RED ? Color.TEAM_RED : Color.TEAM_BLUE;
 
         room.sendAnnouncement(
             `🧢 Ход капитана ${captain.name}`,
             null,
-            pickTeam === Team.RED ? Color.TEAM_RED : Color.TEAM_BLUE,
+            teamColor,
             'bold',
             HaxNotification.CHAT
         );
@@ -193,7 +200,7 @@ module.exports = function createUpdatesUtils({
                 HaxNotification.CHAT
             );
             sendPickList(captain);
-        }, CAPTAIN_PICK_TIMEOUT_MS - 4000);
+        }, CAPTAIN_PICK_TIMEOUT_MS - CAPTAIN_ALERT_OFFSET_MS);
 
         state.captainPickTimer = setTimeout(() => {
             state.captainPickTimer = null;
@@ -217,7 +224,7 @@ module.exports = function createUpdatesUtils({
         }, CAPTAIN_PICK_TIMEOUT_MS);
     }
 
-    function _autoFillSlot(red, blue, size) {
+    function autoFillSlot(red, blue, size) {
         const specs = getTeamArray(Team.SPECTATORS);
         if (specs.length === 0) return;
 
@@ -235,9 +242,8 @@ module.exports = function createUpdatesUtils({
         }
     }
 
-    function _fillTeamsUntilFullOrStuck(size) {
-        let guard = 0;
-        while (guard++ < 20) {
+    function fillTeamsUntilFullOrStuck(size) {
+        for (let guard = 0; guard < FILL_GUARD_LIMIT; guard++) {
             const red = getTeamArray(Team.RED);
             const blue = getTeamArray(Team.BLUE);
             const specs = getTeamArray(Team.SPECTATORS);
@@ -252,12 +258,37 @@ module.exports = function createUpdatesUtils({
         }
     }
 
+    async function placeVipOrFirst(specs, team, announcement) {
+        const vip = await resolveVipUpBooking(specs);
+        if (vip != null) {
+            room.setPlayerTeam(vip.id, team);
+            state.pickUsedVipUpFor = { auth: getAuth(vip.id), name: vip.name };
+            state.vipUpBooking = null;
+
+            room.sendAnnouncement(
+                announcement(vip.name),
+                null,
+                Color.PINK,
+                'bold',
+                HaxNotification.CHAT
+            );
+            return specs.filter(p => p.id !== vip.id);
+        }
+
+        if (specs[0]) {
+            room.setPlayerTeam(specs[0].id, team);
+            return specs.slice(1);
+        }
+        return specs;
+    }
+
     function updateTeamSize() {
         if (state.training_mode || state.mode !== Mods.PUBLIC) return;
 
-        state.teamSize = _getActivePlayers().length >= upTeamSizePlayers
-            ? defaultTeamSize + 1
-            : defaultTeamSize;
+        state.teamSize =
+            getActivePlayers().length >= upTeamSizePlayers
+                ? defaultTeamSize + 1
+                : defaultTeamSize;
     }
 
     async function updateTeams() {
@@ -265,35 +296,14 @@ module.exports = function createUpdatesUtils({
         if ([Sits.RANDOMIZE, Sits.TIMEOUT, Sits.FORMING].includes(state.sit)) return;
 
         if (state.sit === Sits.CHOICE) {
-            const size = _getEffectivePickSize();
-
-            if (_tryFinishIfTeamsFull(size)) return;
-
-            if (!_canUseCaptains() || !_hasPickChoice()) {
-                _fillTeamsUntilFullOrStuck(size);
-
-                if (_tryFinishIfTeamsFull(size)) return;
-
-                if (!_canUseCaptains()) {
-                    const wasUnresolved = _abandonStuckPick();
-                    if (wasUnresolved && _getActivePlayers().length >= 2) {
-                        await startPickingTeams();
-                    }
-                } else {
-                    clearCaptainPickTimer();
-                }
-                return;
-            }
-
-            await _advanceCaptainPick(size);
-            return;
+            return handleChoiceSit();
         }
 
-        const size = _getTeamSize();
+        const size = getTeamSize();
         const red = getTeamArray(Team.RED);
         const blue = getTeamArray(Team.BLUE);
         const scores = room.getScores();
-        const activeCount = _getActivePlayers().length;
+        const activeCount = getActivePlayers().length;
 
         if (scores != null) {
             if (activeCount <= 1 || red.length === 0 || blue.length === 0) {
@@ -302,10 +312,10 @@ module.exports = function createUpdatesUtils({
             }
 
             if (red.length < size || blue.length < size) {
-                if (_canUseCaptains() && _hasPickChoice()) {
+                if (canUseCaptains() && hasPickChoice()) {
                     await startCaptains();
                 } else {
-                    _autoFillSlot(red, blue, size);
+                    autoFillSlot(red, blue, size);
                 }
             }
             return;
@@ -316,14 +326,37 @@ module.exports = function createUpdatesUtils({
         }
     }
 
-    async function startPickingTeams() {
-        if (_getActivePlayers().length < 2) return;
+    async function handleChoiceSit() {
+        const size = getEffectivePickSize();
 
-        if (state.teamPickMode === TeamPickMode.RANDOM || !_canUseCaptains()) {
-            await randomizeTeams();
+        if (tryFinishIfTeamsFull(size)) return;
+
+        if (!canUseCaptains() || !hasPickChoice()) {
+            fillTeamsUntilFullOrStuck(size);
+
+            if (tryFinishIfTeamsFull(size)) return;
+
+            if (!canUseCaptains()) {
+                const wasUnresolved = abandonStuckPick();
+                if (wasUnresolved && getActivePlayers().length >= 2) {
+                    await startPickingTeams();
+                }
+            } else {
+                clearCaptainPickTimer();
+            }
             return;
         }
 
+        await advanceCaptainPick(size);
+    }
+
+    async function startPickingTeams() {
+        if (getActivePlayers().length < 2) return;
+
+        if (state.teamPickMode === TeamPickMode.RANDOM || !canUseCaptains()) {
+            await randomizeTeams();
+            return;
+        }
         await startCaptains();
     }
 
@@ -331,88 +364,67 @@ module.exports = function createUpdatesUtils({
         if (state.sit === Sits.FORMING) return;
 
         if (state.sit === Sits.NONE) {
-            await _initCaptainPick();
+            await initCaptainPick();
             return;
         }
-
-        await _advanceCaptainPick(_getEffectivePickSize());
+        await advanceCaptainPick(getEffectivePickSize());
     }
 
-    async function _initCaptainPick() {
+    async function initCaptainPick() {
         state.sit = Sits.FORMING;
 
-        const size = _getTeamSize();
+        const size = getTeamSize();
         state.pickSize = size;
         state.pickUsedVipUpFor = null;
 
         let specs = getTeamArray(Team.SPECTATORS);
 
-        if (_isWinstay()) {
-            const championIds = _applyWinstayToRed(size);
+        if (isWinstayActive()) {
+            const championIds = applyWinstayToRed(size);
             specs = specs.filter(p => !championIds.has(p.id));
 
-            const vipCandidate = await _resolveVipUpBooking(specs);
-            if (vipCandidate != null) {
-                room.setPlayerTeam(vipCandidate.id, Team.BLUE);
-                state.pickUsedVipUpFor = { auth: getAuth(vipCandidate.id), name: vipCandidate.name };
-                state.vipUpBooking = null;
-                specs = specs.filter(p => p.id !== vipCandidate.id);
+            specs = await placeVipOrFirst(
+                specs,
+                Team.BLUE,
+                name => `🌟 ${name} стал капитаном СИНИХ по брони !up!`
+            );
+        } else {
+            resetWinstay();
 
-                room.sendAnnouncement(
-                    `🌟 ${vipCandidate.name} стал капитаном СИНИХ по брони !up!`,
-                    null,
-                    Color.PINK,
-                    'bold',
-                    HaxNotification.CHAT
-                );
-            } else if (specs[0]) {
+            specs = await placeVipOrFirst(
+                specs,
+                Team.RED,
+                name => `🌟 ${name} стал капитаном КРАСНЫХ по брони !up!`
+            );
+
+            if (specs[0]) {
                 room.setPlayerTeam(specs[0].id, Team.BLUE);
             }
-        } else {
-            state.winstay = { streak: 0, team: [] };
-
-            const vipCandidate = await _resolveVipUpBooking(specs);
-            if (vipCandidate != null) {
-                room.setPlayerTeam(vipCandidate.id, Team.RED);
-                state.pickUsedVipUpFor = { auth: getAuth(vipCandidate.id), name: vipCandidate.name };
-                state.vipUpBooking = null;
-                specs = specs.filter(p => p.id !== vipCandidate.id);
-
-                room.sendAnnouncement(
-                    `🌟 ${vipCandidate.name} стал капитаном КРАСНЫХ по брони !up!`,
-                    null,
-                    Color.PINK,
-                    'bold',
-                    HaxNotification.CHAT
-                );
-            } else if (specs[0]) {
-                room.setPlayerTeam(specs[0].id, Team.RED);
-            }
-
-            if (specs[1]) room.setPlayerTeam(specs[1].id, Team.BLUE);
         }
 
         state.sit = Sits.CHOICE;
     }
 
-    async function _advanceCaptainPick(size) {
-        if (_tryFinishIfTeamsFull(size)) return;
+    async function advanceCaptainPick(size) {
+        if (tryFinishIfTeamsFull(size)) return;
 
-        if (!_hasPickChoice()) {
+        if (!hasPickChoice()) {
             clearCaptainPickTimer();
             return;
         }
 
         const pickTeam = getPickTeam();
         if (pickTeam == null) {
-            _stopCaptainPick();
+            stopCaptainPick();
             if (room.getScores() == null) room.startGame();
             return;
         }
 
         state.sit = Sits.CHOICE;
         if (room.getScores() != null) {
-            try { room.pauseGame(true); } catch (_) {}
+            try {
+                room.pauseGame(true);
+            } catch (_) {}
         }
 
         const captain = getCaptain(pickTeam);
@@ -429,16 +441,16 @@ module.exports = function createUpdatesUtils({
             return;
         }
 
-        _startCaptainTimer(captain, pickTeam);
+        startCaptainTimer(captain, pickTeam);
     }
 
     async function randomizeTeams() {
         if (getTeamArray(Team.SPECTATORS).length < 2) {
-            _stopCaptainPick();
+            stopCaptainPick();
             return;
         }
 
-        _stopCaptainPick();
+        stopCaptainPick();
         state.sit = Sits.RANDOMIZE;
 
         room.sendAnnouncement(
@@ -450,100 +462,111 @@ module.exports = function createUpdatesUtils({
         );
 
         setTimeout(async () => {
-            let specs = getTeamArray(Team.SPECTATORS);
-            const isWinstay = _isWinstay();
-            let takeCount;
+            await performRandomize();
+        }, RANDOMIZE_DELAY_MS);
+    }
+
+    async function performRandomize() {
+        let specs = getTeamArray(Team.SPECTATORS);
+        const winstay = isWinstayActive();
+        let takeCount;
+
+        if (winstay) {
+            const size = state.teamSize;
+            const championIds = applyWinstayToRed(size);
+            specs = specs.filter(p => !championIds.has(p.id));
+            takeCount = size;
+        } else {
+            resetWinstay();
+            const maxOnField = state.teamSize * 2;
+            takeCount = Math.min(specs.length, maxOnField);
+            if (takeCount % 2 === 1) takeCount -= 1;
+            if (takeCount < 2) {
+                state.sit = Sits.NONE;
+                return;
+            }
+        }
+
+        const selectedIds = await selectPlayersForRandomize(specs, takeCount, winstay);
+
+        if (winstay) {
+            for (const id of selectedIds) {
+                room.setPlayerTeam(id, Team.BLUE);
+            }
+        } else {
+            for (let i = selectedIds.length - 1; i > 0; i--) {
+                const j = getRandomInt(0, i);
+                [selectedIds[i], selectedIds[j]] = [selectedIds[j], selectedIds[i]];
+            }
+
+            const half = selectedIds.length / 2;
+            for (let i = 0; i < selectedIds.length; i++) {
+                room.setPlayerTeam(
+                    selectedIds[i],
+                    i < half ? Team.RED : Team.BLUE
+                );
+            }
+        }
+
+        room.startGame();
+    }
+
+    async function selectPlayersForRandomize(specs, takeCount, isWinstay) {
+        const playerThreshold = Math.max(0, queueMatches);
+
+        let priorityQueue = state.queue
+            .filter(([, missed]) => missed >= playerThreshold)
+            .sort((a, b) => b[1] - a[1]);
+
+        const vips = [];
+        for (const p of specs) {
+            const role = await getRole(p);
+            if (!vipQueueRoles.includes(role)) continue;
+
+            const queueData = state.queue.find(([id]) => id === p.id);
+            const missedCount = queueData ? queueData[1] : 0;
 
             if (isWinstay) {
-                const size = state.teamSize;
-                const championIds = _applyWinstayToRed(size);
-                specs = specs.filter(p => !championIds.has(p.id));
-                takeCount = size;
-            } else {
-                state.winstay = { streak: 0, team: [] };
-                const maxOnField = state.teamSize * 2;
-                takeCount = Math.min(specs.length, maxOnField);
-                if (takeCount % 2 === 1) takeCount -= 1;
-                if (takeCount < 2) {
-                    state.sit = Sits.NONE;
-                    return;
-                }
+                const vipThreshold = Math.max(0, queueMatches - 1);
+                if (missedCount < vipThreshold) continue;
             }
+            vips.push(p);
+        }
 
-            const playerThreshold = Math.max(0, queueMatches);
+        if (vips.length > 0) {
+            const vipLimit = state.teamSize <= 2 ? 1 : 2;
+            const vipQueue = vips
+                .map(p => state.queue.find(q => q[0] === p.id))
+                .filter(Boolean)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, vipLimit);
 
-            let priorityQueue = state.queue
-                .filter(([, missed]) => missed >= playerThreshold)
-                .sort((a, b) => b[1] - a[1]);
-
-            const vips = [];
-            for (const p of specs) {
-                const role = await getRole(p);
-                if (!vipQueueRoles.includes(role)) continue;
-                const queueData = state.queue.find(([id]) => id === p.id);
-                const missedCount = queueData ? queueData[1] : 0;
-                if (isWinstay) {
-                    const vipThreshold = Math.max(0, queueMatches - 1);
-                    if (missedCount < vipThreshold) continue;
-                }
-                vips.push(p);
+            for (const vip of vipQueue) {
+                priorityQueue = priorityQueue.filter(q => q[0] !== vip[0]);
+                priorityQueue.unshift(vip);
             }
+        }
 
-            if (vips.length > 0) {
-                const vipLimit = state.teamSize <= 2 ? 1 : 2;
-                const vipQueue = vips
-                    .map(p => state.queue.find(q => q[0] === p.id))
-                    .filter(Boolean)
-                    .sort((a, b) => b[1] - a[1])
-                    .slice(0, vipLimit);
+        const selectedIds = [];
+        const used = new Set();
 
-                for (const vip of vipQueue) {
-                    priorityQueue = priorityQueue.filter(q => q[0] !== vip[0]);
-                    priorityQueue.unshift(vip);
-                }
+        for (const [id] of priorityQueue) {
+            if (selectedIds.length >= takeCount) break;
+            if (specs.some(p => p.id === id)) {
+                selectedIds.push(id);
+                used.add(id);
             }
+        }
 
-            const selectedIds = [];
-            const used = new Set();
+        const rest = specs.filter(p => !used.has(p.id));
+        while (selectedIds.length < takeCount && rest.length > 0) {
+            const idx = getRandomInt(0, rest.length - 1);
+            selectedIds.push(rest[idx].id);
+            used.add(rest[idx].id);
+            rest.splice(idx, 1);
+        }
 
-            for (const [id] of priorityQueue) {
-                if (selectedIds.length >= takeCount) break;
-                if (specs.some(p => p.id === id)) {
-                    selectedIds.push(id);
-                    used.add(id);
-                }
-            }
-
-            const rest = specs.filter(p => !used.has(p.id));
-
-            while (selectedIds.length < takeCount && rest.length > 0) {
-                const idx = getRandomInt(0, rest.length - 1);
-                selectedIds.push(rest[idx].id);
-                used.add(rest[idx].id);
-                rest.splice(idx, 1);
-            }
-
-            if (isWinstay) {
-                for (const id of selectedIds) {
-                    room.setPlayerTeam(id, Team.BLUE);
-                }
-            } else {
-                for (let i = selectedIds.length - 1; i > 0; i--) {
-                    const j = getRandomInt(0, i);
-                    [selectedIds[i], selectedIds[j]] = [selectedIds[j], selectedIds[i]];
-                }
-
-                const half = selectedIds.length / 2;
-                for (let i = 0; i < selectedIds.length; i++) {
-                    room.setPlayerTeam(
-                        selectedIds[i],
-                        i < half ? Team.RED : Team.BLUE
-                    );
-                }
-            }
-
-            room.startGame();
-        }, 3000);
+        return selectedIds;
     }
 
     function updateVipSlots() {
