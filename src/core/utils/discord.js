@@ -7,60 +7,64 @@ class DiscordBot {
         this.roomLabel = roomLabel;
     }
 
+    async _safeFetch(url, options, type = "log") {
+        try {
+            const res = await fetch(url, options);
+            if (!res.ok) {
+                console.log(`[Discord Webhook Error] Тип: ${type} | Статус: ${res.status} ${res.statusText}`);
+            }
+        } catch (err) {
+            console.log(`[Discord Network Error] Ошибка отправки ${type}: Сбой сети или неверный URL.`);
+        }
+    }
+
     sendRecording(rec, name, id) {
         if (this.replayWebhook) {
-            fetch(this.replayWebhook, {
+            this._safeFetch(this.replayWebhook, {
                 method: "POST",
                 body: JSON.stringify({
                     content: `\`[${this.roomLabel}]\` № ${id}`,
                     username: "replay",
                 }),
-                headers: {
-                    "Content-Type": "application/json",
-                },
-            }).then((res) => res);
+                headers: { "Content-Type": "application/json" },
+            }, "replay_info");
+
             let form = new FormData();
             form.append(null, new File([rec], name, { type: "text/plain" }));
-            form.append("payload_json", JSON.stringify({
-                username: "replay",
-            }));
+            form.append("payload_json", JSON.stringify({ username: "replay" }));
 
             setTimeout(() => {
-                fetch(this.replayWebhook, {
+                this._safeFetch(this.replayWebhook, {
                     method: "POST",
                     body: form,
-                }).then((res) => res);
+                }, "replay_file");
             }, 500);
         }
     }
 
     sendVipPassword(vipPassword) {
         if (this.vipWebhook) {
-            fetch(this.vipWebhook, {
+            this._safeFetch(this.vipWebhook, {
                 method: "POST",
                 body: JSON.stringify({
                     content: `# \`[${this.roomLabel}]\` 🌟VIP-Пароль: ${vipPassword}`,
                     username: "vip",
                 }),
-                headers: {
-                    "Content-Type": "application/json",
-                },
-            }).then((res) => res);
+                headers: { "Content-Type": "application/json" },
+            }, "vip");
         }
     }
 
     sendLog(content) {
         if (this.logWebhook) {
-            fetch(this.logWebhook, {
+            this._safeFetch(this.logWebhook, {
                 method: "POST",
                 body: JSON.stringify({
                     content: `\`[${this.roomLabel}]\` ${content}`,
                     username: "logs",
                 }),
-                headers: {
-                    "Content-Type": "application/json",
-                },
-            }).then((res) => res);
+                headers: { "Content-Type": "application/json" },
+            }, "logs");
         }
     }
 
@@ -73,16 +77,14 @@ class DiscordBot {
         };
 
         if (this.reportWebhook) {
-            fetch(this.reportWebhook, {
+            this._safeFetch(this.reportWebhook, {
                 method: "POST",
                 body: JSON.stringify({
                     content: `## \`[${this.roomLabel}]\` 🔴 ${adminName} ${actions[action]} ${toPlayerName}${time != null ? ` на ${time}` : ""}${reason != null ? ` по причине: ${reason}` : ""}`,
                     username: "logs",
                 }),
-                headers: {
-                    "Content-Type": "application/json",
-                },
-            }).then((res) => res);
+                headers: { "Content-Type": "application/json" },
+            }, "report");
         }
     }
 }
