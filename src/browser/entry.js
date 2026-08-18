@@ -83,6 +83,11 @@ const {
     DiscordBot
 } = require('../core/utils/discord');
 
+const {
+    volleyball_map,
+    noGoal_map
+} = require('../core/maps');
+
 /* State */
 const state = {};
 
@@ -148,15 +153,12 @@ const {
     getAuth,
     getConn,
     getID,
-    getTeamArray,
-    ballSpawner
+    getTeamArray
 } = createRoomUtils({
     room,
     state,
     lastIds,
-    cf,
-    Team,
-    getRandomFloat
+    Team
 })
 
 const {
@@ -235,6 +237,23 @@ const {
     clearCaptainPickTimer
 })
 
+const createTrainingService = require('../core/services/training');
+const {
+    ballSpawner,
+    startBallSpawn,
+    stopBallSpawn,
+    startTrainingMode,
+    stopTrainingMode
+} = createTrainingService({
+    room,
+    state,
+    volleyball_map,
+    noGoal_map,
+    cf,
+    Team,
+    getRandomFloat
+})
+
 const createIntervals = require('../core/services/intervals');
 createIntervals({
     room,
@@ -270,11 +289,6 @@ const {
 })
 
 /* Default game settings */
-const {
-    volleyball_map,
-    noGoal_map
-} = require('../core/maps');
-
 room.setTeamColors(1, 0, 0xFFDAA3, [0xFF4D17])
 room.setTeamColors(2, 0, 0xFFDAA3, [0x0873FF])
 room.setCustomStadium(volleyball_map)
@@ -342,8 +356,10 @@ const {
     state,
     db,
     getAuth,
-    ballSpawner,
-    noGoal_map,
+    startBallSpawn,
+    stopBallSpawn,
+    startTrainingMode,
+    stopTrainingMode,
     Mods,
     Color,
     HaxNotification,
@@ -405,6 +421,7 @@ const {
     stringToTime,
     getStringTime,
     getDate,
+    stopTrainingMode,
     Role,
     RoleString,
     Mods,
@@ -475,6 +492,7 @@ Object.assign(room, wrapEventHandlers(createMovementEvents({
     updateVipSlots,
     updateTeams,
     updateTeamSize,
+    stopTrainingMode,
     GhostKick,
     Role,
     Team,

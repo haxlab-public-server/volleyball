@@ -22,15 +22,17 @@ module.exports = function createVipCommands({
     state,
     db,
     getAuth,
-    ballSpawner,
-    noGoal_map,
+    startBallSpawn,
+    stopBallSpawn,
+    startTrainingMode,
+    stopTrainingMode,
     Mods,
     Color,
     HaxNotification,
     vipUpCooldownMs
 }) {
-    function announce(message, targetId = null, color = Color.WH_GREEN) {
-        room.sendAnnouncement(message, targetId, color, 'small', HaxNotification.CHAT);
+    function announce(message, targetId = null, color = Color.WH_GREEN, style = 'small') {
+        room.sendAnnouncement(message, targetId, color, style, HaxNotification.CHAT);
     }
 
     function announceError(player, message) {
@@ -39,20 +41,6 @@ module.exports = function createVipCommands({
 
     function announceInfo(player, message) {
         announce(message, player.id, Color.WH_BLUE);
-    }
-
-    function startBallSpawn(settings) {
-        state.training_mode_spawn = settings;
-        clearInterval(state.training_interval);
-        state.training_interval = setInterval(
-            () => ballSpawner(state.training_mode_spawn),
-            state.training_mode_spawn[4]
-        );
-    }
-
-    function stopBallSpawn() {
-        state.training_mode_spawn = [];
-        clearInterval(state.training_interval);
     }
 
     /* Renders descriptors back into a readable "x y xspeed yspeed" string */
@@ -193,23 +181,14 @@ module.exports = function createVipCommands({
         }
 
         if (action === 'on' || action === 'true') {
-            state.training_mode = true;
-            state.training_mode_spawn = [];
-
+            startTrainingMode();
             announce(`Режим тренировки включён - ${player.name}`);
-
-            room.stopGame();
-            room.setCustomStadium(noGoal_map);
-            room.startGame();
             return;
         }
 
         if (action === 'off' || action === 'false') {
-            state.training_mode = false;
-            stopBallSpawn();
-
+            stopTrainingMode();
             announce(`Режим тренировки выключен - ${player.name}`);
-            room.stopGame();
             return;
         }
 
@@ -240,7 +219,8 @@ module.exports = function createVipCommands({
         announce(
             `🌟 ${player.name} забронировал место капитана на следующем формировании команд!`,
             null,
-            Color.PINK
+            Color.PINK,
+            'bold'
         );
     }
 

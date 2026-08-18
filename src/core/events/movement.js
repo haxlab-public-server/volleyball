@@ -9,6 +9,7 @@ module.exports = function createMovementEvents({
     updateVipSlots,
     updateTeams,
     updateTeamSize,
+    stopTrainingMode,
     GhostKick,
     Role,
     Team,
@@ -164,6 +165,10 @@ module.exports = function createMovementEvents({
 
         if (state.sit == Sits.CHOICE) {
             sendPickList(getCaptain(getPickTeam()));
+        }
+
+        if (state.training_mode && room.getPlayerList().length === 0) {
+            stopTrainingMode();
         }
 
         (async () => {

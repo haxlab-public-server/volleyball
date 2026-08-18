@@ -8,6 +8,7 @@ module.exports = function createMasterCommands({
     stringToTime,
     getStringTime,
     getDate,
+    stopTrainingMode,
     Role,
     RoleString,
     Mods,
@@ -232,6 +233,11 @@ module.exports = function createMasterCommands({
         }
 
         state.mode = Mods[modeKey];
+
+        if (state.mode === Mods.PUBLIC && state.training_mode) {
+            stopTrainingMode();
+        }
+
         room.sendAnnouncement(
             `Теперь мод комнаты: ${args[0].toLowerCase()}`,
             player.id,
