@@ -197,6 +197,10 @@ async function main() {
         const db = createDb(':memory:');
         db.ensureAccount('auth1', 'Alice');
 
+        const discordBot = {
+            syncRole: () => {}
+        };
+
         const room = { setPlayerAdmin: () => {}, sendAnnouncement: () => {} };
         const Role = { PLAYER: 0, VIP: 1, PREADMIN: 2, ADMIN: 3, MASTER: 4 };
         const RoleString = { player: Role.PLAYER, vip: Role.VIP, preadmin: Role.PREADMIN, admin: Role.ADMIN, master: Role.MASTER };
@@ -204,7 +208,7 @@ async function main() {
         const HaxNotification = { MENTION: 1 };
         const createRoleHelpers = require(path.join(__dirname, '..', 'src', 'core', 'utils', 'roles'));
         const { setRole, getRole } = createRoleHelpers({
-            room, db, getAuth: () => 'auth1', getID: () => 1, Role, RoleString, Color, HaxNotification
+            room, db, getAuth: () => 'auth1', getID: () => 1, Role, RoleString, Color, HaxNotification, discordBot
         });
 
         const player = { id: 1, auth: 'auth1' };
