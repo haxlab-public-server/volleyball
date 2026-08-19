@@ -134,18 +134,7 @@ state.winstay = {
   team: [],
 }
 
-const replayWebhook = window.__secrets.replayWebhookUrl;
-const vipWebhook = window.__secrets.vipWebhookUrl;
-const logWebhook = window.__secrets.logWebhookUrl;
-const reportWebhook = window.__secrets.reportWebhookUrl;
-
-const discordBot = new DiscordBot({
-    replayWebhook,
-    vipWebhook,
-    logWebhook,
-    reportWebhook,
-    roomLabel
-});
+const discordBot = new DiscordBot({ db, roomLabel });
 
 /* Room Utils */
 const createRoomUtils = require('../core/utils/roomUtils');
@@ -341,7 +330,8 @@ const {
     getPickTeam,
     getCaptain,
     sendPickList,
-    defaultTeamSize
+    defaultTeamSize,
+    discordBot
 })
 
 /* VIP commands */

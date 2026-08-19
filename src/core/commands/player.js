@@ -23,7 +23,8 @@ module.exports = function createPlayerCommands({
     getPickTeam,
     getCaptain,
     sendPickList,
-    defaultTeamSize
+    defaultTeamSize,
+    discordBot
 }) {
     function parsePlayerId(arg) {
         const idStr = arg.startsWith('#') ? arg.slice(1) : arg;
@@ -518,11 +519,45 @@ module.exports = function createPlayerCommands({
         );
     }
 
-    function discordCommand(player) {
+    async function discordCommand(player, message) {
+        const args = message.split(/ +/).slice(1);
+
+        if (args.length === 0) {
+            room.sendAnnouncement(
+                `Наш discord: ${Discord}`,
+                player.id,
+                Color.GR_GREEN,
+                'small',
+                HaxNotification.CHAT
+            );
+            return;
+        }
+
+        const code = args[0];
+        const result = await discordBot.confirmLink(code, getAuth(player.id));
+
+        if (result.ok) {
+            room.sendAnnouncement(
+                `✅ Discord успешно привязан к вашему аккаунту!`,
+                player.id,
+                Color.WH_GREEN,
+                'bold',
+                HaxNotification.CHAT
+            );
+            return;
+        }
+
+        const messages = {
+            invalid: `Код неверный или истёк. Получите новый командой /link в Discord`,
+            already_linked_elsewhere: `Этот Discord уже привязан к другому аккаунту`,
+            unknown_account: `Ваш аккаунт HaxBall не найден`,
+            unavailable: `Discord-интеграция сейчас недоступна, попробуйте позже`
+        };
+
         room.sendAnnouncement(
-            `Наш discord: ${Discord}`,
+            messages[result.reason] ?? `Не удалось привязать Discord`,
             player.id,
-            Color.GR_GREEN,
+            Color.GR_RED,
             'small',
             HaxNotification.CHAT
         );

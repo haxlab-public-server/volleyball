@@ -24,10 +24,7 @@ async function checkRoles() {
                 HaxNotification.MENTION
             );
         }
-        // Temporary log until the full‑fledged Discord bot is implemented.
-        discordBot.sendLog(
-            `<@&1535329225563840542> Роль **${auth}** истекла`
-        );
+        discordBot.syncRole(auth);
     }
 }
 
@@ -39,6 +36,7 @@ async function setRole(player, role, time, auth = null) {
         player.admin = false;
     }
     await db.setRole(player.auth, role, time);
+    discordBot.syncRole(player.auth);
     if (RoleString[role] >= Role.PREADMIN) {
         if (player.id == undefined) {
             player.id = getID(player.auth);

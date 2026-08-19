@@ -190,6 +190,26 @@ function createDb(dbPath) {
         return info.changes > 0;
     }
 
+    function setDiscordId(auth, discordId) {
+        const info = db.prepare('UPDATE accounts SET discord = ? WHERE auth = ?').run(discordId, auth);
+        return info.changes > 0;
+    }
+
+    function getAccountByDiscordId(discordId) {
+        const row = db.prepare(
+            'SELECT auth, nickname, role, date, discord, chat_color FROM accounts WHERE discord = ?'
+        ).get(discordId);
+        if (!row) return null;
+        return {
+            auth: row.auth,
+            nickname: row.nickname,
+            role: row.role,
+            date: row.date,
+            discord: row.discord,
+            chat_color: row.chat_color
+        };
+    }
+
     function expireRoles(now = Date.now()) {
         const expired = db.prepare(
             'SELECT auth FROM accounts WHERE date IS NOT NULL AND date <= ?'
@@ -353,6 +373,8 @@ function createDb(dbPath) {
         ensureAccount,
         setRole,
         setChatColor,
+        setDiscordId,
+        getAccountByDiscordId,
         expireRoles,
         addMaster,
         getStat,

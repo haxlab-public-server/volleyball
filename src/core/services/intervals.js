@@ -111,6 +111,12 @@ module.exports = function createIntervals({
         }
     }, 1000);
 
+    setInterval(() => {
+        const list = room.getPlayerList();
+        const names = list.length > 0 ? list.map(p => p.name).join(', ') : 'никого нет';
+        discordBot.updateOnlineMessage(`**Онлайн (${list.length}):** ${names}`);
+    }, 60 * 1000);
+
     // onGameTick replacement
     setInterval(async () => {
         await updateTeams();

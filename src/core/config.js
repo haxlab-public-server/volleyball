@@ -6,10 +6,33 @@ const privateToken = process.env.PRIVATE_TOKEN ?? '';
 const publicPassword = process.env.PUBLIC_PASSWORD ?? '';
 const privatePassword = process.env.PRIVATE_PASSWORD ?? '';
 
-const replayWebhookUrl = process.env.REPLAY_WEBHOOK_URL ?? '';
-const vipWebhookUrl = process.env.VIP_WEBHOOK_URL ?? '';
-const logWebhookUrl = process.env.LOG_WEBHOOK_URL ?? '';
-const reportWebhookUrl = process.env.REPORT_WEBHOOK_URL ?? '';
+const discordBotToken = process.env.DISCORD_BOT_TOKEN ?? '';
+const discordGuildId = process.env.DISCORD_GUILD_ID ?? '';
+
+const discordRoleIds = {
+    vip: process.env.DISCORD_VIP_ROLE_ID ?? null,
+    preadmin: process.env.DISCORD_PREADMIN_ROLE_ID ?? null,
+    admin: process.env.DISCORD_ADMIN_ROLE_ID ?? null,
+    master: process.env.DISCORD_MASTER_ROLE_ID ?? null
+};
+
+const discordChannelIds = {
+    log: process.env.DISCORD_LOG_CHANNEL_ID ?? null,
+    report: process.env.DISCORD_REPORT_CHANNEL_ID ?? null,
+    replay: process.env.DISCORD_REPLAY_CHANNEL_ID ?? null,
+    vip: process.env.DISCORD_VIP_CHANNEL_ID ?? null
+};
+
+const discordOnlineMessages = {
+    public: {
+        channelId: process.env.DISCORD_PUBLIC_ONLINE_CHANNEL_ID ?? null,
+        messageId: process.env.DISCORD_PUBLIC_ONLINE_MESSAGE_ID ?? null
+    },
+    private: {
+        channelId: process.env.DISCORD_PRIVATE_ONLINE_CHANNEL_ID ?? null,
+        messageId: process.env.DISCORD_PRIVATE_ONLINE_MESSAGE_ID ?? null
+    }
+};
 
 module.exports = {
     ...roomConstants,
@@ -17,8 +40,9 @@ module.exports = {
     privateToken,
     publicPassword,
     privatePassword,
-    replayWebhookUrl,
-    vipWebhookUrl,
-    logWebhookUrl,
-    reportWebhookUrl
+    discordBotToken,
+    discordGuildId,
+    discordRoleIds,
+    discordChannelIds,
+    discordOnlineMessages
 };
