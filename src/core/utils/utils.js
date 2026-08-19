@@ -49,13 +49,15 @@ function getActTime() {
 }
     
 function getDate(mils) {
-    subbed = new Date(mils);
-    day = subbed.getDate().toString().length < 2 ? '0' + subbed.getDate() : subbed.getDate();
-    mon = subbed.getMonth().toString().length < 2 ? '0' + (subbed.getMonth()+1) : (subbed.getMonth()+1);
-    hour = subbed.getHours().toString().length < 2 ? '0' + subbed.getHours() : subbed.getHours();
-    min = subbed.getMinutes().toString().length < 2 ? '0' + subbed.getMinutes() : subbed.getMinutes();
-    correct_date = `${day}.${mon} ${hour}:${min}`;
-    return correct_date
+    const formatter = new Intl.DateTimeFormat('ru-RU', {
+        timeZone: 'Europe/Moscow',
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+
+    return formatter.format(new Date(mils)).replace(',', '');
 }
     
 function findFirstNumberCharString(str) {
