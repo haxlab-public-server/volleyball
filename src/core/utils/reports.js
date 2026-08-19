@@ -32,8 +32,35 @@ function getIdReplay() {
     return `${p.year.slice(2)}${p.month}${p.day}${p.hour}${p.minute}${p.second}`;
 }
 
+function uint8ToBase64(bytes) {
+    if (!bytes || !(bytes instanceof Uint8Array)) return null;
+
+    let binary = '';
+    const chunkSize = 0x8000;
+
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+        const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+        binary += String.fromCharCode.apply(null, chunk);
+    }
+
+    return btoa(binary);
+}
+
 function fetchRecording(game, discord) {
-    discord.sendRecording(game.rec, getRecordingName(), getIdReplay())
+    const rec = game.rec;
+
+    if (!rec) {
+        console.log('[fetchRecording] recording is null');
+        return;
+    }
+
+    const base64 = uint8ToBase64(rec);
+    if (!base64) {
+        console.error('[fetchRecording] failed to convert Uint8Array to base64');
+        return;
+    }
+
+    discord.sendRecording(base64, getRecordingName(), getIdReplay());
 }
 
 module.exports = {

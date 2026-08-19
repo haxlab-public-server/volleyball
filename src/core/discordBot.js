@@ -202,9 +202,13 @@ function createDiscordBot({
 
         try {
             const prefix = roomLabel ? `\`[${roomLabel}]\` ` : '';
-            await channel.send({ content: `${prefix}\`№ ${id}\`` });
-            const file = new AttachmentBuilder(Buffer.from(recBytes), { name });
-            await channel.send({ files: [file] });
+            const buffer = Buffer.from(recBytes, 'base64');
+            const file = new AttachmentBuilder(buffer, { name });
+
+            await channel.send({
+                content: `${prefix}\`№ ${id}\``,
+                files: [file]
+            });
         } catch (err) {
             console.error('[Discord] sendRecording failed:', err);
         }
