@@ -95,13 +95,13 @@ function createDiscordBot({
             const targetRoleId = MANAGED_ROLE_NAMES.includes(account.role) ? roleIds[account.role] : null;
 
             const toRemove = allManagedRoleIds.filter(
-                id => id !== targetRoleId && member._roles.includes(id)
+                id => id !== targetRoleId && member.roles.cache.has(id)
             );
             for (const id of toRemove) {
                 await member.roles.remove(id).catch(() => {});
             }
 
-            if (targetRoleId && !member._roles.includes(targetRoleId)) {
+            if (targetRoleId && !member.roles.cache.has(targetRoleId)) {
                 await member.roles.add(targetRoleId).catch(() => {});
             }
         } catch (err) {

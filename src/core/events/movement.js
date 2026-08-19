@@ -95,6 +95,8 @@ module.exports = function createMovementEvents({
             const role = await getRole(player);
             const roleName = ROLE_NAMES[role];
 
+            discordBot.syncRole(player.auth);
+
             if (role >= Role.ADMIN) {
                 room.setPlayerAdmin(player.id, true);
                 room.sendAnnouncement(
