@@ -61,6 +61,18 @@ class DiscordBot {
         bridge.sendVipPassword(this.roomLabel, vipPassword).catch(err => console.error('[Discord] sendVipPassword failed:', err));
     }
 
+    /*
+     * filePath is a path on the Node-side filesystem, produced by
+     * db.backupStats() and threaded back into the browser context only as
+     * an opaque string — the browser never reads or interprets it, it's
+     * just forwarded to the bridge so Node can read the file itself.
+     */
+    sendStatsBackup(filePath, filename) {
+        const bridge = this._bridge();
+        if (!bridge) return;
+        bridge.sendStatsBackup(this.roomLabel, filePath, filename).catch(err => console.error('[Discord] sendStatsBackup failed:', err));
+    }
+
     updateOnlineMessage(content) {
         const bridge = this._bridge();
         if (!bridge) return;

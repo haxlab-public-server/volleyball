@@ -1,3 +1,4 @@
+const fs = require('node:fs');
 const {
     Client,
     GatewayIntentBits,
@@ -223,6 +224,32 @@ function createDiscordBot({
         }
     }
 
+    /*
+     * Sends a stats backup file (already written to disk on the Node side
+     * by db.backupStats()) into the log channel as an attachment. filePath
+     * is a local path on the Node filesystem — only ever produced by
+     * db.backupStats(), never by the browser context, so this is safe to
+     * read directly.
+     */
+    async function sendStatsBackup(roomLabel, filePath, filename) {
+        if (!channelIds.log) return;
+        const channel = await client.channels.fetch(channelIds.log).catch(() => null);
+        if (!channel) return;
+
+        try {
+            const prefix = roomLabel ? `\`[${roomLabel}]\` ` : '';
+            const buffer = fs.readFileSync(filePath);
+            const file = new AttachmentBuilder(buffer, { name: filename });
+
+            await channel.send({
+                content: `${prefix}📦 Бекап статистики перед сбросом`,
+                files: [file]
+            });
+        } catch (err) {
+            console.error('[Discord] sendStatsBackup failed:', err);
+        }
+    }
+
     async function editOnlineMessage(channelId, messageId, payload) {
         if (!channelId || !messageId || !payload) return;
         try {
@@ -327,6 +354,7 @@ function createDiscordBot({
         sendReport,
         sendRecording,
         sendVipPassword,
+        sendStatsBackup,
         editOnlineMessage
     };
 }

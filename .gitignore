@@ -5,3 +5,4 @@ node_modules/
 jsconfig.json
 db/*.sqlite
 db/*.sqlite-*
+db/backups/

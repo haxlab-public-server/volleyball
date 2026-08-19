@@ -68,6 +68,10 @@ function createDb(dbPath) {
     db.exec('PRAGMA journal_mode = WAL');
     db.exec(SCHEMA);
 
+    const backupsDir = dbPath === ':memory:'
+        ? path.join(__dirname, 'backups')
+        : path.join(path.dirname(dbPath), 'backups');
+
     function inTransaction(fn) {
         db.exec('BEGIN');
         try {
@@ -239,6 +243,12 @@ function createDb(dbPath) {
         ];
     }
 
+    function getAllStats() {
+        return db.prepare(
+            'SELECT auth, name, games, wins, goals, blocks, assists, blocked_attacks, errors, aces, serves, play_time FROM stats ORDER BY rowid'
+        ).all();
+    }
+
     function setStatName(auth, name) {
         const info = db.prepare('UPDATE stats SET name = ? WHERE auth = ?').run(name, auth);
         return info.changes > 0;
@@ -286,6 +296,28 @@ function createDb(dbPath) {
 
     function clearStats() {
         db.exec('DELETE FROM stats');
+    }
+
+    /*
+     * Dumps the full stats table to a timestamped JSON file under
+     * db/backups/ and returns { filename, filePath, count } so the caller
+     * (e.g. the !statsclear command) can also forward the file elsewhere
+     * (Discord log channel, etc). Safe to call even if stats is empty.
+     */
+    function backupStats() {
+        const rows = getAllStats();
+
+        fs.mkdirSync(backupsDir, { recursive: true });
+
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+        const filename = `stats-backup-${stamp}.json`;
+        const filePath = path.join(backupsDir, filename);
+
+        fs.writeFileSync(filePath, JSON.stringify(rows, null, 2), 'utf8');
+
+        return { filename, filePath, count: rows.length };
     }
 
     function getNicknames(auth) {
@@ -378,12 +410,14 @@ function createDb(dbPath) {
         expireRoles,
         addMaster,
         getStat,
+        getAllStats,
         setStatName,
         findStatsByName,
         getTopStats,
         ensureStat,
         incrementStat,
         clearStats,
+        backupStats,
         getNicknames,
         hasNicknames,
         addNickname,

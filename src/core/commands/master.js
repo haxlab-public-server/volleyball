@@ -15,7 +15,8 @@ module.exports = function createMasterCommands({
     Color,
     HaxNotification,
     defaultTeamSize,
-    TeamPickModeString
+    TeamPickModeString,
+    discordBot
 }) {
     function parsePlayerId(arg) {
         const idStr = arg.startsWith('#') ? arg.slice(1) : arg;
@@ -247,10 +248,17 @@ module.exports = function createMasterCommands({
         );
     }
 
-    async function statsResetCommand() {
+    async function statsResetCommand(player) {
+        const backup = await db.backupStats();
+
         await db.clearStats();
+
+        if (backup.count > 0) {
+            discordBot.sendStatsBackup(backup.filePath, backup.filename);
+        }
+
         room.sendAnnouncement(
-            `Статистика была сброшена`,
+            `Статистика была сброшена (бекап: ${backup.filename}, записей: ${backup.count})`,
             null,
             Color.WH_GREEN,
             'small',

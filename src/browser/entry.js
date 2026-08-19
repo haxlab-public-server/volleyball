@@ -422,7 +422,8 @@ const {
     Color,
     HaxNotification,
     defaultTeamSize,
-    TeamPickModeString
+    TeamPickModeString,
+    discordBot
 })
 
 /* Commands init */

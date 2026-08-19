@@ -78,6 +78,8 @@ async function launchRoom(type, config, secrets, discordBot) {
                 return discordBot.sendRecording(...args);
             case 'sendVipPassword':
                 return discordBot.sendVipPassword(...args);
+            case 'sendStatsBackup':
+                return discordBot.sendStatsBackup(...args);
             case 'updateOnlineMessage':
                 return discordBot.editOnlineMessage(onlineTarget?.channelId, onlineTarget?.messageId, args[0]);
             default:
@@ -120,7 +122,7 @@ async function launchRoom(type, config, secrets, discordBot) {
             'hasAuth', 'addAuth', 'removeAuth', 'clearAuths',
             'getAccount', 'hasAccount', 'getAccountsByRole', 'ensureAccount',
             'setRole', 'setChatColor', 'expireRoles', 'addMaster',
-            'getStat', 'setStatName', 'findStatsByName', 'getTopStats', 'ensureStat', 'incrementStat', 'clearStats',
+            'getStat', 'getAllStats', 'setStatName', 'findStatsByName', 'getTopStats', 'ensureStat', 'incrementStat', 'clearStats', 'backupStats',
             'getNicknames', 'hasNicknames', 'addNickname',
             'getMutes', 'addMute', 'removeMuteById', 'removeMuteByAuth',
             'getMuteById', 'getMuteByPlayerId', 'getMuteByAuth',
@@ -135,7 +137,7 @@ async function launchRoom(type, config, secrets, discordBot) {
         const discordMethods = [
             'consumeLinkCode', 'unlinkByAuth', 'syncRoleForAuth',
             'sendLog', 'sendReport', 'sendRecording', 'sendVipPassword',
-            'updateOnlineMessage'
+            'sendStatsBackup', 'updateOnlineMessage'
         ];
 
         window.__discord = {};
