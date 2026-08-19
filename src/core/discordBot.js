@@ -79,15 +79,19 @@ function createDiscordBot({
         const entry = pendingLinkCodes.get(code.toUpperCase());
         if (!entry) return { ok: false, reason: 'invalid' };
 
-        pendingLinkCodes.delete(code.toUpperCase());
-
         const account = await db.getAccount(auth);
         if (!account) return { ok: false, reason: 'unknown_account' };
+
+        if (account.discord) {
+            return { ok: false, reason: 'already_linked' };
+        }
 
         const existing = await db.getAccountByDiscordId(entry.discordId);
         if (existing && existing.auth !== auth) {
             return { ok: false, reason: 'already_linked_elsewhere' };
         }
+
+        pendingLinkCodes.delete(code.toUpperCase());
 
         await db.setDiscordId(auth, entry.discordId);
         await syncRoleForAuth(auth);
@@ -125,6 +129,42 @@ function createDiscordBot({
         } catch (err) {
             console.error('[Discord] syncRoleForAuth failed:', err);
         }
+    }
+
+    async function removeAllManagedRoles(discordId) {
+        try {
+            const guild = await getGuild();
+            const member = await guild.members.fetch({ user: discordId, force: true }).catch(() => null);
+            if (!member) return;
+
+            const allManagedRoleIds = MANAGED_ROLE_NAMES.map(name => roleIds[name]).filter(Boolean);
+            const toRemove = allManagedRoleIds.filter(id => member.roles.cache.has(id));
+
+            for (const id of toRemove) {
+                await member.roles.remove(id).catch(() => {});
+            }
+        } catch (err) {
+            console.error('[Discord] removeAllManagedRoles failed:', err);
+        }
+    }
+
+    async function unlinkByAuth(auth) {
+        const account = await db.getAccount(auth);
+        if (!account || !account.discord) return { ok: false, reason: 'not_linked' };
+
+        const discordId = account.discord;
+        await db.setDiscordId(auth, null);
+        await removeAllManagedRoles(discordId);
+        return { ok: true };
+    }
+
+    async function unlinkByDiscordId(discordId) {
+        const account = await db.getAccountByDiscordId(discordId);
+        if (!account) return { ok: false, reason: 'not_linked' };
+
+        await db.setDiscordId(account.auth, null);
+        await removeAllManagedRoles(discordId);
+        return { ok: true, auth: account.auth };
     }
 
     function truncate(str, max = 1900) {
@@ -214,7 +254,10 @@ function createDiscordBot({
         const commands = [
             new SlashCommandBuilder()
                 .setName('link')
-                .setDescription('Получить код для привязки Discord к аккаунту HaxBall')
+                .setDescription('Получить код для привязки Discord к аккаунту HaxBall'),
+            new SlashCommandBuilder()
+                .setName('unlink')
+                .setDescription('Отвязать ваш Discord от аккаунта HaxBall')
         ].map(c => c.toJSON());
 
         const rest = new REST({ version: '10' }).setToken(token);
@@ -222,17 +265,46 @@ function createDiscordBot({
     }
 
     client.on('interactionCreate', async (interaction) => {
-        if (!interaction.isChatInputCommand() || interaction.commandName !== 'link') return;
+        if (!interaction.isChatInputCommand()) return;
 
-        const code = createLinkCode(interaction.user.id);
+        if (interaction.commandName === 'link') {
+            const existing = await db.getAccountByDiscordId(interaction.user.id);
+            if (existing) {
+                await interaction.reply({
+                    content: `❌ Ваш Discord уже привязан к аккаунту HaxBall. Чтобы привязать другой, сначала отвяжите текущий командой \`/unlink\`.`,
+                    ephemeral: true
+                });
+                return;
+            }
 
-        await interaction.reply({
-            content:
-                `🔗 Ваш код привязки: **${code}**\n` +
-                `Введите в HaxBall команду: \`!discord ${code}\`\n` +
-                `Код действует 10 минут.`,
-            ephemeral: true
-        });
+            const code = createLinkCode(interaction.user.id);
+
+            await interaction.reply({
+                content:
+                    `🔗 Ваш код привязки: **${code}**\n` +
+                    `Введите в HaxBall команду: \`!discord ${code}\`\n` +
+                    `Код действует 10 минут.`,
+                ephemeral: true
+            });
+            return;
+        }
+
+        if (interaction.commandName === 'unlink') {
+            const result = await unlinkByDiscordId(interaction.user.id);
+
+            if (result.ok) {
+                await interaction.reply({
+                    content: `✅ Discord отвязан от аккаунта HaxBall.`,
+                    ephemeral: true
+                });
+            } else {
+                await interaction.reply({
+                    content: `❌ Ваш Discord не привязан ни к одному аккаунту HaxBall.`,
+                    ephemeral: true
+                });
+            }
+            return;
+        }
     });
 
     async function login() {
@@ -245,6 +317,7 @@ function createDiscordBot({
     return {
         login,
         consumeLinkCode,
+        unlinkByAuth,
         syncRoleForAuth,
         sendLog,
         sendReport,

@@ -533,8 +533,22 @@ module.exports = function createPlayerCommands({
             return;
         }
 
+        const auth = getAuth(player.id);
+        const account = await db.getAccount(auth);
+
+        if (account && account.discord) {
+            room.sendAnnouncement(
+                `Ваш Discord уже привязан к этому аккаунту. Чтобы привязать другой, сначала отвяжите текущий командой !discordunlink`,
+                player.id,
+                Color.GR_RED,
+                'small',
+                HaxNotification.CHAT
+            );
+            return;
+        }
+
         const code = args[0];
-        const result = await discordBot.confirmLink(code, getAuth(player.id));
+        const result = await discordBot.confirmLink(code, auth);
 
         if (result.ok) {
             room.sendAnnouncement(
@@ -549,6 +563,7 @@ module.exports = function createPlayerCommands({
 
         const messages = {
             invalid: `Код неверный или истёк. Получите новый командой /link в Discord`,
+            already_linked: `Ваш аккаунт HaxBall уже привязан к Discord`,
             already_linked_elsewhere: `Этот Discord уже привязан к другому аккаунту`,
             unknown_account: `Ваш аккаунт HaxBall не найден`,
             unavailable: `Discord-интеграция сейчас недоступна, попробуйте позже`
@@ -556,6 +571,83 @@ module.exports = function createPlayerCommands({
 
         room.sendAnnouncement(
             messages[result.reason] ?? `Не удалось привязать Discord`,
+            player.id,
+            Color.GR_RED,
+            'small',
+            HaxNotification.CHAT
+        );
+    }
+
+    async function discordUnlinkCommand(player, message) {
+        const args = message.split(/ +/).slice(1);
+        let targetAuth = getAuth(player.id);
+        let targetLabel = player.name;
+
+        if (args.length > 0) {
+            const role = await getRole(player);
+            if (role < Role.ADMIN) {
+                room.sendAnnouncement(
+                    `Отвязать чужой Discord могут только ADMIN и выше`,
+                    player.id,
+                    Color.GR_RED,
+                    'small',
+                    HaxNotification.CHAT
+                );
+                return;
+            }
+
+            const arg = args[0];
+
+            if (arg.length === 43) {
+                targetAuth = arg;
+                targetLabel = arg;
+            } else {
+                const idStr = arg.startsWith('#') ? arg.slice(1) : arg;
+                const id = Number(idStr);
+
+                if (!Number.isInteger(id) || id < 0) {
+                    room.sendAnnouncement(
+                        `Некорректный формат: !discordunlink <#ID | AUTH>`,
+                        player.id,
+                        Color.GR_RED,
+                        'small',
+                        HaxNotification.CHAT
+                    );
+                    return;
+                }
+
+                const target = room.getPlayer(id);
+                if (!target) {
+                    room.sendAnnouncement(
+                        `Игрока с таким ID нет на сервере`,
+                        player.id,
+                        Color.GR_RED,
+                        'small',
+                        HaxNotification.CHAT
+                    );
+                    return;
+                }
+
+                targetAuth = getAuth(target.id);
+                targetLabel = target.name;
+            }
+        }
+
+        const result = await discordBot.unlink(targetAuth);
+
+        if (result.ok) {
+            room.sendAnnouncement(
+                `✅ Discord отвязан от аккаунта ${targetLabel}`,
+                player.id,
+                Color.WH_GREEN,
+                'bold',
+                HaxNotification.CHAT
+            );
+            return;
+        }
+
+        room.sendAnnouncement(
+            `Аккаунт ${targetLabel} не привязан к Discord`,
             player.id,
             Color.GR_RED,
             'small',
@@ -738,6 +830,7 @@ module.exports = function createPlayerCommands({
         getAuthCommand,
         queueCommand,
         discordCommand,
+        discordUnlinkCommand,
         telegramCommand,
         afkCommand,
         afkListCommand,

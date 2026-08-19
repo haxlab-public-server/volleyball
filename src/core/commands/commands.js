@@ -10,6 +10,7 @@ module.exports = function createCommands({
     idsCommand,
     serveCommand,
     discordCommand,
+    discordUnlinkCommand,
     telegramCommand,
     queueCommand,
     admCommand,
@@ -91,6 +92,11 @@ return {
         aliases: ["дискорд"],
         roles: Role.PLAYER,
         function: discordCommand
+    },
+    discordunlink: {
+        aliases: ["unlinkdiscord"],
+        roles: Role.PLAYER,
+        function: discordUnlinkCommand
     },
     telegram: {
         aliases: ["телеграмм", "телеграм"],

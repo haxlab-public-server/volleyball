@@ -19,6 +19,17 @@ class DiscordBot {
         }
     }
 
+    async unlink(auth) {
+        const bridge = this._bridge();
+        if (!bridge) return { ok: false, reason: 'unavailable' };
+        try {
+            return await bridge.unlinkByAuth(auth);
+        } catch (err) {
+            console.error('[Discord] unlink failed:', err);
+            return { ok: false, reason: 'unavailable' };
+        }
+    }
+
     syncRole(auth) {
         const bridge = this._bridge();
         if (!bridge) return;
