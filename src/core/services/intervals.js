@@ -21,7 +21,9 @@ module.exports = function createIntervals({
     updateBallColor,
     Sits,
     Discord,
-    Telegram
+    Telegram,
+    roomName,
+    maxPlayers
 }) {
     const announcementMessages = createAnnouncementMessages({ Discord, Telegram });
 
@@ -113,8 +115,15 @@ module.exports = function createIntervals({
 
     setInterval(() => {
         const list = room.getPlayerList();
-        const names = list.length > 0 ? list.map(p => p.name).join(', ') : 'никого нет';
-        discordBot.updateOnlineMessage(`**Онлайн (${list.length}):** ${names}`);
+        const names = list.length > 0 ? list.map(p => p.name).join(', ') : '';
+
+        discordBot.updateOnlineMessage({
+            title: roomName,
+            playersLine: names,
+            count: list.length,
+            maxPlayers,
+            roomLink: state.roomLink ?? null
+        });
     }, 60 * 1000);
 
     // onGameTick replacement

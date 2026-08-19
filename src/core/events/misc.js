@@ -20,6 +20,7 @@ module.exports = function createMiscEvents({
 
     let hasFirstRoomLink = false;
     function onRoomLink(url) {
+        state.roomLink = url;
         if (hasFirstRoomLink) return;
 
         const dateStr = formatDate();

@@ -4,11 +4,16 @@ const {
     REST,
     Routes,
     SlashCommandBuilder,
-    AttachmentBuilder
+    AttachmentBuilder,
+    EmbedBuilder,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle
 } = require('discord.js');
 
 const LINK_CODE_TTL_MS = 10 * 60 * 1000;
 const LINK_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const ONLINE_EMBED_COLOR = 0x5865F2;
 
 function generateCode(length = 6) {
     let out = '';
@@ -16,6 +21,15 @@ function generateCode(length = 6) {
         out += LINK_CODE_ALPHABET[Math.floor(Math.random() * LINK_CODE_ALPHABET.length)];
     }
     return out;
+}
+
+function formatDate(d = new Date()) {
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${day}.${month}.${year} ${hours}:${minutes}`;
 }
 
 function createDiscordBot({
@@ -161,12 +175,32 @@ function createDiscordBot({
         }
     }
 
-    async function editOnlineMessage(channelId, messageId, content) {
-        if (!channelId || !messageId) return;
+    async function editOnlineMessage(channelId, messageId, payload) {
+        if (!channelId || !messageId || !payload) return;
         try {
             const channel = await client.channels.fetch(channelId);
             const message = await channel.messages.fetch(messageId);
-            await message.edit({ content: truncate(content) });
+
+            const { title, playersLine, count, maxPlayers, roomLink } = payload;
+
+            const embed = new EmbedBuilder()
+                .setColor(ONLINE_EMBED_COLOR)
+                .setTitle(`${title} - ${count}/${maxPlayers}`)
+                .addFields({ name: 'PLAYERS:', value: playersLine || '' })
+                .setFooter({ text: `updated once per minute, latest update: ${formatDate()}` });
+
+            const components = [];
+            if (roomLink) {
+                const row = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setLabel('Присоединиться')
+                        .setStyle(ButtonStyle.Link)
+                        .setURL(roomLink)
+                );
+                components.push(row);
+            }
+
+            await message.edit({ content: '', embeds: [embed], components });
         } catch (err) {
             console.error('[Discord] editOnlineMessage failed:', err);
         }

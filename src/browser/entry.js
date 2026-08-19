@@ -123,6 +123,7 @@ state.captainPickForTeam = null;
 state.serve = null
 state.training_mode = false
 state.training_mode_spawn = []
+state.roomLink;
 state.game = new Game(defaultTeamSize);
 state.vipPassword = getRandomInt(100000, 999999)
 state.vipUpBooking = null;
@@ -265,7 +266,9 @@ createIntervals({
     updateBallColor,
     Sits,
     Discord,
-    Telegram
+    Telegram,
+    roomName,
+    maxPlayers
 })
 
 const createChatHelpers = require('../core/services/chat');
