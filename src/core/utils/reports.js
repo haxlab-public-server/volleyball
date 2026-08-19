@@ -33,13 +33,25 @@ function getIdReplay() {
 }
 
 function uint8ToBase64(bytes) {
-    if (!bytes || !(bytes instanceof Uint8Array)) return null;
+    if (!bytes || typeof bytes !== 'object' || typeof bytes.length !== 'number') {
+        return null;
+    }
+
+    let array;
+    try {
+        array = Array.from(bytes);
+    } catch (e) {
+        console.error('[uint8ToBase64] Array.from failed:', e);
+        return null;
+    }
+
+    if (array.length === 0) return null;
 
     let binary = '';
     const chunkSize = 0x8000;
 
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-        const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+    for (let i = 0; i < array.length; i += chunkSize) {
+        const chunk = array.slice(i, i + chunkSize);
         binary += String.fromCharCode.apply(null, chunk);
     }
 
@@ -50,13 +62,13 @@ function fetchRecording(game, discord) {
     const rec = game.rec;
 
     if (!rec) {
-        console.log('[fetchRecording] recording is null');
+        console.log('[fetchRecording] recording is null/undefined');
         return;
     }
 
     const base64 = uint8ToBase64(rec);
     if (!base64) {
-        console.error('[fetchRecording] failed to convert Uint8Array to base64');
+        console.error('[fetchRecording] failed to convert to base64');
         return;
     }
 
