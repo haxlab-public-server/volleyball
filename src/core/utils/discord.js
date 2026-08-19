@@ -1,91 +1,59 @@
 class DiscordBot {
-    constructor({ replayWebhook, vipWebhook, logWebhook, reportWebhook, roomLabel }) {
-        this.replayWebhook = replayWebhook;
-        this.vipWebhook = vipWebhook;
-        this.logWebhook = logWebhook;
-        this.reportWebhook = reportWebhook;
+    constructor({ db, roomLabel }) {
+        this.db = db;
         this.roomLabel = roomLabel;
     }
 
-    async _safeFetch(url, options, type = "log") {
+    _bridge() {
+        return typeof window !== 'undefined' ? window.__discord : null;
+    }
+
+    async confirmLink(code, auth) {
+        const bridge = this._bridge();
+        if (!bridge) return { ok: false, reason: 'unavailable' };
         try {
-            const res = await fetch(url, options);
-            if (!res.ok) {
-                console.log(`[Discord Webhook Error] Тип: ${type} | Статус: ${res.status} ${res.statusText}`);
-            }
+            return await bridge.consumeLinkCode(code, auth);
         } catch (err) {
-            console.log(`[Discord Network Error] Ошибка отправки ${type}: Сбой сети или неверный URL.`);
+            console.error('[Discord] confirmLink failed:', err);
+            return { ok: false, reason: 'unavailable' };
         }
     }
 
-    sendRecording(rec, name, id) {
-        if (this.replayWebhook) {
-            this._safeFetch(this.replayWebhook, {
-                method: "POST",
-                body: JSON.stringify({
-                    content: `\`[${this.roomLabel}]\` № ${id}`,
-                    username: "replay",
-                }),
-                headers: { "Content-Type": "application/json" },
-            }, "replay_info");
-
-            let form = new FormData();
-            form.append(null, new File([rec], name, { type: "text/plain" }));
-            form.append("payload_json", JSON.stringify({ username: "replay" }));
-
-            setTimeout(() => {
-                this._safeFetch(this.replayWebhook, {
-                    method: "POST",
-                    body: form,
-                }, "replay_file");
-            }, 500);
-        }
-    }
-
-    sendVipPassword(vipPassword) {
-        if (this.vipWebhook) {
-            this._safeFetch(this.vipWebhook, {
-                method: "POST",
-                body: JSON.stringify({
-                    content: `# \`[${this.roomLabel}]\` 🌟VIP-Пароль: ${vipPassword}`,
-                    username: "vip",
-                }),
-                headers: { "Content-Type": "application/json" },
-            }, "vip");
-        }
+    syncRole(auth) {
+        const bridge = this._bridge();
+        if (!bridge) return;
+        bridge.syncRoleForAuth(auth).catch(err => console.error('[Discord] syncRole failed:', err));
     }
 
     sendLog(content) {
-        if (this.logWebhook) {
-            this._safeFetch(this.logWebhook, {
-                method: "POST",
-                body: JSON.stringify({
-                    content: `\`[${this.roomLabel}]\` ${content}`,
-                    username: "logs",
-                }),
-                headers: { "Content-Type": "application/json" },
-            }, "logs");
-        }
+        const bridge = this._bridge();
+        if (!bridge) return;
+        bridge.sendLog(this.roomLabel, content).catch(err => console.error('[Discord] sendLog failed:', err));
     }
 
     sendReport(adminName, toPlayerName, action, reason, time) {
-        const actions = {
-            "mute": "замутил",
-            "ban": "забанил",
-            "unmute": "размутил",
-            "unban": "разбанил"
-        };
+        const bridge = this._bridge();
+        if (!bridge) return;
+        bridge.sendReport(this.roomLabel, adminName, toPlayerName, action, reason, time)
+            .catch(err => console.error('[Discord] sendReport failed:', err));
+    }
 
-        if (this.reportWebhook) {
-            this._safeFetch(this.reportWebhook, {
-                method: "POST",
-                body: JSON.stringify({
-                    content: `## \`[${this.roomLabel}]\` 🔴 ${adminName} ${actions[action]} ${toPlayerName}${time != null ? ` на ${time}` : ""}${reason != null ? ` по причине: ${reason}` : ""}`,
-                    username: "logs",
-                }),
-                headers: { "Content-Type": "application/json" },
-            }, "report");
-        }
+    sendRecording(rec, name, id) {
+        const bridge = this._bridge();
+        if (!bridge) return;
+        bridge.sendRecording(this.roomLabel, rec, name, id).catch(err => console.error('[Discord] sendRecording failed:', err));
+    }
+
+    sendVipPassword(vipPassword) {
+        const bridge = this._bridge();
+        if (!bridge) return;
+        bridge.sendVipPassword(this.roomLabel, vipPassword).catch(err => console.error('[Discord] sendVipPassword failed:', err));
+    }
+
+    updateOnlineMessage(content) {
+        const bridge = this._bridge();
+        if (!bridge) return;
+        bridge.updateOnlineMessage(content).catch(err => console.error('[Discord] updateOnlineMessage failed:', err));
     }
 }
 

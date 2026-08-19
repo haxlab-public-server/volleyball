@@ -3,15 +3,17 @@ const puppeteer = require('puppeteer');
 const esbuild = require('esbuild');
 
 const { createDb } = require('../db/sqlite');
+const { createDiscordBot } = require('./core/discordBot');
 const {
     publicToken,
     privateToken,
     publicPassword,
     privatePassword,
-    replayWebhookUrl,
-    vipWebhookUrl,
-    logWebhookUrl,
-    reportWebhookUrl
+    discordBotToken,
+    discordGuildId,
+    discordRoleIds,
+    discordChannelIds,
+    discordOnlineMessages
 } = require('./core/config');
 
 const { publicConfig, privateConfig } = require('./core/roomConstants');
@@ -39,7 +41,7 @@ async function buildEntryBundle() {
     return result.outputFiles[0].text;
 }
 
-async function launchRoom(type, config, secrets) {
+async function launchRoom(type, config, secrets, discordBot) {
     const browser = await puppeteer.launch({
         args: [
             '--remote-debugging-port=0',
@@ -57,6 +59,31 @@ async function launchRoom(type, config, secrets) {
     const page = await browser.newPage();
 
     await page.exposeFunction('__dbCall', handleDbCall);
+
+    const onlineTarget = discordOnlineMessages[type];
+
+    async function handleDiscordCall(method, args) {
+        switch (method) {
+            case 'consumeLinkCode':
+                return discordBot.consumeLinkCode(...args);
+            case 'syncRoleForAuth':
+                return discordBot.syncRoleForAuth(...args);
+            case 'sendLog':
+                return discordBot.sendLog(...args);
+            case 'sendReport':
+                return discordBot.sendReport(...args);
+            case 'sendRecording':
+                return discordBot.sendRecording(...args);
+            case 'sendVipPassword':
+                return discordBot.sendVipPassword(...args);
+            case 'updateOnlineMessage':
+                return discordBot.editOnlineMessage(onlineTarget?.channelId, onlineTarget?.messageId, args[0]);
+            default:
+                throw new Error(`Unsupported discord call: ${method}`);
+        }
+    }
+
+    await page.exposeFunction('__discordCall', handleDiscordCall);
 
     page.on('console', (msg) => {
         console.log(`[${type.toUpperCase()} ${msg.type()}]`, msg.text());
@@ -85,7 +112,7 @@ async function launchRoom(type, config, secrets) {
     });
 
     await page.evaluate(() => {
-        const methods = [
+        const dbMethods = [
             'getBans', 'addBan', 'removeBanByIndex', 'removeBanByAuth', 'findBan', 'updateBan',
             'getExpiredBans', 'removeExpiredBans',
             'hasAuth', 'addAuth', 'removeAuth', 'clearAuths',
@@ -94,12 +121,24 @@ async function launchRoom(type, config, secrets) {
             'getStat', 'setStatName', 'findStatsByName', 'getTopStats', 'ensureStat', 'incrementStat', 'clearStats',
             'getNicknames', 'hasNicknames', 'addNickname',
             'getMutes', 'addMute', 'removeMuteById', 'removeMuteByAuth',
-            'getMuteById', 'getMuteByPlayerId', 'getMuteByAuth'
+            'getMuteById', 'getMuteByPlayerId', 'getMuteByAuth',
+            'setDiscordId', 'getAccountByDiscordId'
         ];
 
         window.__db = {};
-        for (const method of methods) {
+        for (const method of dbMethods) {
             window.__db[method] = (...args) => window.__dbCall(method, args);
+        }
+
+        const discordMethods = [
+            'consumeLinkCode', 'syncRoleForAuth',
+            'sendLog', 'sendReport', 'sendRecording', 'sendVipPassword',
+            'updateOnlineMessage'
+        ];
+
+        window.__discord = {};
+        for (const method of discordMethods) {
+            window.__discord[method] = (...args) => window.__discordCall(method, args);
         }
     });
 
@@ -110,24 +149,29 @@ async function launchRoom(type, config, secrets) {
 }
 
 async function main() {
-    const commonSecrets = {
-        replayWebhookUrl,
-        vipWebhookUrl,
-        logWebhookUrl,
-        reportWebhookUrl
-    };
+    const discordBot = createDiscordBot({
+        token: discordBotToken,
+        guildId: discordGuildId,
+        roleIds: discordRoleIds,
+        channelIds: discordChannelIds,
+        db
+    });
+
+    if (discordBotToken) {
+        await discordBot.login();
+    } else {
+        console.warn('[Discord] DISCORD_BOT_TOKEN не задан, Discord-интеграция отключена.');
+    }
 
     const [publicRoom, privateRoom] = await Promise.all([
         launchRoom('public', publicConfig, {
-            ...commonSecrets,
             token: publicToken,
             roomPassword: publicPassword
-        }),
+        }, discordBot),
         launchRoom('private', privateConfig, {
-            ...commonSecrets,
             token: privateToken,
             roomPassword: privatePassword
-        })
+        }, discordBot)
     ]);
 
     console.log('[OK] Public and Private rooms launched');

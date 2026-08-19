@@ -123,6 +123,7 @@ state.captainPickForTeam = null;
 state.serve = null
 state.training_mode = false
 state.training_mode_spawn = []
+state.roomLink;
 state.game = new Game(defaultTeamSize);
 state.vipPassword = getRandomInt(100000, 999999)
 state.vipUpBooking = null;
@@ -134,18 +135,7 @@ state.winstay = {
   team: [],
 }
 
-const replayWebhook = window.__secrets.replayWebhookUrl;
-const vipWebhook = window.__secrets.vipWebhookUrl;
-const logWebhook = window.__secrets.logWebhookUrl;
-const reportWebhook = window.__secrets.reportWebhookUrl;
-
-const discordBot = new DiscordBot({
-    replayWebhook,
-    vipWebhook,
-    logWebhook,
-    reportWebhook,
-    roomLabel
-});
+const discordBot = new DiscordBot({ db, roomLabel });
 
 /* Room Utils */
 const createRoomUtils = require('../core/utils/roomUtils');
@@ -276,7 +266,9 @@ createIntervals({
     updateBallColor,
     Sits,
     Discord,
-    Telegram
+    Telegram,
+    roomName,
+    maxPlayers
 })
 
 const createChatHelpers = require('../core/services/chat');
@@ -341,7 +333,8 @@ const {
     getPickTeam,
     getCaptain,
     sendPickList,
-    defaultTeamSize
+    defaultTeamSize,
+    discordBot
 })
 
 /* VIP commands */
