@@ -34,7 +34,7 @@ const base = {
 
 const publicConfig = {
     ...base,
-    roomName: "🏐 Volleyball [chds] | CAPTAINS NOW 🏐",
+    roomName: "🏐 Volleyball [chds] | CAPTAINS 🏐",
     roomLabel: "Public",
     defaultTeamPickMode: TeamPickMode.CAPTAINS,
     defaultWinstay: true
