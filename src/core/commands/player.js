@@ -24,7 +24,9 @@ module.exports = function createPlayerCommands({
     getCaptain,
     sendPickList,
     defaultTeamSize,
-    discordBot
+    discordBot,
+    formatAccountView,
+    resolveTargetAuth
 }) {
     function parsePlayerId(arg) {
         const idStr = arg.startsWith('#') ? arg.slice(1) : arg;
@@ -818,6 +820,61 @@ module.exports = function createPlayerCommands({
         );
     }
 
+    async function accountCommand(player, message) {
+        const args = message.split(/ +/).slice(1);
+        const arg = args[0];
+
+        if (arg) {
+            const role = await getRole(player);
+            if (role < Role.ADMIN) {
+                room.sendAnnouncement(
+                    `Смотреть чужие аккаунты могут только ADMIN и выше`,
+                    player.id,
+                    Color.GR_RED,
+                    'small',
+                    HaxNotification.CHAT
+                );
+                return;
+            }
+        }
+
+        const resolved = resolveTargetAuth(player, arg);
+
+        if (resolved.error) {
+            room.sendAnnouncement(
+                resolved.error,
+                player.id,
+                Color.GR_RED,
+                'small',
+                HaxNotification.CHAT
+            );
+            return;
+        }
+
+        const account = await db.getAccount(resolved.auth);
+
+        if (!account) {
+            room.sendAnnouncement(
+                arg ? `Аккаунт не найден` : `Ваш аккаунт не найден`,
+                player.id,
+                Color.GR_RED,
+                'small',
+                HaxNotification.CHAT
+            );
+            return;
+        }
+
+        const view = await formatAccountView({ ...account, auth: resolved.auth });
+
+        room.sendAnnouncement(
+            view,
+            player.id,
+            Color.WH_BLUE,
+            'small',
+            HaxNotification.CHAT
+        );
+    }
+
     return {
         teamChatCommand,
         helpCommand,
@@ -836,6 +893,7 @@ module.exports = function createPlayerCommands({
         afkListCommand,
         idsCommand,
         deanonCommand,
-        myPointCommand
+        myPointCommand,
+        accountCommand
     };
 };

@@ -176,6 +176,18 @@ const {
 })
 
 /* Services */
+const createAccountsHelpers = require('../core/services/accounts');
+const {
+    formatAccountView,
+    resolveTargetAuth
+} = createAccountsHelpers({
+    room,
+    db,
+    getAuth,
+    discordBot,
+    getDate
+})
+
 const createCaptainsHelpers = require('../core/services/captains');
 const {
     getPickTeam,
@@ -308,7 +320,8 @@ const {
     afkListCommand,
     idsCommand,
     deanonCommand,
-    myPointCommand
+    myPointCommand,
+    accountCommand
 } = createPlayerCommands({
     room,
     state,
@@ -335,7 +348,9 @@ const {
     getCaptain,
     sendPickList,
     defaultTeamSize,
-    discordBot
+    discordBot,
+    formatAccountView,
+    resolveTargetAuth
 })
 
 /* VIP commands */
@@ -423,7 +438,8 @@ const {
     HaxNotification,
     defaultTeamSize,
     TeamPickModeString,
-    discordBot
+    discordBot,
+    formatAccountView
 })
 
 /* Commands init */
@@ -469,7 +485,8 @@ const commands = createCommands({
     chatColorCommand,
     winstayCommand,
     teamPickCommand,
-    upCommand
+    upCommand,
+    accountCommand
 })
 
 /* EVENTS */

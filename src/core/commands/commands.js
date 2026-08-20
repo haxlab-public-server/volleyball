@@ -39,7 +39,8 @@ module.exports = function createCommands({
     chatColorCommand,
     winstayCommand,
     teamPickCommand,
-    upCommand
+    upCommand,
+    accountCommand
 }) {
 
 return {
@@ -242,6 +243,11 @@ return {
         aliases: [],
         roles: Role.VIP,
         function: upCommand
+    },
+    account: {
+        aliases: ["акк", "аккаунт"],
+        roles: Role.PLAYER,
+        function: accountCommand
     }
 }
 

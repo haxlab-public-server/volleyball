@@ -16,7 +16,8 @@ module.exports = function createMasterCommands({
     HaxNotification,
     defaultTeamSize,
     TeamPickModeString,
-    discordBot
+    discordBot,
+    formatAccountView
 }) {
     function parsePlayerId(arg) {
         const idStr = arg.startsWith('#') ? arg.slice(1) : arg;
@@ -563,10 +564,9 @@ module.exports = function createMasterCommands({
         }
 
         const obj = filtered[index];
-        const toDate = obj.date != null ? getDate(obj.date) : 'бессрочно';
 
         room.sendAnnouncement(
-            `📋${obj.nickname}:\npublic_id: ${obj.auth}\nrole: ${obj.role}\nto_date: ${toDate}\ndiscord: ${obj.discord}`,
+            await formatAccountView(obj),
             player.id,
             Color.WH_BLUE,
             'small',

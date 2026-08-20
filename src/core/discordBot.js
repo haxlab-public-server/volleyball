@@ -168,6 +168,16 @@ function createDiscordBot({
         return { ok: true, auth: account.auth };
     }
 
+    async function getDiscordUsername(discordId) {
+        if (!discordId) return null;
+        try {
+            const user = await client.users.fetch(discordId);
+            return user?.username ?? null;
+        } catch (err) {
+            return null;
+        }
+    }
+
     function truncate(str, max = 1900) {
         return str.length > max ? str.slice(0, max - 1) + '…' : str;
     }
@@ -350,6 +360,7 @@ function createDiscordBot({
         consumeLinkCode,
         unlinkByAuth,
         syncRoleForAuth,
+        getDiscordUsername,
         sendLog,
         sendReport,
         sendRecording,

@@ -36,6 +36,17 @@ class DiscordBot {
         bridge.syncRoleForAuth(auth).catch(err => console.error('[Discord] syncRole failed:', err));
     }
 
+    async getUsername(discordId) {
+        const bridge = this._bridge();
+        if (!bridge) return null;
+        try {
+            return await bridge.getDiscordUsername(discordId);
+        } catch (err) {
+            console.error('[Discord] getUsername failed:', err);
+            return null;
+        }
+    }
+
     sendLog(content) {
         const bridge = this._bridge();
         if (!bridge) return;

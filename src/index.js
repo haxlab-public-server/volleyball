@@ -70,6 +70,8 @@ async function launchRoom(type, config, secrets, discordBot) {
                 return discordBot.unlinkByAuth(...args);
             case 'syncRoleForAuth':
                 return discordBot.syncRoleForAuth(...args);
+            case 'getDiscordUsername':
+                return discordBot.getDiscordUsername(...args);
             case 'sendLog':
                 return discordBot.sendLog(...args);
             case 'sendReport':
@@ -135,7 +137,7 @@ async function launchRoom(type, config, secrets, discordBot) {
         }
 
         const discordMethods = [
-            'consumeLinkCode', 'unlinkByAuth', 'syncRoleForAuth',
+            'consumeLinkCode', 'unlinkByAuth', 'syncRoleForAuth', 'getDiscordUsername',
             'sendLog', 'sendReport', 'sendRecording', 'sendVipPassword',
             'sendStatsBackup', 'updateOnlineMessage'
         ];
