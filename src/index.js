@@ -180,6 +180,32 @@ async function main() {
         }, discordBot)
     ]);
 
+    /*
+     * Reverse Node->browser bridge used by Discord slash-command mirrors
+     * (ban/mute/unban/unmute) to apply an instant in-room effect after the
+     * DB write, without waiting for the player to rejoin. A player can be
+     * in either room, so every moderation action is broadcast to both;
+     * page.evaluate() is a no-op (returns false) in whichever room the
+     * target isn't currently in. Both pages expose window.__applyModeration
+     * from src/browser/entry.js — no page.exposeFunction registration is
+     * needed for this direction, since page.evaluate can always reach into
+     * the page's global scope from the Node side.
+     */
+    const roomPages = {
+        public: publicRoom.page,
+        private: privateRoom.page
+    };
+
+    discordBot.setModerationBridge(async (action) => {
+        const results = await Promise.allSettled(
+            Object.values(roomPages).map(page =>
+                page.evaluate((a) => window.__applyModeration(a), action)
+            )
+        );
+
+        return results.some(r => r.status === 'fulfilled' && r.value === true);
+    });
+
     console.log('[OK] Public and Private rooms launched');
 }
 

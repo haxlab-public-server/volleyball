@@ -12,6 +12,8 @@ const {
     ButtonStyle
 } = require('discord.js');
 
+const createDiscordCommands = require('./discordCommands');
+
 const LINK_CODE_TTL_MS = 10 * 60 * 1000;
 const LINK_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const ONLINE_EMBED_COLOR = 0x5865F2;
@@ -49,6 +51,17 @@ function createDiscordBot({
             GatewayIntentBits.Guilds,
             GatewayIntentBits.GuildMembers
         ]
+    });
+
+    let applyModeration = null;
+
+    function setModerationBridge(fn) {
+        applyModeration = fn;
+    }
+
+    const roomCommands = createDiscordCommands({
+        db,
+        applyModeration: (action) => (applyModeration ? applyModeration(action) : Promise.resolve(false))
     });
 
     const pendingLinkCodes = new Map();
@@ -298,8 +311,9 @@ function createDiscordBot({
                 .setDescription('Получить код для привязки Discord к аккаунту HaxBall'),
             new SlashCommandBuilder()
                 .setName('unlink')
-                .setDescription('Отвязать ваш Discord от аккаунта HaxBall')
-        ].map(c => c.toJSON());
+                .setDescription('Отвязать ваш Discord от аккаунта HaxBall'),
+            ...roomCommands.buildCommandDefinitions()
+        ].map(c => (typeof c.toJSON === 'function' ? c.toJSON() : c));
 
         const rest = new REST({ version: '10' }).setToken(token);
         await rest.put(Routes.applicationGuildCommands(client.user.id, guildId), { body: commands });
@@ -346,6 +360,8 @@ function createDiscordBot({
             }
             return;
         }
+
+        await roomCommands.handleInteraction(interaction);
     });
 
     async function login() {
@@ -366,7 +382,8 @@ function createDiscordBot({
         sendRecording,
         sendVipPassword,
         sendStatsBackup,
-        editOnlineMessage
+        editOnlineMessage,
+        setModerationBridge
     };
 }
 

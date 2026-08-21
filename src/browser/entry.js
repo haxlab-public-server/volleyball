@@ -591,6 +591,91 @@ Object.assign(room, wrapEventHandlers(createMiscEvents({
     discordBot
 })));
 
+/*
+ * Reverse bridge: Node calls this directly via page.evaluate(...) when a
+ * moderation action (ban/mute/unban/unmute) was issued from a Discord
+ * slash-command. The DB write already happened on the Node side before
+ * this is called — this function only needs to apply the *live* effect
+ * if the target happens to be online in this particular room right now.
+ * No page.exposeFunction registration is needed for this direction:
+ * Puppeteer's page.evaluate can always reach into the page's global
+ * scope from Node, so exposing window.__applyModeration here is enough.
+ *
+ * action: {
+ *   type: 'ban' | 'unban' | 'mute' | 'unmute',
+ *   auth: string,
+ *   name?: string,       // display name for ban/mute announcements
+ *   reason?: string,
+ *   timeStr?: string,    // pre-formatted duration, e.g. "10мин"
+ *   unmuteDate?: number, // for 'mute'
+ *   muteId?: number      // for 'mute', matches the row written to db.addMute
+ * }
+ * Returns true if the target was found online in this room, else false.
+ */
+window.__applyModeration = function (action) {
+    try {
+        const online = room.getPlayerList().find(p => getAuth(p.id) === action.auth);
+
+        if (action.type === 'ban') {
+            if (!online) return false;
+
+            room.kickPlayer(
+                online.id,
+                `${action.name ?? 'Администратор'} забанил вас${action.timeStr ? ` на ${action.timeStr}` : ''}${action.reason ? ` по причине: ${action.reason}` : ''}\n discord: ${Discord}`,
+                true
+            );
+            return true;
+        }
+
+        if (action.type === 'unban') {
+            if (online) {
+                room.clearBan(online.id);
+            }
+            return online != null;
+        }
+
+        if (action.type === 'mute') {
+            if (!online) return false;
+
+            const muteObj = new MutePlayer(online.name, online.id, action.auth);
+            muteObj.id = action.muteId ?? MutePlayer.incrementId();
+            muteObj.unmuteDate = action.unmuteDate;
+            muteArray.list.push(muteObj);
+
+            room.sendAnnouncement(
+                `Вы в муте: ${action.timeStr ?? ''}${action.reason ? ` по причине: ${action.reason}` : ''}`,
+                online.id,
+                Color.GR_RED,
+                'bold',
+                HaxNotification.MENTION
+            );
+            return true;
+        }
+
+        if (action.type === 'unmute') {
+            const muteObj = muteArray.getByAuth(action.auth);
+            if (muteObj) {
+                muteArray.list = muteArray.list.filter(m => m.id !== muteObj.id);
+                if (online) {
+                    room.sendAnnouncement(
+                        `Теперь ты можешь говорить.`,
+                        online.id,
+                        Color.GR_GREEN,
+                        'bold',
+                        HaxNotification.CHAT
+                    );
+                }
+            }
+            return muteObj != null;
+        }
+
+        return false;
+    } catch (err) {
+        console.error('[__applyModeration] failed:', err);
+        return false;
+    }
+};
+
 return { commands };
 
 };
