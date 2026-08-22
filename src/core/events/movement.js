@@ -66,8 +66,8 @@ module.exports = function createMovementEvents({
                 setTimeout(() => {
                     room.kickPlayer(
                         player.id,
-                        `Вы забанены: ${minsLeft} мин\n discord: ${Discord}\n telegram: ${Telegram}`,
-                        true
+                        `Вы забанены: ${minsLeft} мин\n discord: ${Discord}`,
+                        false
                     );
                 }, 700);
                 return;
@@ -78,7 +78,7 @@ module.exports = function createMovementEvents({
                     setTimeout(() => {
                         room.kickPlayer(
                             player.id,
-                            `Сейчас в комнату могут зайти только авторизованные игроки\n discord: ${Discord}\n telegram: ${Telegram}`,
+                            `Сейчас в комнату могут зайти только авторизованные игроки\n discord: ${Discord}`,
                             false
                         );
                     }, 700);

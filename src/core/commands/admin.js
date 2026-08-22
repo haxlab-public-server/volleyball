@@ -231,7 +231,7 @@ module.exports = function createAdminCommands({
             room.kickPlayer(
                 onlinePlayer.id,
                 `${player.name} забанил вас на ${timeStr}${reasonStr}\n discord: ${Discord}`,
-                true
+                false
             );
         }
     }

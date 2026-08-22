@@ -365,7 +365,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
             embed.addFields(
                 { name: '№', value: numColumn, inline: true },
                 { name: 'Никнейм', value: nameColumn, inline: true },
-                { name: 'Auth (Токен)', value: authColumn, inline: true }
+                { name: 'public_id', value: authColumn, inline: true }
             );
         } else {
             embed.setDescription('Пусто.');
@@ -605,24 +605,24 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
             .setTitle(`Бан-лист — ${bans.length}`);
 
         if (bans.length > 0) {
-            let timeColumn = "";
-            let nameColumn = "";
+            let numAndNameColumn = "";
             let authColumn = "";
+            let timeColumn = "";
 
             bans.forEach((b, i) => {
                 const mins = Math.max(0, Math.round((b.date - Date.now()) / 1000 / 60));
                 const name = b.name ?? "UNKNOWN";
                 const auth = b.auth ?? "—";
 
-                timeColumn += `\`${i + 1}. (${mins}м)\`\n`;
-                nameColumn += `\`${name}\`\n`;
+                numAndNameColumn += `\`${i + 1}. ${name}\`\n`;
                 authColumn += `\`${auth}\`\n`;
+                timeColumn += `\`${mins}м\`\n`;
             });
 
             embed.addFields(
-                { name: '№ (Время)', value: timeColumn, inline: true },
-                { name: 'Никнейм', value: nameColumn, inline: true },
-                { name: 'Auth (Токен)', value: authColumn, inline: true }
+                { name: '№ | Никнейм', value: numAndNameColumn, inline: true },
+                { name: 'public_id', value: authColumn, inline: true },
+                { name: 'Время', value: timeColumn, inline: true }
             );
         } else {
             embed.setDescription('Пусто.');
@@ -642,24 +642,24 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
             .setTitle(`Мут-лист — ${mutes.length}`);
 
         if (mutes.length > 0) {
-            let timeColumn = "";
-            let nameColumn = "";
+            let numAndNameColumn = "";
             let authColumn = "";
+            let timeColumn = "";
 
             mutes.forEach((m, i) => {
                 const mins = Math.max(0, Math.round((m.unmuteDate - Date.now()) / 1000 / 60));
                 const name = m.name ?? "UNKNOWN";
                 const auth = m.auth ?? "—";
 
-                timeColumn += `\`${i + 1}. (${mins}м)\`\n`;
-                nameColumn += `\`${name}\`\n`;
+                numAndNameColumn += `\`${i + 1}. ${name}\`\n`;
                 authColumn += `\`${auth}\`\n`;
+                timeColumn += `\`${mins}м\`\n`;
             });
 
             embed.addFields(
-                { name: '№ (Время)', value: timeColumn, inline: true },
-                { name: 'Никнейм', value: nameColumn, inline: true },
-                { name: 'Auth (Токен)', value: authColumn, inline: true }
+                { name: '№ | Никнейм', value: numAndNameColumn, inline: true },
+                { name: 'public_id', value: authColumn, inline: true },
+                { name: 'Время', value: timeColumn, inline: true }
             );
         } else {
             embed.setDescription('Пусто.');
@@ -695,7 +695,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
                 
                 const lines = sorted.slice(0, len).map((s, i) => {
                     const value = key === 'time' ? `${(s[idx] / 60).toFixed(1)}ч` : s[idx];
-                    return `\`${i + 1}.\` **${value}** — ${s[0]}`;
+                    return `\`${i + 1}.\` ${s[0]} — **${value}**`;
                 }).join('\n');
 
                 embed.addFields({ name: `🏆 Топ по ${key.toUpperCase()}`, value: lines.slice(0, 1024) });
