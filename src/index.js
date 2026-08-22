@@ -181,15 +181,22 @@ async function main() {
     ]);
 
     /*
-     * Reverse Node->browser bridge used by Discord slash-command mirrors
-     * (ban/mute/unban/unmute) to apply an instant in-room effect after the
-     * DB write, without waiting for the player to rejoin. A player can be
-     * in either room, so every moderation action is broadcast to both;
-     * page.evaluate() is a no-op (returns false) in whichever room the
-     * target isn't currently in. Both pages expose window.__applyModeration
-     * from src/browser/entry.js — no page.exposeFunction registration is
-     * needed for this direction, since page.evaluate can always reach into
-     * the page's global scope from the Node side.
+     * Reverse Node->browser bridges used by Discord slash-command mirrors
+     * to apply an instant in-room effect after the DB/state write,
+     * without waiting for the player to rejoin or for someone to run the
+     * equivalent !command in the room itself. Both pages expose
+     * window.__applyModeration from src/browser/entry.js — no
+     * page.exposeFunction registration is needed for this direction,
+     * since page.evaluate can always reach into the page's global scope
+     * from the Node side.
+     *
+     * - applyModeration (broadcast): used by ban/mute/unban/unmute, since
+     *   the target player could be in either room. page.evaluate() is a
+     *   no-op (returns false) in whichever room the target isn't
+     *   currently in; the overall result is true if either room reports
+     *   a live effect.
+     * - applyToRoom (targeted): used by /password, which always names a
+     *   specific room (public/private) rather than broadcasting.
      */
     const roomPages = {
         public: publicRoom.page,
@@ -204,6 +211,18 @@ async function main() {
         );
 
         return results.some(r => r.status === 'fulfilled' && r.value === true);
+    });
+
+    discordBot.setRoomActionBridge(async (roomType, action) => {
+        const page = roomPages[roomType];
+        if (!page) return false;
+
+        try {
+            return await page.evaluate((a) => window.__applyModeration(a), action);
+        } catch (err) {
+            console.error(`[Discord] applyToRoom(${roomType}) failed:`, err);
+            return false;
+        }
     });
 
     console.log('[OK] Public and Private rooms launched');

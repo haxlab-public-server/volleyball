@@ -53,15 +53,35 @@ function createDiscordBot({
         ]
     });
 
+    /*
+     * Set once main() has launched both rooms (see src/index.js). Calling
+     * a ban/mute/unban/unmute/password slash-command before rooms are up
+     * is still safe: the DB/state write always happens regardless, these
+     * bridges are only for applying an *instant* live effect on top of
+     * that. Until they're set, the relevant commands silently skip the
+     * live-effect step (moderation) or report the room as unavailable
+     * (password, which has no durable-only fallback since the password
+     * itself lives only in browser-side state).
+     */
     let applyModeration = null;
+    let applyToRoom = null;
 
     function setModerationBridge(fn) {
         applyModeration = fn;
     }
 
+    function setRoomActionBridge(fn) {
+        applyToRoom = fn;
+    }
+
     const roomCommands = createDiscordCommands({
         db,
-        applyModeration: (action) => (applyModeration ? applyModeration(action) : Promise.resolve(false))
+        applyModeration: (action) => (applyModeration ? applyModeration(action) : Promise.resolve(false)),
+        applyToRoom: (roomType, action) => (applyToRoom ? applyToRoom(roomType, action) : Promise.resolve(false)),
+        discordBotSend: {
+            sendReport: (...args) => sendReport(...args),
+            sendStatsBackup: (...args) => sendStatsBackup(...args)
+        }
     });
 
     const pendingLinkCodes = new Map();
@@ -383,7 +403,8 @@ function createDiscordBot({
         sendVipPassword,
         sendStatsBackup,
         editOnlineMessage,
-        setModerationBridge
+        setModerationBridge,
+        setRoomActionBridge
     };
 }
 

@@ -592,28 +592,36 @@ Object.assign(room, wrapEventHandlers(createMiscEvents({
 })));
 
 /*
- * Reverse bridge: Node calls this directly via page.evaluate(...) when a
- * moderation action (ban/mute/unban/unmute) was issued from a Discord
- * slash-command. The DB write already happened on the Node side before
- * this is called — this function only needs to apply the *live* effect
- * if the target happens to be online in this particular room right now.
+ * Reverse bridge: Node calls this directly via page.evaluate(...) when an
+ * action was issued from a Discord slash-command and needs an immediate
+ * live effect in this room, on top of whatever was already written to
+ * the DB / browser-side state by the Node side before this is called.
  * No page.exposeFunction registration is needed for this direction:
  * Puppeteer's page.evaluate can always reach into the page's global
  * scope from Node, so exposing window.__applyModeration here is enough.
  *
  * action: {
- *   type: 'ban' | 'unban' | 'mute' | 'unmute',
- *   auth: string,
+ *   type: 'ban' | 'unban' | 'mute' | 'unmute' | 'password',
+ *   auth: string,        // ban/unban/mute/unmute
  *   name?: string,       // display name for ban/mute announcements
  *   reason?: string,
  *   timeStr?: string,    // pre-formatted duration, e.g. "10мин"
  *   unmuteDate?: number, // for 'mute'
- *   muteId?: number      // for 'mute', matches the row written to db.addMute
+ *   muteId?: number,     // for 'mute', matches the row written to db.addMute
+ *   value?: string|null  // for 'password' — new password, or null to clear
  * }
- * Returns true if the target was found online in this room, else false.
+ * Returns true if the action had an effect in this particular room (ban/
+ * mute/unban/unmute: target was found online here; password: always true,
+ * since it doesn't depend on any player being present).
  */
 window.__applyModeration = function (action) {
     try {
+        if (action.type === 'password') {
+            state.roomPassword = action.value ?? '';
+            room.setPassword(action.value || null);
+            return true;
+        }
+
         const online = room.getPlayerList().find(p => getAuth(p.id) === action.auth);
 
         if (action.type === 'ban') {
