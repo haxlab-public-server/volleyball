@@ -630,9 +630,9 @@ window.__applyModeration = function (action) {
             
             const issuedRoleValue = RoleString[action.roleName];
             if (issuedRoleValue >= Role.PREADMIN) {
-                room.setPlayerAdmin(target.id, true);
+                room.setPlayerAdmin(online.id, true);
             } else {
-                room.setPlayerAdmin(target.id, false);
+                room.setPlayerAdmin(online.id, false);
             }
 
             room.sendAnnouncement(
