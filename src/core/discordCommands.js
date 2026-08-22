@@ -86,14 +86,6 @@ function parseTimeArg(str) {
     return null;
 }
 
-function nextMuteId(existingMutes) {
-    return existingMutes.reduce((max, m) => Math.max(max, m.id ?? 0), 0) + 1;
-}
-
-function nextBanId(existingBans) {
-    return existingBans.reduce((max, b) => Math.max(max, b.id ?? 0), 0) + 1;
-}
-
 function isValidAuth(str) {
     return typeof str === 'string' && str.length === 43;
 }
@@ -453,7 +445,6 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
 
         const existingBans = db.getBans();
         db.addBan({
-            id: nextBanId(existingBans),
             auth,
             conn: null,
             name: account?.nickname ?? null,
@@ -539,12 +530,10 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         }
 
         const mutes = db.getMutes();
-        const muteId = nextMuteId(mutes);
         const unmuteDate = Date.now() + parsed.ms;
         const targetDisplay = account?.nickname ?? auth;
 
         db.addMute({
-            id: muteId,
             name: targetDisplay,
             playerId: null,
             auth,
@@ -554,6 +543,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const appliedLive = await applyModeration({
             type: 'mute',
             auth,
+            name: caller.nickname,
             reason,
             timeStr: parsed.label,
             unmuteDate,

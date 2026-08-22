@@ -653,7 +653,7 @@ window.__applyModeration = function (action) {
             room.kickPlayer(
                 online.id,
                 `${action.name ?? 'Администратор'} забанил вас${timeStr}${reasonStr}\n discord: ${Discord}`,
-                true
+                false
             );
 
             room.sendAnnouncement(
@@ -685,11 +685,11 @@ window.__applyModeration = function (action) {
             const reasonStr = action.reason ? ` по причине: ${action.reason}` : ''
 
             room.sendAnnouncement(
-                `${action.name ?? 'Администратор'} замутил ${online.name} на ${timeStr}${reasonStr}.`,
+                `${action.name ?? 'Администратор'} замутил ${online.name}${timeStr}${reasonStr}.`,
                 null,
                 Color.RED,
                 'bold',
-                HaxNotification.NONE
+                HaxNotification.MENTION
             );
             return true;
         }

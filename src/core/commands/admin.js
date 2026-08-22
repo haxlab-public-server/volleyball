@@ -356,7 +356,7 @@ module.exports = function createAdminCommands({
             null,
             Color.RED,
             'bold',
-            HaxNotification.NONE
+            HaxNotification.MENTION
         );
 
         discordBot.sendReport(
