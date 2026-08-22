@@ -3,42 +3,6 @@ const {
     EmbedBuilder
 } = require('discord.js');
 
-/*
- * Registers Discord slash-command mirrors of the in-room HaxBall commands
- * listed by role tier:
- *   MASTER  — /setrole, /getrolelist, /password, /statsclear
- *   ADMIN   — /ban, /unban, /mute, /unmute, /bans, /mutes
- *   PLAYER  — /tops, /stats, /account (any linked account)
- *
- * Access is gated purely by the HaxBall account role tied to the caller's
- * Discord account (accounts.discord) — a caller must have linked their
- * account (`/link` + `!discord <code>`) and hold a sufficient in-room
- * role. This piggybacks on the same role hierarchy the room itself uses
- * instead of introducing a second, possibly-drifting permission system.
- *
- * Every command that targets a specific player (setrole, ban, unban,
- * mute, unmute, account-for-others) takes a raw public_id (43-char auth)
- * — no nickname resolution. /stats and /tops are read-only lookups where
- * nickname collisions are common and harmless to disambiguate, so those
- * two support a nickname argument; when a nickname matches more than one
- * account, the reply lists `[index] nickname (public_id) - N игр` and the
- * caller re-runs the command with an extra `index` argument to pick one.
- *
- * ban/mute/unban/unmute/password write their durable state (DB row, or
- * browser-side state.roomPassword) first, then call the `applyModeration`
- * / `applyToRoom` bridges (wired in from src/index.js once rooms are
- * launched) to broadcast the change into the live room(s) via
- * page.evaluate() — so an online target is kicked/muted, or the room
- * password changes, immediately instead of waiting for a rejoin.
- *
- * Logging mirrors exactly what each in-room command already does — no
- * more, no less: ban/unban/mute/unmute call discordBot.sendReport (same
- * as admin.js), statsclear calls discordBot.sendStatsBackup (same as
- * master.js). setrole/getrolelist/password/tops/stats/account/bans/mutes
- * don't log anything in their in-room counterparts either, so they stay
- * silent here too.
- */
-
 const Role = {
     PLAYER: 0,
     VIP: 1,
@@ -90,12 +54,39 @@ function isValidAuth(str) {
     return typeof str === 'string' && str.length === 43;
 }
 
-function errorEmbed(text) {
-    return new EmbedBuilder().setColor(ERROR_COLOR).setDescription(`❌ ${text}`);
+function errorEmbed(title, description) {
+    return new EmbedBuilder()
+        .setColor(ERROR_COLOR)
+        .setTitle(`❌ ${title}`)
+        .setDescription(description);
 }
 
-function okEmbed(text) {
-    return new EmbedBuilder().setColor(EMBED_COLOR).setDescription(text);
+function successEmbed(title, description) {
+    return new EmbedBuilder()
+        .setColor(EMBED_COLOR)
+        .setTitle(`✅ ${title}`)
+        .setDescription(description);
+}
+
+function infoEmbed(title, description) {
+    return new EmbedBuilder()
+        .setColor(EMBED_COLOR)
+        .setTitle(title)
+        .setDescription(description);
+}
+
+function formatIdentity(nickname, auth) {
+    return `**${nickname ?? 'UNKNOWN'}**\n\`${auth ?? '—'}\``;
+}
+
+function formatEntryList(lines) {
+    return lines.join('\n\n');
+}
+
+const MAX_DESCRIPTION = 4000;
+
+function truncateDescription(text) {
+    return text.length > MAX_DESCRIPTION ? text.slice(0, MAX_DESCRIPTION - 1) + '…' : text;
 }
 
 function formatStats(stat) {
@@ -132,18 +123,12 @@ function formatStats(stat) {
 
 module.exports = function createDiscordCommands({ db, applyModeration, applyToRoom, discordBotSend }) {
 
-    /*
-     * Every command requires the caller to have linked their Discord
-     * account to a HaxBall account (accounts.discord) AND to hold at
-     * least `minRole` in that account. Returns { auth, nickname, role }
-     * on success, or null after already replying with an error.
-     */
     async function requireLinkedRole(interaction, minRole) {
         const account = await db.getAccountByDiscordId(interaction.user.id);
 
         if (!account) {
             await interaction.reply({
-                embeds: [errorEmbed('Ваш Discord не привязан к аккаунту HaxBall. Используйте `/link`, затем `!discord <код>` в комнате.')],
+                embeds: [errorEmbed('Discord не привязан', 'Используйте `/link`, затем `!discord <код>` в комнате, чтобы привязать аккаунт HaxBall.')],
                 ephemeral: true
             });
             return null;
@@ -153,7 +138,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
 
         if (role < minRole) {
             await interaction.reply({
-                embeds: [errorEmbed(`Недостаточно прав. Требуется роль **${ROLE_LABELS[minRole]}** и выше, у вас — **${ROLE_LABELS[role]}**.`)],
+                embeds: [errorEmbed('Недостаточно прав', `Требуется роль **${ROLE_LABELS[minRole]}** и выше, у вас — **${ROLE_LABELS[role]}**.`)],
                 ephemeral: true
             });
             return null;
@@ -162,13 +147,6 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         return { auth: account.auth, nickname: account.nickname, role };
     }
 
-    /*
-     * Resolves a /stats nickname argument against the stats table (same
-     * source !stats/!deanon use in-room). Multiple accounts can share a
-     * nickname; when that happens and `index` wasn't given, returns
-     * `choices` so the caller can render the disambiguation list and the
-     * user re-runs the command with `index` filled in.
-     */
     async function resolveStatsByNickname(nickname, index) {
         const pname = nickname.replace(/_/g, ' ').toLowerCase();
         const matches = await db.findStatsByName(pname);
@@ -303,18 +281,18 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const timeArg = interaction.options.getString('time');
 
         if (!isValidAuth(auth)) {
-            await interaction.reply({ embeds: [errorEmbed('public_id должен быть строкой из 43 символов.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed('Неверный public_id', 'public_id должен быть строкой из 43 символов.')], ephemeral: true });
             return;
         }
 
         if (auth === caller.auth) {
-            await interaction.reply({ embeds: [errorEmbed('Нельзя менять роль себе.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed('Недопустимое действие', 'Нельзя менять роль себе.')], ephemeral: true });
             return;
         }
 
         const account = await db.getAccount(auth);
         if (!account) {
-            await interaction.reply({ embeds: [errorEmbed('Аккаунт с таким public_id не найден.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed('Аккаунт не найден', 'Аккаунт с таким public_id не найден.')], ephemeral: true });
             return;
         }
 
@@ -322,18 +300,21 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         if (timeArg) {
             const parsed = parseTimeArg(timeArg);
             if (!parsed) {
-                await interaction.reply({ embeds: [errorEmbed('Некорректный формат времени, пример: `30d`, `12h`.')], ephemeral: true });
+                await interaction.reply({ embeds: [errorEmbed('Неверный формат времени', 'Пример: `30d`, `12h`.')], ephemeral: true });
                 return;
             }
             date = Date.now() + parsed.ms;
         }
 
-        db.setRole(auth, roleName, date);
+        await db.setRole(auth, roleName, date);
 
         await applyModeration({type: 'roleUpdate', auth, roleName});
 
         await interaction.reply({
-            embeds: [okEmbed(`✅ ${account.nickname} теперь **${roleName.toUpperCase()}**${date ? ` до <t:${Math.floor(date / 1000)}:f>` : ' (бессрочно)'}.`)]
+            embeds: [successEmbed(
+                'Роль обновлена',
+                `${formatIdentity(account.nickname, auth)}\nтеперь **${roleName.toUpperCase()}**${date ? ` до <t:${Math.floor(date / 1000)}:f>` : ' (бессрочно)'}.`
+            )]
         });
     }
 
@@ -342,34 +323,15 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         if (!caller) return;
 
         const roleName = interaction.options.getString('role');
-        const accounts = db.getAccountsByRole(roleName);
+        const accounts = await db.getAccountsByRole(roleName);
 
-        const embed = new EmbedBuilder()
-            .setColor(EMBED_COLOR)
-            .setTitle(`${roleName.toUpperCase()} — ${accounts.length}`);
+        const description = accounts.length > 0
+            ? truncateDescription(formatEntryList(
+                accounts.map((a, i) => `**${i + 1}.** ${formatIdentity(a.nickname, a.auth)}`)
+            ))
+            : 'Пусто.';
 
-        if (accounts.length > 0) {
-            let numColumn = "";
-            let nameColumn = "";
-            let authColumn = "";
-
-            accounts.forEach((a, i) => {
-                const nickname = a.nickname ?? "UNKNOWN";
-                const auth = a.auth ?? "—";
-
-                numColumn += `\`${i + 1}.\`\n`;
-                nameColumn += `\`${nickname}\`\n`;
-                authColumn += `\`${auth}\`\n`;
-            });
-
-            embed.addFields(
-                { name: '№', value: numColumn, inline: true },
-                { name: 'Никнейм', value: nameColumn, inline: true },
-                { name: 'public_id', value: authColumn, inline: true }
-            );
-        } else {
-            embed.setDescription('Пусто.');
-        }
+        const embed = infoEmbed(`📋 ${roleName.toUpperCase()} — ${accounts.length}`, description);
 
         await interaction.reply({ embeds: [embed] });
     }
@@ -384,14 +346,17 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const applied = await applyToRoom(room, { type: 'password', value: value || null });
 
         if (!applied) {
-            await interaction.reply({ embeds: [errorEmbed(`Комната **${room}** сейчас недоступна (не запущена).`)], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed('Комната недоступна', `Комната **${room}** сейчас не запущена.`)], ephemeral: true });
             return;
         }
 
         await interaction.reply({
-            embeds: [okEmbed(value
-                ? `✅ Пароль комнаты **${room}** установлен: \`${value}\`.`
-                : `✅ Пароль комнаты **${room}** сброшен.`)]
+            embeds: [successEmbed(
+                'Пароль обновлён',
+                value
+                    ? `Комната **${room}**\nновый пароль: \`${value}\``
+                    : `Комната **${room}**\nпароль сброшен.`
+            )]
         });
     }
 
@@ -401,15 +366,15 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
 
         await interaction.deferReply();
 
-        const backup = db.backupStats();
-        db.clearStats();
+        const backup = await db.backupStats();
+        await db.clearStats();
 
         if (backup.count > 0) {
             discordBotSend.sendStatsBackup(BROADCAST_ROOM_LABEL, backup.filePath, backup.filename);
         }
 
         const payload = {
-            embeds: [okEmbed(`✅ Статистика сброшена. Бекап: \`${backup.filename}\`, записей: ${backup.count}.`)]
+            embeds: [successEmbed('Статистика сброшена', `Бекап: \`${backup.filename}\`\nзаписей: ${backup.count}`)]
         };
 
         if (backup.count > 0) {
@@ -431,7 +396,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const reason = interaction.options.getString('reason');
 
         if (!isValidAuth(auth)) {
-            await interaction.reply({ embeds: [errorEmbed('public_id должен быть строкой из 43 символов.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed('Неверный public_id', 'public_id должен быть строкой из 43 символов.')], ephemeral: true });
             return;
         }
 
@@ -439,18 +404,17 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const targetRole = RoleString[account?.role] ?? Role.PLAYER;
 
         if (auth === caller.auth || (targetRole >= Role.PREADMIN && caller.role !== Role.MASTER)) {
-            await interaction.reply({ embeds: [errorEmbed('Нельзя забанить себя или игрока с защитой от бана.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed('Недопустимое действие', 'Нельзя забанить себя или игрока с защитой от бана.')], ephemeral: true });
             return;
         }
 
         const parsed = parseTimeArg(timeArg);
         if (!parsed) {
-            await interaction.reply({ embeds: [errorEmbed('Некорректный формат времени, пример: `10min`, `1d`.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed('Неверный формат времени', 'Пример: `10min`, `1d`.')], ephemeral: true });
             return;
         }
 
-        const existingBans = db.getBans();
-        db.addBan({
+        await db.addBan({
             auth,
             conn: null,
             name: account?.nickname ?? null,
@@ -465,14 +429,14 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
             timeStr: parsed.label
         });
 
-        const targetDisplay = account?.nickname ?? auth;
-
-        discordBotSend.sendReport(BROADCAST_ROOM_LABEL, caller.nickname, targetDisplay, 'ban', reason || null, parsed.label);
+        discordBotSend.sendReport(BROADCAST_ROOM_LABEL, caller.nickname, account?.nickname ?? auth, 'ban', reason || null, parsed.label);
 
         await interaction.reply({
-            embeds: [okEmbed(
-                `✅ ${targetDisplay} забанен на ${parsed.label}${reason ? ` по причине: ${reason}` : ''}.\n` +
-                (appliedLive ? '🔴 Игрок был в комнате — кикнут немедленно.' : 'Игрока сейчас нет в комнате — бан применится при следующем заходе.')
+            embeds: [successEmbed(
+                'Игрок забанен',
+                `${formatIdentity(account?.nickname, auth)}\n` +
+                `на **${parsed.label}**${reason ? `, причина: ${reason}` : ''}\n` +
+                (appliedLive ? '🔴 Был в комнате — кикнут немедленно.' : 'Не в комнате — бан вступит в силу при следующем заходе.')
             )]
         });
     }
@@ -484,23 +448,24 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const auth = interaction.options.getString('public_id');
 
         if (!isValidAuth(auth)) {
-            await interaction.reply({ embeds: [errorEmbed('public_id должен быть строкой из 43 символов.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed('Неверный public_id', 'public_id должен быть строкой из 43 символов.')], ephemeral: true });
             return;
         }
 
-        const ban = db.removeBanByAuth(auth);
+        const ban = await db.removeBanByAuth(auth);
 
         if (!ban) {
-            await interaction.reply({ embeds: [errorEmbed('Этот public_id не найден в бан-листе.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed('Не найдено', 'Этот public_id не найден в бан-листе.')], ephemeral: true });
             return;
         }
 
         await applyModeration({ type: 'unban', auth, unban_id: ban.id ?? null});
 
-        const targetDisplay = ban.name ?? ban.auth;
-        discordBotSend.sendReport(BROADCAST_ROOM_LABEL, caller.nickname, targetDisplay, 'unban', null, null);
+        discordBotSend.sendReport(BROADCAST_ROOM_LABEL, caller.nickname, ban.name ?? ban.auth, 'unban', null, null);
 
-        await interaction.reply({ embeds: [okEmbed(`✅ ${targetDisplay} разбанен.`)] });
+        await interaction.reply({
+            embeds: [successEmbed('Игрок разбанен', formatIdentity(ban.name, ban.auth))]
+        });
     }
 
     async function handleMute(interaction) {
@@ -512,7 +477,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const reason = interaction.options.getString('reason');
 
         if (!isValidAuth(auth)) {
-            await interaction.reply({ embeds: [errorEmbed('public_id должен быть строкой из 43 символов.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed('Неверный public_id', 'public_id должен быть строкой из 43 символов.')], ephemeral: true });
             return;
         }
 
@@ -520,26 +485,25 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const targetRole = RoleString[account?.role] ?? Role.PLAYER;
 
         if (targetRole >= Role.PREADMIN && caller.role !== Role.MASTER) {
-            await interaction.reply({ embeds: [errorEmbed('У игрока защита от мута.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed('Недопустимое действие', 'У игрока защита от мута.')], ephemeral: true });
             return;
         }
 
         const parsed = parseTimeArg(timeArg);
         if (!parsed) {
-            await interaction.reply({ embeds: [errorEmbed('Некорректный формат времени, пример: `10min`, `1h`.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed('Неверный формат времени', 'Пример: `10min`, `1h`.')], ephemeral: true });
             return;
         }
 
-        const existing = db.getMuteByAuth(auth);
+        const existing = await db.getMuteByAuth(auth);
         if (existing) {
-            db.removeMuteByAuth(auth);
+            await db.removeMuteByAuth(auth);
         }
 
-        const mutes = db.getMutes();
         const unmuteDate = Date.now() + parsed.ms;
         const targetDisplay = account?.nickname ?? auth;
 
-        db.addMute({
+        await db.addMute({
             name: targetDisplay,
             playerId: null,
             auth,
@@ -558,9 +522,11 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         discordBotSend.sendReport(BROADCAST_ROOM_LABEL, caller.nickname, targetDisplay, 'mute', reason || null, parsed.label);
 
         await interaction.reply({
-            embeds: [okEmbed(
-                `✅ ${targetDisplay} замучен на ${parsed.label}${reason ? ` по причине: ${reason}` : ''}.\n` +
-                (appliedLive ? '🔴 Игрок был в комнате — мут вступил в силу немедленно.' : 'Игрока сейчас нет в комнате — мут применится при следующем заходе.')
+            embeds: [successEmbed(
+                'Игрок замучен',
+                `${formatIdentity(account?.nickname, auth)}\n` +
+                `на **${parsed.label}**${reason ? `, причина: ${reason}` : ''}\n` +
+                (appliedLive ? '🔴 Был в комнате — вступило в силу немедленно.' : 'Не в комнате — мут применится при следующем заходе.')
             )]
         });
     }
@@ -572,13 +538,13 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const auth = interaction.options.getString('public_id');
 
         if (!isValidAuth(auth)) {
-            await interaction.reply({ embeds: [errorEmbed('public_id должен быть строкой из 43 символов.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed('Неверный public_id', 'public_id должен быть строкой из 43 символов.')], ephemeral: true });
             return;
         }
 
-        const removed = db.removeMuteByAuth(auth);
+        const removed = await db.removeMuteByAuth(auth);
         if (!removed) {
-            await interaction.reply({ embeds: [errorEmbed('Этот игрок не в муте.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed('Не найдено', 'Этот игрок не в муте.')], ephemeral: true });
             return;
         }
 
@@ -590,7 +556,10 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         discordBotSend.sendReport(BROADCAST_ROOM_LABEL, caller.nickname, targetDisplay, 'unmute', null, null);
 
         await interaction.reply({
-            embeds: [okEmbed(`✅ ${targetDisplay} размучен.` + (appliedLive ? ' Применено немедленно.' : ''))]
+            embeds: [successEmbed(
+                'Игрок размучен',
+                `${formatIdentity(account?.nickname, auth)}` + (appliedLive ? '\nПрименено немедленно.' : '')
+            )]
         });
     }
 
@@ -598,25 +567,16 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const caller = await requireLinkedRole(interaction, Role.ADMIN);
         if (!caller) return;
 
-        const bans = db.getBans();
-        
-        let description = 'Пусто.';
-        if (bans.length > 0) {
-            const rows = bans.map((b, i) => {
+        const bans = await db.getBans();
+
+        const description = bans.length > 0
+            ? truncateDescription(formatEntryList(bans.map((b, i) => {
                 const mins = Math.max(0, Math.round((b.date - Date.now()) / 1000 / 60));
-                const name = b.name ?? "UNKNOWN";
-                const auth = b.auth ?? "—";
-                
-                return `${i + 1}. | ${mins}м | ${name} | ${auth}`;
-            }).join('\n');
+                return `**${i + 1}.** ${formatIdentity(b.name, b.auth)}\nосталось: ${mins}м`;
+            })))
+            : 'Пусто.';
 
-            description = `\`\`\`text\n${rows}\n\`\`\``;
-        }
-
-        const embed = new EmbedBuilder()
-            .setColor(EMBED_COLOR)
-            .setTitle(`Бан-лист — ${bans.length}`)
-            .setDescription(description.slice(0, 4000));
+        const embed = infoEmbed(`📋 Бан-лист — ${bans.length}`, description);
 
         await interaction.reply({ embeds: [embed] });
     }
@@ -625,25 +585,16 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const caller = await requireLinkedRole(interaction, Role.ADMIN);
         if (!caller) return;
 
-        const mutes = db.getMutes();
-        
-        let description = 'Пусто.';
-        if (mutes.length > 0) {
-            const rows = mutes.map((m, i) => {
+        const mutes = await db.getMutes();
+
+        const description = mutes.length > 0
+            ? truncateDescription(formatEntryList(mutes.map((m, i) => {
                 const mins = Math.max(0, Math.round((m.unmuteDate - Date.now()) / 1000 / 60));
-                const name = m.name ?? "UNKNOWN";
-                const auth = m.auth ?? "—";
-                
-                return `${i + 1}. | ${mins}м | ${name} | ${auth}`;
-            }).join('\n');
+                return `**${i + 1}.** ${formatIdentity(m.name, m.auth)}\nосталось: ${mins}м`;
+            })))
+            : 'Пусто.';
 
-            description = `\`\`\`text\n${rows}\n\`\`\``;
-        }
-
-        const embed = new EmbedBuilder()
-            .setColor(EMBED_COLOR)
-            .setTitle(`Мут-лист — ${mutes.length}`)
-            .setDescription(description.slice(0, 4000));
+        const embed = infoEmbed(`📋 Мут-лист — ${mutes.length}`, description);
 
         await interaction.reply({ embeds: [embed] });
     }
@@ -660,54 +611,32 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         let len = interaction.options.getInteger('count') ?? 10;
         if (len < 5 || len > 50) len = Math.min(50, Math.max(5, len));
 
-        const list = db.getTopStats(5); 
+        const list = await db.getTopStats(5);
         if (list.length < len) {
-            await interaction.reply({ embeds: [errorEmbed(`Недостаточно игроков в топе: ещё ${len - list.length}.`)], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed('Недостаточно данных', `Недостаточно игроков в топе: ещё ${len - list.length}.`)], ephemeral: true });
             return;
         }
 
-        if (statKey === 'all') {
-            const embed = new EmbedBuilder().setColor(EMBED_COLOR).setTitle('Топы игроков');
-            
-            for (const key of Object.keys(TOPS)) {
-                const idx = TOPS[key];
-                const sorted = [...list].sort((a, b) => b[idx] - a[idx]);
-                
-                const lines = sorted.slice(0, len).map((s, i) => {
-                    const value = key === 'time' ? `${(s[idx] / 60).toFixed(1)}ч` : s[idx];
-                    return `\`${i + 1}.\` ${s[0]} — **${value}**`;
-                }).join('\n');
+        const formatTopLines = (key) => {
+            const idx = TOPS[key];
+            const sorted = [...list].sort((a, b) => b[idx] - a[idx]);
+            return sorted.slice(0, len).map((s, i) => {
+                const value = key === 'time' ? `${(s[idx] / 60).toFixed(1)}ч` : s[idx];
+                return `\`${i + 1}.\` **${s[0] ?? 'UNKNOWN'}** — ${value}`;
+            }).join('\n');
+        };
 
-                embed.addFields({ name: `🏆 Топ по ${key.toUpperCase()}`, value: lines.slice(0, 1024) });
-            }
+        if (statKey === 'all') {
+            const sections = Object.keys(TOPS).map(
+                key => `**🏆 Топ по ${key.toUpperCase()}**\n${formatTopLines(key)}`
+            );
+
+            const embed = infoEmbed('📊 Топы игроков', truncateDescription(formatEntryList(sections)));
             await interaction.reply({ embeds: [embed] });
             return;
         }
 
-        const idx = TOPS[statKey];
-        const sorted = [...list].sort((a, b) => b[idx] - a[idx]);
-
-        let numColumn = "";
-        let nameColumn = "";
-        let valueColumn = "";
-
-        sorted.slice(0, len).forEach((s, i) => {
-            const name = s[0] ?? "UNKNOWN";
-            const value = statKey === 'time' ? `${(s[idx] / 60).toFixed(1)}ч` : s[idx];
-
-            numColumn += `\`${i + 1}.\`\n`;
-            nameColumn += `\`${name}\`\n`;
-            valueColumn += `\`${value}\`\n`;
-        });
-
-        const embed = new EmbedBuilder()
-            .setColor(EMBED_COLOR)
-            .setTitle(`📊 Статистика: ${statKey.toUpperCase()}`)
-            .addFields(
-                { name: '№', value: numColumn, inline: true },
-                { name: 'Никнейм', value: nameColumn, inline: true },
-                { name: 'Значение', value: valueColumn, inline: true }
-            );
+        const embed = infoEmbed(`📊 Топ: ${statKey.toUpperCase()}`, formatTopLines(statKey));
 
         await interaction.reply({ embeds: [embed] });
     }
@@ -722,24 +651,21 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         let stat;
 
         if (!nickname) {
-            stat = db.getStat(caller.auth);
+            stat = await db.getStat(caller.auth);
         } else {
             const resolved = await resolveStatsByNickname(nickname, index);
 
             if (resolved.error) {
-                await interaction.reply({ embeds: [errorEmbed(resolved.error)], ephemeral: true });
+                await interaction.reply({ embeds: [errorEmbed('Не найдено', resolved.error)], ephemeral: true });
                 return;
             }
 
             if (resolved.choices) {
                 await interaction.reply({
-                    embeds: [new EmbedBuilder()
-                        .setColor(EMBED_COLOR)
-                        .setTitle(`Найдено ${resolved.choices.length} игроков с ником "${nickname}"`)
-                        .setDescription(
-                            `${formatChoices(resolved.choices)}\n\n` +
-                            `Повторите команду с аргументом \`index\`, чтобы выбрать нужного.`
-                        )]
+                    embeds: [infoEmbed(
+                        `Найдено ${resolved.choices.length} игроков с ником "${nickname}"`,
+                        `${formatChoices(resolved.choices)}\n\nПовторите команду с аргументом \`index\`, чтобы выбрать нужного.`
+                    )]
                 });
                 return;
             }
@@ -748,12 +674,12 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         }
 
         if (!stat) {
-            await interaction.reply({ embeds: [errorEmbed('Статистика не найдена — нужно сыграть хотя бы одну игру.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed('Статистика не найдена', 'Нужно сыграть хотя бы одну игру.')], ephemeral: true });
             return;
         }
 
         await interaction.reply({
-            embeds: [new EmbedBuilder().setColor(EMBED_COLOR).setTitle(`📊 ${stat[0]}`).setDescription(formatStats(stat))]
+            embeds: [infoEmbed(`📊 ${stat[0]}`, formatStats(stat))]
         });
     }
 
@@ -764,14 +690,14 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const publicId = interaction.options.getString('public_id');
 
         if (publicId && caller.role < Role.ADMIN) {
-            await interaction.reply({ embeds: [errorEmbed('Смотреть чужие аккаунты могут только ADMIN и выше.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed('Недостаточно прав', 'Смотреть чужие аккаунты могут только ADMIN и выше.')], ephemeral: true });
             return;
         }
 
         let targetAuth = caller.auth;
         if (publicId) {
             if (!isValidAuth(publicId)) {
-                await interaction.reply({ embeds: [errorEmbed('public_id должен быть строкой из 43 символов.')], ephemeral: true });
+                await interaction.reply({ embeds: [errorEmbed('Неверный public_id', 'public_id должен быть строкой из 43 символов.')], ephemeral: true });
                 return;
             }
             targetAuth = publicId;
@@ -779,22 +705,20 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
 
         const account = await db.getAccount(targetAuth);
         if (!account) {
-            await interaction.reply({ embeds: [errorEmbed('Аккаунт не найден.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed('Аккаунт не найден', `\`${targetAuth}\``)], ephemeral: true });
             return;
         }
 
         const toDate = account.date != null ? `<t:${Math.floor(account.date / 1000)}:f>` : 'бессрочно';
         const discordField = account.discord ? `<@${account.discord}>` : 'не привязан';
 
-        const embed = new EmbedBuilder()
-            .setColor(EMBED_COLOR)
-            .setTitle(`📋 ${account.nickname}`)
-            .setDescription(
-                `**public_id:** \`${targetAuth}\`\n` +
-                `**роль:** ${account.role}\n` +
-                `**до:** ${toDate}\n` +
-                `**discord:** ${discordField}`
-            );
+        const embed = infoEmbed(
+            `📋 ${account.nickname}`,
+            `${formatIdentity(account.nickname, targetAuth)}\n` +
+            `**роль:** ${account.role}\n` +
+            `**до:** ${toDate}\n` +
+            `**discord:** ${discordField}`
+        );
 
         await interaction.reply({ embeds: [embed] });
     }
@@ -824,7 +748,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
             await handler(interaction);
         } catch (err) {
             console.error(`[Discord] /${interaction.commandName} failed:`, err);
-            const payload = { embeds: [errorEmbed('Произошла ошибка при выполнении команды.')], ephemeral: true };
+            const payload = { embeds: [errorEmbed('Ошибка', 'Произошла ошибка при выполнении команды.')], ephemeral: true };
             if (interaction.deferred || interaction.replied) {
                 await interaction.editReply(payload).catch(() => {});
             } else {
