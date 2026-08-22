@@ -624,22 +624,53 @@ window.__applyModeration = function (action) {
 
         const online = room.getPlayerList().find(p => getAuth(p.id) === action.auth);
 
+        if (action.type === 'roleUpdate') {
+            discordBot.syncRole(action.auth);
+            if (!online) return false;
+            
+            const issuedRoleValue = RoleString[action.roleName];
+            if (issuedRoleValue >= Role.PREADMIN) {
+                room.setPlayerAdmin(target.id, true);
+            } else {
+                room.setPlayerAdmin(target.id, false);
+            }
+
+            room.sendAnnouncement(
+                `Ваша роль была обновлена: ${action.roleName}. Для подробной информации введите !account`,
+                online.id,
+                Color.WH_BLUE,
+                'bold',
+                HaxNotification.MENTION
+            );
+        }
+
         if (action.type === 'ban') {
             if (!online) return false;
 
+            const timeStr = action.timeStr ? ` на ${action.timeStr}` : ''
+            const reasonStr = action.reason ? ` по причине: ${action.reason}` : ''
+
             room.kickPlayer(
                 online.id,
-                `${action.name ?? 'Администратор'} забанил вас${action.timeStr ? ` на ${action.timeStr}` : ''}${action.reason ? ` по причине: ${action.reason}` : ''}\n discord: ${Discord}`,
+                `${action.name ?? 'Администратор'} забанил вас${timeStr}${reasonStr}\n discord: ${Discord}`,
                 true
+            );
+
+            room.sendAnnouncement(
+                `${action.name ?? 'Администратор'} забанил ${online.name}${timeStr}${reasonStr}.`,
+                null,
+                Color.RED,
+                'bold',
+                HaxNotification.MENTION
             );
             return true;
         }
 
         if (action.type === 'unban') {
-            if (online) {
-                room.clearBan(online.id);
+            if (action.unban_id) {
+                room.clearBan(unban_id);
             }
-            return online != null;
+            return false;
         }
 
         if (action.type === 'mute') {
@@ -650,12 +681,15 @@ window.__applyModeration = function (action) {
             muteObj.unmuteDate = action.unmuteDate;
             muteArray.list.push(muteObj);
 
+            const timeStr = action.timeStr ? ` на ${action.timeStr}` : ''
+            const reasonStr = action.reason ? ` по причине: ${action.reason}` : ''
+
             room.sendAnnouncement(
-                `Вы в муте: ${action.timeStr ?? ''}${action.reason ? ` по причине: ${action.reason}` : ''}`,
-                online.id,
-                Color.GR_RED,
+                `${action.name ?? 'Администратор'} замутил ${online.name} на ${timeStr}${reasonStr}.`,
+                null,
+                Color.RED,
                 'bold',
-                HaxNotification.MENTION
+                HaxNotification.NONE
             );
             return true;
         }

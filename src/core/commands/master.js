@@ -472,6 +472,16 @@ module.exports = function createMasterCommands({
             'bold',
             HaxNotification.CHAT
         );
+
+        if (target.id !== undefined) {
+            const issuedRoleValue = RoleString[roleName];
+            
+            if (issuedRoleValue >= Role.PREADMIN) {
+                room.setPlayerAdmin(target.id, true);
+            } else {
+                room.setPlayerAdmin(target.id, false);
+            }
+        }
     }
 
     async function getRoleListCommand(player, message) {

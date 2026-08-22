@@ -17,7 +17,7 @@ async function formatAccountView(obj) {
     const toDate = obj.date != null ? getDate(obj.date) : 'бессрочно';
     const discordField = await formatDiscordField(obj.discord);
 
-    return `📋${obj.nickname}:\npublic_id: ${obj.auth}\nrole: ${obj.role}\nto_date: ${toDate}\ndiscord: ${discordField}`;
+    return `📋${obj.nickname}:\npublic_id: ${obj.auth}\nроль: ${obj.role}\nдо: ${toDate}\ndiscord: ${discordField}`;
 }
 
 function resolveTargetAuth(caller, arg) {
