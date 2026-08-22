@@ -346,8 +346,8 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
 
         let description = 'Пусто.';
         if (accounts.length > 0) {
-            const header = `№   | ${"Никнейм".padEnd(18)} | ${"ID/Auth".padEnd(20)}\n` +
-                        `----|--------------------|----------------------\n`;
+            const header = `№   | ${"Никнейм".padEnd(18)} | ${"Auth".padEnd(45)}\n` +
+               `${"-".repeat(4)}|${"-".repeat(20)}|${"-".repeat(47)}\n`;
                         
             const rows = accounts.map((a, i) => {
                 const num = `${i + 1}.`.padEnd(3);
@@ -546,8 +546,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
             name: caller.nickname,
             reason,
             timeStr: parsed.label,
-            unmuteDate,
-            muteId
+            unmuteDate
         });
 
         discordBotSend.sendReport(BROADCAST_ROOM_LABEL, caller.nickname, targetDisplay, 'mute', reason || null, parsed.label);
@@ -597,8 +596,8 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         
         let description = 'Пусто.';
         if (bans.length > 0) {
-            const header = `№   | ${"Имя".padEnd(15)} | ${"ID/Auth".padEnd(20)} | Время\n` +
-                        `----|-----------------|----------------------|---------\n`;
+            const header = `№   | ${"Имя".padEnd(18)} | ${"Auth".padEnd(45)} | Время\n` +
+               `${"-".repeat(4)}|${"-".repeat(20)}|${"-".repeat(47)}|${"-".repeat(9)}\n`;
                         
             const rows = bans.map((b, i) => {
                 const mins = Math.max(0, Math.round((b.date - Date.now()) / 1000 / 60));
@@ -629,8 +628,8 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         
         let description = 'Пусто.';
         if (mutes.length > 0) {
-            const header = `№   | ${"Имя".padEnd(15)} | ${"ID/Auth".padEnd(20)} | Время\n` +
-                        `----|-----------------|----------------------|---------\n`;
+            const header = `№   | ${"Имя".padEnd(18)} | ${"Auth".padEnd(45)} | Время\n` +
+               `${"-".repeat(4)}|${"-".repeat(20)}|${"-".repeat(47)}|${"-".repeat(9)}\n`;
                         
             const rows = mutes.map((m, i) => {
                 const mins = Math.max(0, Math.round((m.unmuteDate - Date.now()) / 1000 / 60));
@@ -676,7 +675,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
             const sorted = [...list].sort((a, b) => b[idx] - a[idx]);
             
             const header = `№   | ${"Никнейм".padEnd(18)} | Значение\n` +
-                        `----|--------------------|-----------\n`;
+               `${"-".repeat(4)}|${"-".repeat(20)}|${"-".repeat(9)}\n`;
 
             const rows = sorted.slice(0, len).map((s, i) => {
                 const num = `${i + 1}.`.padEnd(3);
