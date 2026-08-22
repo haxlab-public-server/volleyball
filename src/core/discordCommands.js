@@ -660,7 +660,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         let len = interaction.options.getInteger('count') ?? 10;
         if (len < 5 || len > 50) len = Math.min(50, Math.max(5, len));
 
-        const list = db.getTopStats(len); 
+        const list = db.getTopStats(5); 
         if (list.length < len) {
             await interaction.reply({ embeds: [errorEmbed(`Недостаточно игроков в топе: ещё ${len - list.length}.`)], ephemeral: true });
             return;
