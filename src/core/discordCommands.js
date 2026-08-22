@@ -344,26 +344,32 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const roleName = interaction.options.getString('role');
         const accounts = db.getAccountsByRole(roleName);
 
-        let description = 'Пусто.';
-        if (accounts.length > 0) {
-            const header = `№   | ${"Никнейм".padEnd(18)} | ${"Auth".padEnd(45)}\n` +
-               `${"-".repeat(4)}|${"-".repeat(20)}|${"-".repeat(47)}\n`;
-                        
-            const rows = accounts.map((a, i) => {
-                const num = `${i + 1}.`.padEnd(3);
-                const name = (a.nickname ?? "UNKNOWN").substring(0, 18).padEnd(18);
-                const auth = String(a.auth).substring(0, 20).padEnd(20);
-                
-                return `${num} | ${name} | ${auth}`;
-            }).join('\n');
-
-            description = `\`\`\`text\n${header}${rows}\n\`\`\` \n`;
-        }
-
         const embed = new EmbedBuilder()
             .setColor(EMBED_COLOR)
-            .setTitle(`${roleName.toUpperCase()} — ${accounts.length}`)
-            .setDescription(description.slice(0, 4000));
+            .setTitle(`${roleName.toUpperCase()} — ${accounts.length}`);
+
+        if (accounts.length > 0) {
+            let numColumn = "";
+            let nameColumn = "";
+            let authColumn = "";
+
+            accounts.forEach((a, i) => {
+                const nickname = a.nickname ?? "UNKNOWN";
+                const auth = a.auth ?? "—";
+
+                numColumn += `\`${i + 1}.\`\n`;
+                nameColumn += `\`${nickname}\`\n`;
+                authColumn += `\`${auth}\`\n`;
+            });
+
+            embed.addFields(
+                { name: '№', value: numColumn, inline: true },
+                { name: 'Никнейм', value: nameColumn, inline: true },
+                { name: 'Auth (Токен)', value: authColumn, inline: true }
+            );
+        } else {
+            embed.setDescription('Пусто.');
+        }
 
         await interaction.reply({ embeds: [embed] });
     }
@@ -593,29 +599,34 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         if (!caller) return;
 
         const bans = db.getBans();
-        
-        let description = 'Пусто.';
-        if (bans.length > 0) {
-            const header = `№   | ${"Имя".padEnd(18)} | ${"Auth".padEnd(45)} | Время\n` +
-               `${"-".repeat(4)}|${"-".repeat(20)}|${"-".repeat(47)}|${"-".repeat(9)}\n`;
-                        
-            const rows = bans.map((b, i) => {
-                const mins = Math.max(0, Math.round((b.date - Date.now()) / 1000 / 60));
-                const num = `${i + 1}.`.padEnd(3);
-                const name = (b.name ?? "UNKNOWN").substring(0, 15).padEnd(15);
-                const auth = String(b.auth).substring(0, 20).padEnd(20);
-                const time = `${mins}м`;
-                
-                return `${num} | ${name} | ${auth} | ${time}`;
-            }).join('\n');
-
-            description = `\`\`\`text\n${header}${rows}\n\`\`\``;
-        }
 
         const embed = new EmbedBuilder()
             .setColor(EMBED_COLOR)
-            .setTitle(`Бан-лист — ${bans.length}`)
-            .setDescription(description.slice(0, 4000));
+            .setTitle(`Бан-лист — ${bans.length}`);
+
+        if (bans.length > 0) {
+            let timeColumn = "";
+            let nameColumn = "";
+            let authColumn = "";
+
+            bans.forEach((b, i) => {
+                const mins = Math.max(0, Math.round((b.date - Date.now()) / 1000 / 60));
+                const name = b.name ?? "UNKNOWN";
+                const auth = b.auth ?? "—";
+
+                timeColumn += `\`${i + 1}. (${mins}м)\`\n`;
+                nameColumn += `\`${name}\`\n`;
+                authColumn += `\`${auth}\`\n`;
+            });
+
+            embed.addFields(
+                { name: '№ (Время)', value: timeColumn, inline: true },
+                { name: 'Никнейм', value: nameColumn, inline: true },
+                { name: 'Auth (Токен)', value: authColumn, inline: true }
+            );
+        } else {
+            embed.setDescription('Пусто.');
+        }
 
         await interaction.reply({ embeds: [embed] });
     }
@@ -625,29 +636,34 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         if (!caller) return;
 
         const mutes = db.getMutes();
-        
-        let description = 'Пусто.';
-        if (mutes.length > 0) {
-            const header = `№   | ${"Имя".padEnd(18)} | ${"Auth".padEnd(45)} | Время\n` +
-               `${"-".repeat(4)}|${"-".repeat(20)}|${"-".repeat(47)}|${"-".repeat(9)}\n`;
-                        
-            const rows = mutes.map((m, i) => {
-                const mins = Math.max(0, Math.round((m.unmuteDate - Date.now()) / 1000 / 60));
-                const num = `${i + 1}.`.padEnd(3);
-                const name = (m.name ?? "UNKNOWN").substring(0, 15).padEnd(15);
-                const auth = String(m.auth).substring(0, 20).padEnd(20);
-                const time = `${mins}м`;
-                
-                return `${num} | ${name} | ${auth} | ${time}`;
-            }).join('\n');
-
-            description = `\`\`\`text\n${header}${rows}\n\`\`\``;
-        }
 
         const embed = new EmbedBuilder()
             .setColor(EMBED_COLOR)
-            .setTitle(`Мут-лист — ${mutes.length}`)
-            .setDescription(description.slice(0, 4000));
+            .setTitle(`Мут-лист — ${mutes.length}`);
+
+        if (mutes.length > 0) {
+            let timeColumn = "";
+            let nameColumn = "";
+            let authColumn = "";
+
+            mutes.forEach((m, i) => {
+                const mins = Math.max(0, Math.round((m.unmuteDate - Date.now()) / 1000 / 60));
+                const name = m.name ?? "UNKNOWN";
+                const auth = m.auth ?? "—";
+
+                timeColumn += `\`${i + 1}. (${mins}м)\`\n`;
+                nameColumn += `\`${name}\`\n`;
+                authColumn += `\`${auth}\`\n`;
+            });
+
+            embed.addFields(
+                { name: '№ (Время)', value: timeColumn, inline: true },
+                { name: 'Никнейм', value: nameColumn, inline: true },
+                { name: 'Auth (Токен)', value: authColumn, inline: true }
+            );
+        } else {
+            embed.setDescription('Пусто.');
+        }
 
         await interaction.reply({ embeds: [embed] });
     }
@@ -670,51 +686,50 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
             return;
         }
 
-        const buildTopTable = (key) => {
-            const idx = TOPS[key];
-            const sorted = [...list].sort((a, b) => b[idx] - a[idx]);
-            
-            const header = `№   | ${"Никнейм".padEnd(18)} | Значение\n` +
-               `${"-".repeat(4)}|${"-".repeat(20)}|${"-".repeat(9)}\n`;
-
-            const rows = sorted.slice(0, len).map((s, i) => {
-                const num = `${i + 1}.`.padEnd(3);
-                const name = String(s[0]).substring(0, 18).padEnd(18);
-                const value = key === 'time' ? `${(s[idx] / 60).toFixed(1)}ч` : s[idx];
-                const formattedValue = String(value).padEnd(8);
-
-                return `${num} | ${name} | ${formattedValue}`;
-            }).join('\n');
-
-            return `\`\`\`text\n${header}${rows}\`\`\``;
-        };
-
-        const buildTopLines = (key) => {
-            const idx = TOPS[key];
-            const sorted = [...list].sort((a, b) => b[idx] - a[idx]);
-            return sorted.slice(0, len).map((s, i) => {
-                const value = key === 'time' ? `${(s[idx] / 60).toFixed(1)}ч` : s[idx];
-                return `\`${i + 1}.\` ${s[0]} — **${value}**`;
-            });
-        };
-
         if (statKey === 'all') {
             const embed = new EmbedBuilder().setColor(EMBED_COLOR).setTitle('Топы игроков');
+            
             for (const key of Object.keys(TOPS)) {
-                embed.addFields({ name: `🏆 Топ по ${key}`, value: buildTopLines(key).join('\n').slice(0, 1024) });
+                const idx = TOPS[key];
+                const sorted = [...list].sort((a, b) => b[idx] - a[idx]);
+                
+                const lines = sorted.slice(0, len).map((s, i) => {
+                    const value = key === 'time' ? `${(s[idx] / 60).toFixed(1)}ч` : s[idx];
+                    return `\`${i + 1}.\` **${value}** — ${s[0]}`;
+                }).join('\n');
+
+                embed.addFields({ name: `🏆 Топ по ${key.toUpperCase()}`, value: lines.slice(0, 1024) });
             }
             await interaction.reply({ embeds: [embed] });
             return;
         }
 
-        await interaction.reply({
-            embeds: [
-                new EmbedBuilder()
-                    .setColor(EMBED_COLOR)
-                    .setTitle(`📊 Статистика: ${statKey.toUpperCase()}`)
-                    .setDescription(buildTopTable(statKey))
-            ]
+        const idx = TOPS[statKey];
+        const sorted = [...list].sort((a, b) => b[idx] - a[idx]);
+
+        let numColumn = "";
+        let nameColumn = "";
+        let valueColumn = "";
+
+        sorted.slice(0, len).forEach((s, i) => {
+            const name = s[0] ?? "UNKNOWN";
+            const value = statKey === 'time' ? `${(s[idx] / 60).toFixed(1)}ч` : s[idx];
+
+            numColumn += `\`${i + 1}.\`\n`;
+            nameColumn += `\`${name}\`\n`;
+            valueColumn += `\`${value}\`\n`;
         });
+
+        const embed = new EmbedBuilder()
+            .setColor(EMBED_COLOR)
+            .setTitle(`📊 Статистика: ${statKey.toUpperCase()}`)
+            .addFields(
+                { name: '№', value: numColumn, inline: true },
+                { name: 'Никнейм', value: nameColumn, inline: true },
+                { name: 'Значение', value: valueColumn, inline: true }
+            );
+
+        await interaction.reply({ embeds: [embed] });
     }
 
     async function handleStats(interaction) {
