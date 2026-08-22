@@ -599,34 +599,24 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         if (!caller) return;
 
         const bans = db.getBans();
-
-        const embed = new EmbedBuilder()
-            .setColor(EMBED_COLOR)
-            .setTitle(`Бан-лист — ${bans.length}`);
-
+        
+        let description = 'Пусто.';
         if (bans.length > 0) {
-            let numAndNameColumn = "";
-            let authColumn = "";
-            let timeColumn = "";
-
-            bans.forEach((b, i) => {
+            const rows = bans.map((b, i) => {
                 const mins = Math.max(0, Math.round((b.date - Date.now()) / 1000 / 60));
                 const name = b.name ?? "UNKNOWN";
                 const auth = b.auth ?? "—";
+                
+                return `${i + 1}. | ${mins}м | ${name} | ${auth}`;
+            }).join('\n');
 
-                numAndNameColumn += `\`${i + 1}. ${name}\`\n`;
-                authColumn += `\`${auth}\`\n`;
-                timeColumn += `\`${mins}м\`\n`;
-            });
-
-            embed.addFields(
-                { name: '№ | Никнейм', value: numAndNameColumn, inline: true },
-                { name: 'public_id', value: authColumn, inline: true },
-                { name: 'Время', value: timeColumn, inline: true }
-            );
-        } else {
-            embed.setDescription('Пусто.');
+            description = `\`\`\`text\n${rows}\n\`\`\``;
         }
+
+        const embed = new EmbedBuilder()
+            .setColor(EMBED_COLOR)
+            .setTitle(`Бан-лист — ${bans.length}`)
+            .setDescription(description.slice(0, 4000));
 
         await interaction.reply({ embeds: [embed] });
     }
@@ -636,34 +626,24 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         if (!caller) return;
 
         const mutes = db.getMutes();
-
-        const embed = new EmbedBuilder()
-            .setColor(EMBED_COLOR)
-            .setTitle(`Мут-лист — ${mutes.length}`);
-
+        
+        let description = 'Пусто.';
         if (mutes.length > 0) {
-            let numAndNameColumn = "";
-            let authColumn = "";
-            let timeColumn = "";
-
-            mutes.forEach((m, i) => {
+            const rows = mutes.map((m, i) => {
                 const mins = Math.max(0, Math.round((m.unmuteDate - Date.now()) / 1000 / 60));
                 const name = m.name ?? "UNKNOWN";
                 const auth = m.auth ?? "—";
+                
+                return `${i + 1}. | ${mins}м | ${name} | ${auth}`;
+            }).join('\n');
 
-                numAndNameColumn += `\`${i + 1}. ${name}\`\n`;
-                authColumn += `\`${auth}\`\n`;
-                timeColumn += `\`${mins}м\`\n`;
-            });
-
-            embed.addFields(
-                { name: '№ | Никнейм', value: numAndNameColumn, inline: true },
-                { name: 'public_id', value: authColumn, inline: true },
-                { name: 'Время', value: timeColumn, inline: true }
-            );
-        } else {
-            embed.setDescription('Пусто.');
+            description = `\`\`\`text\n${rows}\n\`\`\``;
         }
+
+        const embed = new EmbedBuilder()
+            .setColor(EMBED_COLOR)
+            .setTitle(`Мут-лист — ${mutes.length}`)
+            .setDescription(description.slice(0, 4000));
 
         await interaction.reply({ embeds: [embed] });
     }
