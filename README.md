@@ -66,11 +66,11 @@ The bot connects to Discord as a real bot application (not webhooks), which prov
 - **Live online status message** — an embed in a dedicated Discord channel is edited once a minute and shows the room name, current player count, the list of players online, and a **"Присоединиться" (Join)** link button pointing at the current room link.
 - Chat/event logs, ban/mute reports, and auto-uploaded match replays go to dedicated Discord channels.
 - **Slash commands mirroring moderation and stats lookup**, with access gated by the same in-room role hierarchy, checked against the caller's linked account:
-  - `MASTER`: `/setrole`, `/getrolelist`, `/password`, `/statsclear`
+  - `MASTER`: `/setrole`, `/getrolelist`, `/password`, `/statsclear`, `/statsbackup`
   - `ADMIN`: `/ban`, `/unban`, `/mute`, `/unmute`, `/bans`, `/mutes`
   - Any linked account (`PLAYER`+): `/tops`, `/stats`, `/account`
 
-  Commands targeting a specific player take their public ID (43 characters) directly, with no nickname resolution. The exception is `/stats`: it's read-only and additionally supports looking a player up by nickname (if several accounts share that nickname, a list is shown with an `index` to disambiguate on a re-run). `/ban`, `/unban`, `/mute`, `/unmute`, and `/password` first write the change to the DB/state, then apply it **instantly, live**, in whichever room the target currently is, via the Node→browser bridge (`window.__applyModeration`) — no need to wait for the player to rejoin.
+  Commands targeting a specific player take their public ID (43 characters) directly, with no nickname resolution. The exception is `/stats`: it's read-only and additionally supports looking a player up by nickname (if several accounts share that nickname, a list is shown with an `index` to disambiguate on a re-run). `/ban`, `/unban`, `/mute`, `/unmute`, and `/password` first write the change to the DB/state, then apply it **instantly, live**, in whichever room the target currently is, via the Node→browser bridge (`window.__applyModeration`) — no need to wait for the player to rejoin. `/statsbackup` snapshots the stats table to a timestamped file and attaches it to the reply, without clearing anything (`/statsclear` is the destructive variant that also wipes the table).
 
 ### Architecture
 
@@ -317,11 +317,11 @@ In-memory smoke tests (`tools/smoke-test.js`) cover the DB layer (accounts, bans
 - **Живое сообщение об онлайне** — embed в отдельном Discord-канале редактируется раз в минуту и показывает название комнаты, текущее число игроков, список игроков онлайн и кнопку-ссылку **"Присоединиться"** на текущую ссылку комнаты.
 - Логи чата и событий, отчёты о банах/мутах и авто-отправка реплеев матчей идут в выделенные Discord-каналы.
 - **Slash-команды, зеркалирующие модерацию и просмотр статистики**, с доступом по той же иерархии ролей, что и в комнате, через привязанный Discord-аккаунт:
-  - `MASTER`: `/setrole`, `/getrolelist`, `/password`, `/statsclear`
+  - `MASTER`: `/setrole`, `/getrolelist`, `/password`, `/statsclear`, `/statsbackup`
   - `ADMIN`: `/ban`, `/unban`, `/mute`, `/unmute`, `/bans`, `/mutes`
   - Любой привязанный аккаунт (`PLAYER`+): `/tops`, `/stats`, `/account`
 
-  Команды, нацеленные на конкретного игрока, принимают его public ID (43 символа) напрямую, без резолвинга по нику. Исключение — `/stats`: она доступна только на чтение и дополнительно поддерживает поиск игрока по нику (при совпадении у нескольких аккаунтов показывается список с `index`, чтобы уточнить повторным вызовом). `/ban`, `/unban`, `/mute`, `/unmute` и `/password` сначала пишут изменение в БД/состояние, а затем применяют его **мгновенно вживую** в той комнате, где сейчас находится цель, через мост Node→browser (`window.__applyModeration`) — без ожидания перезахода игрока.
+  Команды, нацеленные на конкретного игрока, принимают его public ID (43 символа) напрямую, без резолвинга по нику. Исключение — `/stats`: она доступна только на чтение и дополнительно поддерживает поиск игрока по нику (при совпадении у нескольких аккаунтов показывается список с `index`, чтобы уточнить повторным вызовом). `/ban`, `/unban`, `/mute`, `/unmute` и `/password` сначала пишут изменение в БД/состояние, а затем применяют его **мгновенно вживую** в той комнате, где сейчас находится цель, через мост Node→browser (`window.__applyModeration`) — без ожидания перезахода игрока. `/statsbackup` делает снимок таблицы статистики в файл с меткой времени и прикрепляет его к ответу, ничего не очищая (`/statsclear` — деструктивный вариант, который дополнительно очищает таблицу).
 
 ### Архитектура
 

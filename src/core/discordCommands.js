@@ -218,6 +218,9 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
                 .setName('statsclear')
                 .setDescription('[MASTER] Сбросить всю статистику (с бекапом)'),
             new SlashCommandBuilder()
+                .setName('statsbackup')
+                .setDescription('[MASTER] Сделать бекап статистики без сброса'),
+            new SlashCommandBuilder()
                 .setName('ban')
                 .setDescription('[ADMIN] Забанить игрока')
                 .addStringOption(o => o.setName('public_id').setDescription('public_id игрока (43 символа)').setRequired(true))
@@ -375,6 +378,28 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
 
         const payload = {
             embeds: [successEmbed('Статистика сброшена', `Бекап: \`${backup.filename}\`\nзаписей: ${backup.count}`)]
+        };
+
+        if (backup.count > 0) {
+            const fs = require('node:fs');
+            const { AttachmentBuilder } = require('discord.js');
+            const buffer = fs.readFileSync(backup.filePath);
+            payload.files = [new AttachmentBuilder(buffer, { name: backup.filename })];
+        }
+
+        await interaction.editReply(payload);
+    }
+
+    async function handleStatsBackup(interaction) {
+        const caller = await requireLinkedRole(interaction, Role.MASTER);
+        if (!caller) return;
+
+        await interaction.deferReply();
+
+        const backup = await db.backupStats();
+
+        const payload = {
+            embeds: [successEmbed('Бекап статистики создан', `Бекап: \`${backup.filename}\`\nзаписей: ${backup.count}`)]
         };
 
         if (backup.count > 0) {
@@ -728,6 +753,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         getrolelist: handleGetRoleList,
         password: handlePassword,
         statsclear: handleStatsClear,
+        statsbackup: handleStatsBackup,
         ban: handleBan,
         unban: handleUnban,
         mute: handleMute,
