@@ -6,7 +6,7 @@
 
 Bot for a [HaxBall](https://www.haxball.com) room implementing a full volleyball game mode: touch counting, blocks, power serves, aces, automatic team forming, and an admin role system.
 
-The bot runs two rooms at once — **public** and **private** — via two independent headless browser instances, plus a single Discord bot process shared by both rooms. Moderation and stats can be driven either from in-room chat commands or from Discord slash commands, both backed by the same database and role hierarchy.
+The bot runs two rooms at once — **public** and **private** — via two independent headless browser instances, plus a single Discord bot process shared by both rooms. Moderation and stats viewing can be handled either through in-room chat commands or through Discord slash commands — both work off the same database and the same role hierarchy.
 
 ### Game features
 
@@ -30,17 +30,17 @@ The bot runs two rooms at once — **public** and **private** — via two indepe
 
 - **Match point** with auto-extension: if the score ties at the expected match point, the game continues until there's a two-point lead.
 
-- **Training mode** (private room only, `!training` / `!tr`) — a goal-less map with a configurable auto ball spawner (`!ball_spawner` / `!bs`: position, speed, interval, or serve presets `serve_red`/`serve_blue`) for practicing serves and receives.
+- **Training mode** (private room mode only, `!training` / `!tr`) — a goal-less map with a configurable auto ball spawner (`!ball_spawner` / `!bs`: position, speed, interval, or ready-made serve presets `serve_red`/`serve_blue`) for practicing serves and receives.
 
   ![Training mode demo](docs/media/training-demo.gif)
 
 #### Teams and queue
 
-- Automatic team forming: **random** mode or **captains** mode (captains take turns picking players from spectators, chosen via `!teampick` / `!tp`).
-- **Winstay** (`!winstay`) — the winning team stays on the field, continuing to play in the same lineup (matched by a 2/3 majority of the previous roster) until it loses.
+- Automatic team forming: **random** mode or **captains** mode (captains take turns picking players from spectators), switched via `!teampick` / `!tp`.
+- **Winstay** (`!winstay`) — the winning team stays on the field, continuing to play in the same lineup (roster match is judged by a 2/3-majority rule) until it loses.
 - Spectator queue prioritized by number of missed games, plus a separate **VIP queue**.
-- Team size automatically adjusts to the number of active players (`!team_size` / `!ts` to override).
-- `!up` — a VIP+ command letting a player book a captain slot for the next captains-mode formation, with a room-wide cooldown. If the booked player isn't present anymore when the pick starts, the booking is simply dropped.
+- Team size automatically adjusts to the number of active players (`!team_size` / `!ts` to set manually).
+- `!up` — a VIP+ command letting a player book a captain slot for the next captains-mode formation, with a room-wide cooldown. If the player who booked isn't present anymore by the time picking starts, the booking is simply dropped.
 
 #### Roles and moderation
 
@@ -49,28 +49,28 @@ The bot runs two rooms at once — **public** and **private** — via two indepe
 - Ability to enable a mode where only players from the whitelisted public ID list (`!add_auth`) can join.
 - Colored chat nickname for VIP and above (`!color`).
 - A separate VIP password, refreshed hourly and set on the room once a certain number of VIP slots remain, letting VIP players enter an otherwise "full" room.
-- `!account` — view your own account (role, expiry date, linked Discord) or, for ADMIN+, another player's by `#ID` or public ID.
+- `!account` — view your own account (role, expiry date, linked Discord) or, for ADMIN and above, another player's by `#ID` or public ID.
 
 #### Stats and social features
 
 - Personal stats: games, wins, goals, blocks, percentage of blocks beaten (POB), assists, errors, aces, serves, play time.
 - Player leaderboards for any tracked stat (`!tops`).
-- Nickname history (`!deanon`) to recognize players by past names.
+- Nickname history (`!deanon`) to recognize players by past nicknames.
 
 #### Discord integration
 
-The bot connects to Discord as a real bot application (not webhooks), which enables:
+The bot connects to Discord as a real bot application (not webhooks), which provides:
 
-- **Account linking** (`!discord <code>` in the room + `/link` in Discord) — ties a player's HaxBall public ID to their Discord account. `!discordunlink` / `/unlink` reverse it.
-- **Automatic role sync** — when a player's in-room role (`VIP`/`PREADMIN`/`ADMIN`/`MASTER`) changes, is set, expires, or the player rejoins the room, their Discord role is granted or revoked to match, as long as their Discord account is linked and they're a member of the configured guild.
-- **Live online status message** — an embed in a dedicated Discord channel is edited once a minute to show the room name, current player count, the list of players online, and a **"Присоединиться" (Join)** link button pointing at the current room link.
-- Chat/event logs, ban/mute reports, and auto-uploaded match replays are posted to dedicated Discord channels.
-- **Slash-command mirrors of moderation and lookup commands**, gated by the same in-room role hierarchy via the caller's linked account:
+- **Account linking** (`/link` in Discord + `!discord <code>` in the room) — ties a player's HaxBall public ID to their Discord account. `!discordunlink` / `/unlink` undo it.
+- **Automatic role sync** — when a player's in-room role (`VIP`/`PREADMIN`/`ADMIN`/`MASTER`) is granted, changed, expires, or the player rejoins the room, their Discord role is granted or revoked to match, as long as their Discord is linked and they're a member of the configured guild.
+- **Live online status message** — an embed in a dedicated Discord channel is edited once a minute and shows the room name, current player count, the list of players online, and a **"Присоединиться" (Join)** link button pointing at the current room link.
+- Chat/event logs, ban/mute reports, and auto-uploaded match replays go to dedicated Discord channels.
+- **Slash commands mirroring moderation and stats lookup**, with access gated by the same in-room role hierarchy, checked against the caller's linked account:
   - `MASTER`: `/setrole`, `/getrolelist`, `/password`, `/statsclear`
   - `ADMIN`: `/ban`, `/unban`, `/mute`, `/unmute`, `/bans`, `/mutes`
-  - `PLAYER` (any linked account): `/tops`, `/stats`, `/account`
+  - Any linked account (`PLAYER`+): `/tops`, `/stats`, `/account`
 
-  Commands that target a specific player take a raw public ID (43-char auth) rather than resolving nicknames. The one exception is `/stats`, which is read-only and additionally supports looking a player up by nickname (a disambiguation list with an `index` to re-run against is shown if several accounts share the nickname); `/tops` has no per-player targeting at all, it just lists a leaderboard. `/ban`, `/unban`, `/mute`, `/unmute`, and `/password` write to the DB/state first and then push an **instant live effect** into whichever room the target is currently in via a Node→browser bridge (`window.__applyModeration`) — no rejoin or wait required.
+  Commands targeting a specific player take their public ID (43 characters) directly, with no nickname resolution. The exception is `/stats`: it's read-only and additionally supports looking a player up by nickname (if several accounts share that nickname, a list is shown with an `index` to disambiguate on a re-run). `/ban`, `/unban`, `/mute`, `/unmute`, and `/password` first write the change to the DB/state, then apply it **instantly, live**, in whichever room the target currently is, via the Node→browser bridge (`window.__applyModeration`) — no need to wait for the player to rejoin.
 
 ### Architecture
 
@@ -93,27 +93,27 @@ Browser context (src/browser/entry.js)
 HaxBall Room API (HBInit)
 ```
 
-- The **Node side** owns the browser lifecycle, bundle building (esbuild), the single access point to SQLite — `window.__dbCall`, exposed to the browser via `page.exposeFunction` — and the single access point to Discord — `window.__discordCall`, exposed the same way. It also owns the Discord bot client itself, including slash-command registration and handling.
-- The **browser side** (all code under `src/core/*`) is plain JS with no Node APIs, bundled by esbuild and executed inside the HaxBall page. DB calls go asynchronously through the bridge `window.__db.*` → `__dbCall` → Node → SQLite. Discord calls go the same way through `window.__discord.*` → `__discordCall` → Node → `discord.js` client.
-- The Discord bot client itself (login, slash commands, role management, message editing) only exists on the Node side — it's never bundled into the browser context, since a real gateway connection needs Node APIs the sandboxed page doesn't have.
-- A **reverse bridge** runs the other way: `src/index.js` exposes `applyModeration` (broadcast to both rooms) and `applyToRoom` (targeted at one room) to the Discord slash-command layer, which call `window.__applyModeration(action)` inside the relevant page(s) via `page.evaluate` — no `page.exposeFunction` registration is needed for this direction, since `page.evaluate` can always reach into the page's global scope from Node.
+- The **Node side** is responsible for the browser lifecycle, bundle building (esbuild), the single access point to SQLite — `window.__dbCall`, exposed to the browser via `page.exposeFunction` — and the single access point to Discord — `window.__discordCall`, exposed the same way. The Discord bot client itself lives here too, including slash-command registration and handling.
+- The **browser side** (all code under `src/core/*`) is plain JS with no Node APIs, bundled by esbuild and run inside the HaxBall page. DB calls go asynchronously through the bridge `window.__db.*` → `__dbCall` → Node → SQLite. Discord calls go the same way through `window.__discord.*` → `__discordCall` → Node → the `discord.js` client.
+- The Discord bot itself (login, slash commands, role management, message editing) only exists on the Node side — it never gets bundled into the browser context, since a real Gateway connection needs Node APIs that aren't available in the page's sandbox.
+- A **reverse bridge** runs the other way: `src/index.js` exposes `applyModeration` (broadcast to both rooms) and `applyToRoom` (targeted at one room) to the Discord slash-command layer, which call `window.__applyModeration(action)` inside the relevant page(s) via `page.evaluate` — no `page.exposeFunction` registration is needed for this direction, since `page.evaluate` can always reach into the page's global scope from the Node side.
 
 #### Directory layout
 
 ```
 main.js                  — entry point, loads .env
 src/
-  index.js                — launches Puppeteer, builds bundle, DB + Discord bridges, boots the Discord bot, wires the moderation bridges
+  index.js                — launches Puppeteer, builds the bundle, DB and Discord bridges, boots the Discord bot, wires up the moderation bridges
   browser/
-    entry.js               — entry point inside the browser context, wires up all modules, exposes window.__applyModeration
+    entry.js               — entry point in the browser context, wires up all the modules, exposes window.__applyModeration
   core/
     config.js               — secrets and tokens from process.env
     roomConstants.js         — public/private room configs
-    maps.js                  — stadium maps (with/without goals)
+    maps.js                  — stadium maps (with goals / without goals)
     announcementMessages.js  — rotating promo announcements
-    safeEventHandlers.js     — wraps room.onX handlers with error catching
-    discordBot.js            — Node-only Discord bot client (discord.js): login, slash-command registration/dispatch, link codes, role sync, channel messages, online embed
-    discordCommands.js       — slash-command definitions and handlers (setrole, ban/mute/unban/unmute, bans/mutes, tops, stats, account, password, statsclear)
+    safeEventHandlers.js     — wraps room.onX with error catching
+    discordBot.js            — Node-only Discord bot client (discord.js): login, slash-command registration/handling, link codes, role sync, channel messages, online embed
+    discordCommands.js       — slash-command definitions and handlers
     models/
       enums.js                — Role, Color, Team, Mods, Sits, etc.
       models.js                — Game, MuteList, MutePlayer
@@ -121,7 +121,7 @@ src/
       utils.js                 — various utility functions
       roomUtils.js              — utility functions that need the room object to work
       roles.js                  — getRole/setRole/checkRoles (DB-backed, triggers Discord role sync)
-      discord.js                — browser-side thin bridge class, forwards calls to window.__discord.*
+      discord.js                — thin browser-side bridge, forwards calls to window.__discord.*
       spawnRange.js             — parses "min..max" range syntax for training-mode spawn parameters
       reports.js                — replay file naming
     services/
@@ -129,7 +129,7 @@ src/
       captains.js                — captain-pick logic
       updates.js                 — team forming, winstay, randomizer, VIP `!up` booking resolution
       intervals.js                — all setInterval loops (bans, mutes, roles, announcements, online embed, game tick)
-      training.js                 — training mode ball spawner
+      training.js                 — training-mode ball spawner
       accounts.js                 — account view formatting (`!account`/`/account`) and target-auth resolution
     commands/
       commands.js                 — command registry → role → handler
@@ -140,7 +140,7 @@ db/
   sqlite.js               — wrapper over node:sqlite (DatabaseSync), schema and queries
 scripts/
   add-master.js             — one-off MASTER role grant directly in the DB
-  send-online-messages.js    — one-off: posts the two initializing messages the bot will later edit into the live online embeds
+  send-online-messages.js    — one-off: posts the two initializing messages that the bot later edits into the live online embeds
 tools/
   smoke-test.js             — in-memory smoke tests for the DB layer and role logic
 .github/workflows/
@@ -150,11 +150,11 @@ tools/
 
 #### Storage
 
-SQLite via the built-in `node:sqlite` module (`db/volleyball.sqlite`, WAL mode). Tables: `accounts`, `bans`, `mutes`, `nicknames`, `auths`, `stats`. `db/sqlite.js` is the only place with raw SQL; the browser side only ever sees promisified methods, and Discord slash-command handlers call the same `db` instance directly on the Node side. The `accounts.discord` column stores the linked Discord user ID once a player links their account.
+SQLite via the built-in `node:sqlite` module (`db/volleyball.sqlite`, WAL mode). Tables: `accounts`, `bans`, `mutes`, `nicknames`, `auths`, `stats`. `db/sqlite.js` is the only place with raw SQL; the browser side only ever sees promisified methods, and the Discord slash-command handlers call the same `db` instance directly on the Node side. The `accounts.discord` column stores the linked Discord user ID once a player links their account.
 
 #### DB access boundary
 
-`page.evaluate` registers an **explicit whitelist** of methods reachable from the browser (`getBans`, `setRole`, `incrementStat`, `setDiscordId`, `getAccountByDiscordId`, etc.) — browser code cannot call an arbitrary `db` method, only the ones listed in `src/index.js`. The same explicit-whitelist pattern is used for the Discord bridge (`sendLog`, `syncRoleForAuth`, `consumeLinkCode`, `updateOnlineMessage`, etc.).
+`page.evaluate` registers an **explicit whitelist** of methods reachable from the browser (`getBans`, `setRole`, `incrementStat`, `setDiscordId`, `getAccountByDiscordId`, etc.) — browser code can't call an arbitrary `db` method, only the ones listed in `src/index.js`. The same explicit-whitelist approach is used for the Discord bridge (`sendLog`, `syncRoleForAuth`, `consumeLinkCode`, `updateOnlineMessage`, etc.).
 
 ### Requirements
 
@@ -198,14 +198,14 @@ DISCORD_PRIVATE_ONLINE_CHANNEL_ID="discord channel id"
 DISCORD_PRIVATE_ONLINE_MESSAGE_ID="filled in after running scripts/send-online-messages.js"
 ```
 
-`PUBLIC_TOKEN`/`PRIVATE_TOKEN` are HaxBall headless tokens for the respective room.
+`PUBLIC_TOKEN`/`PRIVATE_TOKEN` are the HaxBall headless tokens for the respective room.
 
 #### Discord bot setup
 
 1. Create an application at the [Discord Developer Portal](https://discord.com/developers/applications), add a Bot user, and copy its token into `DISCORD_BOT_TOKEN`.
 2. Under **Bot**, enable the **Server Members Intent** — required for role management (`guild.members.fetch`).
 3. Under **OAuth2 → URL Generator**, select scopes `bot` and `applications.commands`, with permissions at least `Manage Roles`, `Send Messages`, `Attach Files`, `Read Message History`. Use the generated link to invite the bot to your server.
-4. Create (or reuse) four Discord roles matching `VIP`/`PREADMIN`/`ADMIN`/`MASTER`. **The bot's own role must sit above all four in the role list**, or Discord won't let it grant/revoke them. Copy each role's ID into `.env`.
+4. Create (or reuse) four Discord roles matching `VIP`/`PREADMIN`/`ADMIN`/`MASTER`. **The bot's own role must sit above all four in the server's role list**, or Discord won't let it grant/revoke them. Copy each role's ID into `.env`.
 5. Create (or reuse) channels for logs, moderation reports, replays, and the VIP password, and copy their IDs into `.env`.
 6. Create (or reuse) one channel per room (public/private) for the live online status message, and fill in `DISCORD_PUBLIC_ONLINE_CHANNEL_ID` / `DISCORD_PRIVATE_ONLINE_CHANNEL_ID`.
 7. Run `node scripts/send-online-messages.js` once — it logs in as the bot and posts one initializing message per room into the channels from step 6 (the bot can only edit its own messages, so these need to exist before the bot can start updating them). Copy the two printed message IDs into `DISCORD_PUBLIC_ONLINE_MESSAGE_ID` / `DISCORD_PRIVATE_ONLINE_MESSAGE_ID`.
@@ -217,11 +217,11 @@ DISCORD_PRIVATE_ONLINE_MESSAGE_ID="filled in after running scripts/send-online-m
 npm start
 ```
 
-Runs `main.js`, which logs in the Discord bot, then launches **both** rooms (public + private) in parallel. Room links and the VIP password will appear in the console log. Once a room is up, its Discord online-status embed will start updating (once a minute) with the current player count, player list, and a join button.
+Runs `main.js`, which logs in the Discord bot, then launches **both** rooms (public + private) in parallel. Room links and the VIP password will appear in the console log. Once a room is up, its Discord online-status embed will start updating (once a minute) with the current player count, the player list, and a join button.
 
 #### Granting the MASTER role
 
-The first master must be granted manually, since `!setrole` (and `/setrole`) doesn't allow assigning this role:
+The first master has to be granted manually, since `!setrole` (and `/setrole`) doesn't allow assigning this role:
 
 ```bash
 node scripts/add-master.js <public_id>
@@ -233,10 +233,10 @@ The bot needs to be restarted for the change to take effect.
 
 1. In Discord, run `/link`. The bot replies (visible only to you) with a short code and instructions.
 2. In the HaxBall room, run `!discord <code>` with that code.
-3. On success, the player's HaxBall `auth` is tied to their Discord user ID (stored in `accounts.discord`), and any role they already hold is immediately synced to Discord.
-4. To unlink, run either `/unlink` in Discord or `!discordunlink` in the room (admins can also unlink another player via `!discordunlink <#ID | AUTH>`).
+3. On success, the player's HaxBall `auth` is tied to their Discord ID (stored in `accounts.discord`), and any role they already hold is immediately synced to Discord.
+4. To unlink — run `/unlink` in Discord, or `!discordunlink` in the room (admins can also unlink another player's account: `!discordunlink <#ID | AUTH>`).
 
-Linking is also what unlocks the player-tier Discord slash commands (`/tops`, `/stats`, `/account`) and, for higher roles, the moderation ones — access is checked against the linked account's in-room role every time a command runs.
+Linking an account is also what unlocks the player-tier Discord slash commands (`/tops`, `/stats`, `/account`) and, for higher roles, the moderation ones — access is checked against the linked account's in-room role every time a command runs.
 
 ### Tests
 
@@ -244,11 +244,11 @@ Linking is also what unlocks the player-tier Discord slash commands (`/tops`, `/
 npm run test:smoke
 ```
 
-In-memory smoke tests (`tools/smoke-test.js`) cover the DB layer (accounts, bans, stats, nicknames, mutes) and part of the business logic (`MuteList`, `getRole`/`setRole`). Run in CI on every push and PR (`.github/workflows/ci.yaml`).
+In-memory smoke tests (`tools/smoke-test.js`) cover the DB layer (accounts, bans, stats, nicknames, mutes) and part of the business logic (`MuteList`, `getRole`/`setRole`). They run in CI on every push and PR (`.github/workflows/ci.yaml`).
 
 ### Deployment
 
-`.github/workflows/deploy.yaml`, on push to `main`, runs `git reset --hard`, `npm ci`, and restarts the process via `pm2` on a self-hosted runner.
+`.github/workflows/deploy.yaml`, on push to `main`, does `git reset --hard`, `npm ci`, and restarts the process via `pm2` on a self-hosted runner.
 
 ---
 
@@ -281,7 +281,7 @@ In-memory smoke tests (`tools/smoke-test.js`) cover the DB layer (accounts, bans
 
 - **Матч-поинт** с автопродлением: если счёт сравнивается на предполагаемом матч-поинте, игра продолжается до перевеса.
 
-- **Тренировочный режим** (только в приватной комнате, `!training` / `!tr`) — карта без ворот и настраиваемый автоспавнер мяча (`!ball_spawner` / `!bs`: позиция, скорость, интервал, либо готовые пресеты подачи `serve_red`/`serve_blue`) для отработки подач и приёма.
+- **Тренировочный режим** (только в приватном моде комнаты, `!training` / `!tr`) — карта без ворот и настраиваемый автоспавнер мяча (`!ball_spawner` / `!bs`: позиция, скорость, интервал, либо готовые пресеты подачи `serve_red`/`serve_blue`) для отработки подач и приёма.
 
   ![Тренировочный режим — демо](docs/media/training-demo.gif)
 
