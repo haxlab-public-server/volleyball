@@ -12,7 +12,22 @@ jobs:
       - name: Deploy
         run: |
           cd /home/runner/volleyball
+
+          BEFORE_SHA=$(git rev-parse HEAD)
+
           git fetch origin main
           git reset --hard origin/main
-          npm ci
-          pm2 restart volleyball || pm2 start main.js --name "volleyball"
+
+          CHANGED_FILES=$(git diff --name-only "$BEFORE_SHA" origin/main)
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
+          IGNORE_REGEX='^(README\.md|LICENSE|\.gitignore|docs/|\.github/)'
+
+          if echo "$CHANGED_FILES" | grep -qvE "$IGNORE_REGEX"; then
+            echo "Code-relevant files changed — restarting"
+            npm ci
+            pm2 restart volleyball || pm2 start main.js --name "volleyball"
+          else
+            echo "Only docs/readme changed — skipping restart"
+          fi
