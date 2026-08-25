@@ -26,7 +26,12 @@ jobs:
 
           if echo "$CHANGED_FILES" | grep -qvE "$IGNORE_REGEX"; then
             echo "Code-relevant files changed — restarting"
-            npm ci
+            if [ ! -d node_modules ] || echo "$CHANGED_FILES" | grep -qE '^(package\.json|package-lock\.json)$'; then
+              echo "Dependencies changed or node_modules is missing — installing"
+              npm ci
+            else
+              echo "Dependencies unchanged — skipping npm ci"
+            fi
             pm2 restart volleyball || pm2 start main.js --name "volleyball"
           else
             echo "Only docs/readme changed — skipping restart"
