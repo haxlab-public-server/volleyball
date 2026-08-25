@@ -505,6 +505,11 @@ module.exports = function createUpdatesUtils({
     }
 
     async function performRandomize() {
+        const fieldPlayers = getTeamArray(Team.RED).concat(getTeamArray(Team.BLUE));
+        for (const player of fieldPlayers) {
+            room.setPlayerTeam(player.id, Team.SPECTATORS);
+        }
+
         let specs = getTeamArray(Team.SPECTATORS);
         const winstay = isWinstayActive();
         let takeCount;

@@ -75,8 +75,11 @@ module.exports = function createActivityEvents({
             const firstWord = msgArray[0]?.toLowerCase() || '';
 
             if (state.sit === Sits.CHOICE && isCurrentPickingCaptain(player) && isPickMessage(message)) {
-                capPick(player, player.team, parseInt(message, 10));
-                await continueCaptainPick();
+                const picked = capPick(player, player.team, parseInt(message, 10));
+                if (picked) {
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                    await continueCaptainPick();
+                }
                 return;
             }
 
