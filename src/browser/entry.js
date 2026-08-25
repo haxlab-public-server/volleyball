@@ -35,6 +35,18 @@ const room = HBInit(buildGameConfig(window.__secrets.token, config));
 const cf = room.CollisionFlags;
 const db = window.__db;
 
+/*
+ * Locale. window.__locale is set by src/index.js (Node side) as part of
+ * the same page.evaluate payload as __roomConfig/__secrets — it's just
+ * the locale code string (e.g. "ru"), not the dictionary itself, so
+ * createLocale() re-resolves the actual translations from
+ * src/core/locale/*.js, which esbuild bundles into this same page
+ * script. To change language, set LOCALE in .env — nothing in this file
+ * needs to change. To add a language, see src/core/locale/index.js.
+ */
+const { createLocale } = require('../core/locale');
+const { t, stringToTime, getStringTime } = createLocale(window.__locale);
+
 /* Models */
 const {
     Role,
@@ -57,17 +69,16 @@ const {
     room,
     db,
     Color,
-    HaxNotification
+    HaxNotification,
+    t
 });
 
 const muteArray = new MuteList();
-const MutePlayer = createMutePlayer(muteArray, room, Color, HaxNotification);
+const MutePlayer = createMutePlayer(muteArray, room, Color, HaxNotification, t);
 
 /* Utils */
 const {
     getOnlyInt,
-    stringToTime,
-    getStringTime,
     getStatTime,
     getActTime,
     getDate,
@@ -172,7 +183,8 @@ const {
     RoleString,
     Color,
     HaxNotification,
-    discordBot
+    discordBot,
+    t
 })
 
 /* Services */
@@ -185,7 +197,8 @@ const {
     db,
     getAuth,
     discordBot,
-    getDate
+    getDate,
+    t
 })
 
 const createCaptainsHelpers = require('../core/services/captains');
@@ -202,7 +215,8 @@ const {
     getTeamArray,
     Team,
     Color,
-    HaxNotification
+    HaxNotification,
+    t
 })
 
 const createUpdatesUtils = require('../core/services/updates');
@@ -236,7 +250,8 @@ const {
     getPickTeam,
     getCaptain,
     sendPickList,
-    clearCaptainPickTimer
+    clearCaptainPickTimer,
+    t
 })
 
 const createTrainingService = require('../core/services/training');
@@ -280,7 +295,8 @@ createIntervals({
     Discord,
     Telegram,
     roomName,
-    maxPlayers
+    maxPlayers,
+    t
 })
 
 const createChatHelpers = require('../core/services/chat');
@@ -350,7 +366,8 @@ const {
     defaultTeamSize,
     discordBot,
     formatAccountView,
-    resolveTargetAuth
+    resolveTargetAuth,
+    t
 })
 
 /* VIP commands */
@@ -372,7 +389,8 @@ const {
     Mods,
     Color,
     HaxNotification,
-    vipUpCooldownMs
+    vipUpCooldownMs,
+    t
 })
 
 /* Admin commands */
@@ -401,7 +419,8 @@ const {
     Discord,
     Telegram,
     db,
-    discordBot
+    discordBot,
+    t
 })
 
 /* Master commands */
@@ -439,7 +458,8 @@ const {
     defaultTeamSize,
     TeamPickModeString,
     discordBot,
-    formatAccountView
+    formatAccountView,
+    t
 })
 
 /* Commands init */
@@ -519,7 +539,8 @@ Object.assign(room, wrapEventHandlers(createMovementEvents({
     Sits,
     getPickTeam,
     getCaptain,
-    sendPickList
+    sendPickList,
+    t
 })));
 
 /* Activity events */
@@ -548,7 +569,8 @@ Object.assign(room, wrapEventHandlers(createActivityEvents({
     updateBallColor,
     Sits,
     isCurrentPickingCaptain,
-    capPick
+    capPick,
+    t
 })));
 
 /* Game events */
@@ -578,7 +600,8 @@ Object.assign(room, wrapEventHandlers(createGameEvents({
     HaxNotification,
     TeamPickMode,
     Sits,
-    defaultTeamSize
+    defaultTeamSize,
+    t
 })));
 
 /* Misc events */
@@ -588,7 +611,8 @@ Object.assign(room, wrapEventHandlers(createMiscEvents({
     getRole,
     roomName,
     state,
-    discordBot
+    discordBot,
+    t
 })));
 
 /*
@@ -599,20 +623,6 @@ Object.assign(room, wrapEventHandlers(createMiscEvents({
  * No page.exposeFunction registration is needed for this direction:
  * Puppeteer's page.evaluate can always reach into the page's global
  * scope from Node, so exposing window.__applyModeration here is enough.
- *
- * action: {
- *   type: 'ban' | 'unban' | 'mute' | 'unmute' | 'password',
- *   auth: string,        // ban/unban/mute/unmute
- *   name?: string,       // display name for ban/mute announcements
- *   reason?: string,
- *   timeStr?: string,    // pre-formatted duration, e.g. "10мин"
- *   unmuteDate?: number, // for 'mute'
- *   muteId?: number,     // for 'mute', matches the row written to db.addMute
- *   value?: string|null  // for 'password' — new password, or null to clear
- * }
- * Returns true if the action had an effect in this particular room (ban/
- * mute/unban/unmute: target was found online here; password: always true,
- * since it doesn't depend on any player being present).
  */
 window.__applyModeration = function (action) {
     try {
@@ -636,7 +646,7 @@ window.__applyModeration = function (action) {
             }
 
             room.sendAnnouncement(
-                `Ваша роль была обновлена: ${action.roleName}. Для подробной информации введите !account`,
+                t('role.liveUpdateNotice', { roleName: action.roleName }),
                 online.id,
                 Color.WH_BLUE,
                 'bold',
@@ -647,17 +657,17 @@ window.__applyModeration = function (action) {
         if (action.type === 'ban') {
             if (!online) return false;
 
-            const timeStr = action.timeStr ? ` на ${action.timeStr}` : ''
-            const reasonStr = action.reason ? ` по причине: ${action.reason}` : ''
+            const timeStr = action.timeStr ? t('ban.timeSuffix', { time: action.timeStr }) : ''
+            const reasonStr = action.reason ? t('ban.reasonSuffix', { reason: action.reason }) : ''
 
             room.kickPlayer(
                 online.id,
-                `${action.name ?? 'Администратор'} забанил вас${timeStr}${reasonStr}\n discord: ${Discord}`,
+                t('ban.kickMessageLive', { admin: action.name ?? t('role.names.admin'), time: timeStr, reason: reasonStr, discord: Discord }),
                 false
             );
 
             room.sendAnnouncement(
-                `${action.name ?? 'Администратор'} забанил ${online.name}${timeStr}${reasonStr}.`,
+                t('ban.announceLive', { admin: action.name ?? t('role.names.admin'), target: online.name, time: timeStr, reason: reasonStr }),
                 null,
                 Color.RED,
                 'bold',
@@ -681,11 +691,11 @@ window.__applyModeration = function (action) {
             muteObj.unmuteDate = action.unmuteDate;
             muteArray.list.push(muteObj);
 
-            const timeStr = action.timeStr ? ` на ${action.timeStr}` : ''
-            const reasonStr = action.reason ? ` по причине: ${action.reason}` : ''
+            const timeStr = action.timeStr ? t('mute.timeSuffix', { time: action.timeStr }) : ''
+            const reasonStr = action.reason ? t('mute.reasonSuffix', { reason: action.reason }) : ''
 
             room.sendAnnouncement(
-                `${action.name ?? 'Администратор'} замутил ${online.name}${timeStr}${reasonStr}.`,
+                t('mute.success', { admin: action.name ?? t('role.names.admin'), target: online.name, time: timeStr, reason: reasonStr }),
                 null,
                 Color.RED,
                 'bold',
@@ -700,7 +710,7 @@ window.__applyModeration = function (action) {
                 muteArray.list = muteArray.list.filter(m => m.id !== muteObj.id);
                 if (online) {
                     room.sendAnnouncement(
-                        `Теперь ты можешь говорить.`,
+                        t('mute.canSpeak'),
                         online.id,
                         Color.GR_GREEN,
                         'bold',

@@ -17,7 +17,8 @@ module.exports = function createMasterCommands({
     defaultTeamSize,
     TeamPickModeString,
     discordBot,
-    formatAccountView
+    formatAccountView,
+    t
 }) {
     function parsePlayerId(arg) {
         const idStr = arg.startsWith('#') ? arg.slice(1) : arg;
@@ -25,13 +26,10 @@ module.exports = function createMasterCommands({
         return Number.isInteger(id) && id >= 0 ? id : null;
     }
 
-    const ROLE_NAMES = {
-        [Role.MASTER]: 'Создатель',
-        [Role.ADMIN]: 'Администратор',
-        [Role.PREADMIN]: 'Мл. Администратор',
-        [Role.VIP]: 'VIP',
-        [Role.PLAYER]: 'игрок'
-    };
+    function roleDisplayName(roleValue) {
+        const roleKey = Object.keys(RoleString).find(k => RoleString[k] === roleValue);
+        return t(`role.names.${roleKey}`);
+    }
 
     function passwordCommand(player, message) {
         const args = message.split(/ +/).slice(1);
@@ -40,7 +38,7 @@ module.exports = function createMasterCommands({
             state.roomPassword = null;
             room.setPassword(null);
             room.sendAnnouncement(
-                `Пароль был сброшен - ${player.name}`,
+                t('password.cleared', { admin: player.name }),
                 null,
                 Color.WH_GREEN,
                 'small',
@@ -52,7 +50,7 @@ module.exports = function createMasterCommands({
         state.roomPassword = args[0];
         room.setPassword(args[0]);
         room.sendAnnouncement(
-            `Теперь пароль от комнаты: ${args[0]} - ${player.name}`,
+            t('password.set', { password: args[0], admin: player.name }),
             null,
             Color.WH_GREEN,
             'small',
@@ -65,7 +63,7 @@ module.exports = function createMasterCommands({
 
         if (args.length === 0 || args[0].length !== 43) {
             room.sendAnnouncement(
-                `Ошибка. Нужно написать паблик айди`,
+                t('auth.needPublicId'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -78,7 +76,7 @@ module.exports = function createMasterCommands({
 
         if (!(await db.addAuth(auth))) {
             room.sendAnnouncement(
-                `Этот паблик уже в списке`,
+                t('auth.alreadyInList'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -88,7 +86,7 @@ module.exports = function createMasterCommands({
         }
 
         room.sendAnnouncement(
-            `${auth} был добавлен в список авторизированных игроков`,
+            t('auth.added', { auth }),
             player.id,
             Color.WH_BLUE,
             'small',
@@ -101,7 +99,7 @@ module.exports = function createMasterCommands({
 
         if (args.length === 0 || args[0].length !== 43) {
             room.sendAnnouncement(
-                `Ошибка. Нужно написать паблик айди`,
+                t('auth.needPublicId'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -114,7 +112,7 @@ module.exports = function createMasterCommands({
 
         if (!(await db.removeAuth(auth))) {
             room.sendAnnouncement(
-                `Этого паблика нет в списке`,
+                t('auth.notInList'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -124,7 +122,7 @@ module.exports = function createMasterCommands({
         }
 
         room.sendAnnouncement(
-            `${auth} был удалён из списка авторизированных игроков`,
+            t('auth.removed', { auth }),
             player.id,
             Color.WH_BLUE,
             'small',
@@ -135,7 +133,7 @@ module.exports = function createMasterCommands({
     async function clearAuthsCommand(player) {
         await db.clearAuths();
         room.sendAnnouncement(
-            `Список авторизированных игроков был очищен`,
+            t('auth.cleared'),
             player.id,
             Color.WH_BLUE,
             'small',
@@ -148,7 +146,7 @@ module.exports = function createMasterCommands({
 
         if (args.length === 0 || args[0] === 'mode') {
             room.sendAnnouncement(
-                `Сейчас вход только авторизированных игроков: ${state.joinAuths ? 'включён' : 'выключен'}`,
+                t('auth.joinModeStatus', { status: state.joinAuths ? t('auth.statusOn') : t('auth.statusOff') }),
                 player.id,
                 Color.WH_GREEN,
                 'small',
@@ -162,7 +160,7 @@ module.exports = function createMasterCommands({
         if (value === 'on' || value === 'true') {
             state.joinAuths = true;
             room.sendAnnouncement(
-                `Вход только авторизированых игроков включён - ${player.name}`,
+                t('auth.joinModeOn', { admin: player.name }),
                 null,
                 Color.WH_GREEN,
                 'small',
@@ -174,7 +172,7 @@ module.exports = function createMasterCommands({
         if (value === 'off' || value === 'false') {
             state.joinAuths = false;
             room.sendAnnouncement(
-                `Вход только авторизированых игроков выключен - ${player.name}`,
+                t('auth.joinModeOff', { admin: player.name }),
                 null,
                 Color.WH_GREEN,
                 'small',
@@ -184,7 +182,7 @@ module.exports = function createMasterCommands({
         }
 
         room.sendAnnouncement(
-            `Ошибка. Такого варианта не существует: mode / on / off`,
+            t('auth.invalidOption'),
             player.id,
             Color.GR_RED,
             'small',
@@ -201,7 +199,7 @@ module.exports = function createMasterCommands({
                 .join(', ');
 
             room.sendAnnouncement(
-                `Список модов работы комнаты: ${list}.`,
+                t('mode.list', { list }),
                 player.id,
                 Color.WH_BLUE,
                 'small',
@@ -214,7 +212,7 @@ module.exports = function createMasterCommands({
 
         if (!(modeKey in Mods)) {
             room.sendAnnouncement(
-                `Некорректное название мода, "!mode list" - чтобы узнать список доступных модов комнаты`,
+                t('mode.invalidMode'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -225,7 +223,7 @@ module.exports = function createMasterCommands({
 
         if (Mods[modeKey] === state.mode) {
             room.sendAnnouncement(
-                `Этот мод уже стоит`,
+                t('mode.alreadySet'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -241,7 +239,7 @@ module.exports = function createMasterCommands({
         }
 
         room.sendAnnouncement(
-            `Теперь мод комнаты: ${args[0].toLowerCase()}`,
+            t('mode.changed', { mode: args[0].toLowerCase() }),
             player.id,
             Color.WH_GREEN,
             'small',
@@ -259,7 +257,7 @@ module.exports = function createMasterCommands({
         }
 
         room.sendAnnouncement(
-            `Статистика была сброшена (бекап: ${backup.filename}, записей: ${backup.count})`,
+            t('statsReset.done', { filename: backup.filename, count: backup.count }),
             null,
             Color.WH_GREEN,
             'small',
@@ -272,7 +270,7 @@ module.exports = function createMasterCommands({
 
         if (args.length === 0) {
             room.sendAnnouncement(
-                `Напишите число или "info"`,
+                t('matchPoint.usage'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -283,7 +281,7 @@ module.exports = function createMasterCommands({
 
         if (args[0].toLowerCase() === 'info') {
             room.sendAnnouncement(
-                `Текущая игра (если идёт) до ${state.newMatchPoint} мячей.`,
+                t('matchPoint.info', { value: state.newMatchPoint }),
                 player.id,
                 Color.WH_GREEN,
                 'small',
@@ -295,7 +293,7 @@ module.exports = function createMasterCommands({
         const num = Number(args[0]);
         if (isNaN(num)) {
             room.sendAnnouncement(
-                `Некорректное число`,
+                t('matchPoint.invalidNumber'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -306,7 +304,7 @@ module.exports = function createMasterCommands({
 
         state.matchPoint = num;
         room.sendAnnouncement(
-            `Теперь игра идёт до ${num} мячей! Изменения войдут в силу со следующей игры (если текущая идёт).`,
+            t('matchPoint.changed', { value: num }),
             player.id,
             Color.WH_GREEN,
             'small',
@@ -319,7 +317,7 @@ module.exports = function createMasterCommands({
 
         if (args.length === 0) {
             room.sendAnnouncement(
-                `Напишите число`,
+                t('teamSize.usage'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -331,7 +329,7 @@ module.exports = function createMasterCommands({
         const num = Number(args[0]);
         if (isNaN(num)) {
             room.sendAnnouncement(
-                `Некорректное число`,
+                t('teamSize.invalidNumber'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -342,7 +340,7 @@ module.exports = function createMasterCommands({
 
         state.teamSize = num;
         room.sendAnnouncement(
-            `Теперь режим игры ${num}x${num}! Изменения войдут в силу со следующей игры (если текущая идёт).`,
+            t('teamSize.changed', { size: num }),
             player.id,
             Color.WH_GREEN,
             'small',
@@ -359,7 +357,7 @@ module.exports = function createMasterCommands({
                 .join(' | ');
 
             room.sendAnnouncement(
-                `Недостаточно аргументов: !setrole <#ID | AUTH> <${availableRoles}> [время]`,
+                t('common.notEnoughArgs', { usage: t('role.setRoleUsage', { roles: availableRoles }) }),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -378,7 +376,7 @@ module.exports = function createMasterCommands({
             const id = parsePlayerId(targetArg);
             if (id === null) {
                 room.sendAnnouncement(
-                    `Игрока нет на сервере`,
+                    t('common.playerNotOnServer'),
                     player.id,
                     Color.GR_RED,
                     'small',
@@ -390,7 +388,7 @@ module.exports = function createMasterCommands({
             const onlinePlayer = room.getPlayer(id);
             if (!onlinePlayer) {
                 room.sendAnnouncement(
-                    `Игрока нет на сервере`,
+                    t('common.playerNotOnServer'),
                     player.id,
                     Color.GR_RED,
                     'small',
@@ -405,7 +403,7 @@ module.exports = function createMasterCommands({
 
         if (target.id === player.id || target.auth === getAuth(player.id)) {
             room.sendAnnouncement(
-                `Вы не можете менять роль себе!`,
+                t('role.cannotSetSelf'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -416,7 +414,7 @@ module.exports = function createMasterCommands({
 
         if (!(await db.hasAccount(target.auth))) {
             room.sendAnnouncement(
-                `Аккаунт игрока не найден`,
+                t('role.accountNotFound'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -428,7 +426,7 @@ module.exports = function createMasterCommands({
         const roleName = args[1];
         if (RoleString[roleName] === undefined) {
             room.sendAnnouncement(
-                `Некоректная роль: ${Object.keys(RoleString)}`,
+                t('role.noSuchRole', { roles: Object.keys(RoleString) }),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -439,7 +437,7 @@ module.exports = function createMasterCommands({
 
         if (RoleString[roleName] === Role.MASTER) {
             room.sendAnnouncement(
-                `Нельзя выдать мастера командой`,
+                t('role.cannotGrantMaster'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -450,7 +448,7 @@ module.exports = function createMasterCommands({
 
         if (await getRole(target, target.auth) === RoleString[roleName]) {
             room.sendAnnouncement(
-                `У игрока и так эта роль`,
+                t('role.alreadyHasRole'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -462,11 +460,11 @@ module.exports = function createMasterCommands({
         const date = args.length >= 3 ? Date.now() + stringToTime(args[2]) : null;
         await setRole(target, roleName, date, target.auth);
 
-        const timeStr = date == null ? '' : ` на ${getStringTime(args[2])}`;
+        const timeStr = date == null ? '' : t('role.updatedTimed', { timeStr: getStringTime(args[2]) });
         const displayName = target.name ?? target.auth;
 
         room.sendAnnouncement(
-            `${displayName} теперь ${ROLE_NAMES[RoleString[roleName]]}${timeStr}!`,
+            t('role.updated', { displayName, roleName: roleDisplayName(RoleString[roleName]), timeStr }),
             null,
             Color.RED,
             'bold',
@@ -490,7 +488,7 @@ module.exports = function createMasterCommands({
         if (args.length === 0) {
             const rolesHint = Object.keys(RoleString).join(' | ');
             room.sendAnnouncement(
-                `Недостаточно аргументов: !list <${rolesHint}> [ID в списке] - чтобы посмотреть профиль игрока, необязательный аргумент`,
+                t('common.notEnoughArgs', { usage: t('role.list.usage', { roles: rolesHint }) }),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -503,7 +501,7 @@ module.exports = function createMasterCommands({
 
         if (RoleString[roleName] === undefined) {
             room.sendAnnouncement(
-                `Некоректная роль: ${Object.keys(RoleString)}`,
+                t('role.noSuchRole', { roles: Object.keys(RoleString) }),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -519,7 +517,7 @@ module.exports = function createMasterCommands({
 
             if (list.length === 0) {
                 room.sendAnnouncement(
-                    `${roleName.toUpperCase()} LIST: пусто.`,
+                    t('role.list.empty', { role: roleName.toUpperCase() }),
                     player.id,
                     Color.GR_GREEN,
                     'small',
@@ -528,7 +526,7 @@ module.exports = function createMasterCommands({
                 return;
             }
 
-            let chunk = `${roleName.toUpperCase()} LIST:`;
+            let chunk = t('role.list.header', { role: roleName.toUpperCase() });
             let count = 0;
 
             for (const item of list) {
@@ -564,7 +562,7 @@ module.exports = function createMasterCommands({
 
         if (isNaN(index) || index < 0 || index >= filtered.length) {
             room.sendAnnouncement(
-                `Такого айди нет в списке`,
+                t('role.list.noSuchIndex'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -589,7 +587,7 @@ module.exports = function createMasterCommands({
 
         if (args.length === 0 || args[0] === 'mode') {
             room.sendAnnouncement(
-                `Сейчас режим winstay: ${state.winstay_mode ? 'включён' : 'выключен'}`,
+                t('winstay.status', { status: state.winstay_mode ? t('winstay.statusOn') : t('winstay.statusOff') }),
                 player.id,
                 Color.WH_BLUE,
                 'small',
@@ -607,7 +605,7 @@ module.exports = function createMasterCommands({
             state.teamSize = defaultTeamSize;
 
             room.sendAnnouncement(
-                `Режим winstay включён - ${player.name}`,
+                t('winstay.enabled', { admin: player.name }),
                 null,
                 Color.WH_GREEN,
                 'small',
@@ -621,7 +619,7 @@ module.exports = function createMasterCommands({
             state.winstay_mode = false;
 
             room.sendAnnouncement(
-                `Режим winstay выключен - ${player.name}`,
+                t('winstay.disabled', { admin: player.name }),
                 null,
                 Color.WH_GREEN,
                 'small',
@@ -632,7 +630,7 @@ module.exports = function createMasterCommands({
         }
 
         room.sendAnnouncement(
-            `Ошибка. Такого варианта нет: mode / on / off`,
+            t('winstay.invalidOption'),
             player.id,
             Color.GR_RED,
             'small',
@@ -649,7 +647,7 @@ module.exports = function createMasterCommands({
             ) ?? 'random';
 
             room.sendAnnouncement(
-                `Сейчас распределение команд: ${current}`,
+                t('teamPick.status', { mode: current }),
                 player.id,
                 Color.WH_GREEN,
                 'small',
@@ -661,7 +659,7 @@ module.exports = function createMasterCommands({
         if (args[0].toLowerCase() === 'list') {
             const list = Object.keys(TeamPickModeString).join(', ');
             room.sendAnnouncement(
-                `Список режимов распределения команд: ${list}.`,
+                t('teamPick.list', { list }),
                 player.id,
                 Color.WH_BLUE,
                 'small',
@@ -674,7 +672,7 @@ module.exports = function createMasterCommands({
 
         if (!(key in TeamPickModeString)) {
             room.sendAnnouncement(
-                `Некорректный режим. "!teampick list" — список доступных режимов`,
+                t('teamPick.invalidMode'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -685,7 +683,7 @@ module.exports = function createMasterCommands({
 
         if (TeamPickModeString[key] === state.teamPickMode) {
             room.sendAnnouncement(
-                `Этот режим уже стоит`,
+                t('teamPick.alreadySet'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -697,7 +695,7 @@ module.exports = function createMasterCommands({
         state.teamPickMode = TeamPickModeString[key];
 
         room.sendAnnouncement(
-            `Теперь распределение команд: ${key} — ${player.name}`,
+            t('teamPick.changed', { mode: key, admin: player.name }),
             null,
             Color.WH_GREEN,
             'small',

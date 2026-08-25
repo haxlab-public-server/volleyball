@@ -3,7 +3,8 @@ module.exports = function createMiscEvents({
     getRole,
     roomName,
     state,
-    discordBot
+    discordBot,
+    t
 }) {
     function formatDate(d = new Date()) {
         const formatter = new Intl.DateTimeFormat('ru-RU', {
@@ -25,10 +26,10 @@ module.exports = function createMiscEvents({
 
         const dateStr = formatDate();
         console.log(`[${dateStr}] ${roomName} - ${url}`);
-        console.log(`[${dateStr}] 🌟VIP-Пароль: ${state.vipPassword}`);
+        console.log(t('discordBot.vipPasswordHeader', { prefix: `[${dateStr}] `, password: state.vipPassword }));
 
         discordBot.sendVipPassword(state.vipPassword);
-        discordBot.sendLog(`**[${dateStr}] ROOM ONLINE**`);
+        discordBot.sendLog(t('discordBot.roomOnlineLog', { date: dateStr }));
 
         hasFirstRoomLink = true;
     }

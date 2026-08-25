@@ -75,8 +75,8 @@ function infoEmbed(title, description) {
         .setDescription(description);
 }
 
-function formatIdentity(nickname, auth) {
-    return `**${nickname ?? 'UNKNOWN'}**\n\`${auth ?? '—'}\``;
+function formatIdentity(nickname, auth, t) {
+    return `**${nickname ?? t('common.unknown')}**\n\`${auth ?? t('common.none')}\``;
 }
 
 function formatEntryList(lines) {
@@ -89,7 +89,7 @@ function truncateDescription(text) {
     return text.length > MAX_DESCRIPTION ? text.slice(0, MAX_DESCRIPTION - 1) + '…' : text;
 }
 
-function formatStats(stat) {
+function formatStats(stat, t) {
     const games = stat[1];
     const wins = stat[2];
     const goals = stat[3];
@@ -108,27 +108,27 @@ function formatStats(stat) {
     const hours = (time / 60).toFixed(2);
 
     return [
-        `**Игры:** ${games}`,
-        `**Победы:** ${wins} (${winRate}%)`,
-        `**Голы:** ${goals}`,
-        `**ПОБ:** ${pob}% (из ${goals + blocked})`,
-        `**Блоки:** ${blocks}`,
-        `**Пасы:** ${assists}`,
-        `**Ошибки:** ${errors} (${errPerGame}/игра)`,
-        `**Подачи:** ${serves}`,
-        `**ЭЙСы:** ${aces} (${aceRate}%)`,
-        `**Время:** ${hours}ч`
+        t('discord.statsFields.games', { value: games }),
+        t('discord.statsFields.wins', { value: wins, rate: winRate }),
+        t('discord.statsFields.goals', { value: goals }),
+        t('discord.statsFields.pob', { value: pob, total: goals + blocked }),
+        t('discord.statsFields.blocks', { value: blocks }),
+        t('discord.statsFields.assists', { value: assists }),
+        t('discord.statsFields.errors', { value: errors, perGame: errPerGame }),
+        t('discord.statsFields.serves', { value: serves }),
+        t('discord.statsFields.aces', { value: aces, rate: aceRate }),
+        t('discord.statsFields.time', { hours })
     ].join('\n');
 }
 
-module.exports = function createDiscordCommands({ db, applyModeration, applyToRoom, discordBotSend }) {
+module.exports = function createDiscordCommands({ db, applyModeration, applyToRoom, discordBotSend, t }) {
 
     async function requireLinkedRole(interaction, minRole) {
         const account = await db.getAccountByDiscordId(interaction.user.id);
 
         if (!account) {
             await interaction.reply({
-                embeds: [errorEmbed('Discord не привязан', 'Используйте `/link`, затем `!discord <код>` в комнате, чтобы привязать аккаунт HaxBall.')],
+                embeds: [errorEmbed(t('discord.notLinkedTitle'), t('discord.notLinkedBody'))],
                 ephemeral: true
             });
             return null;
@@ -138,7 +138,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
 
         if (role < minRole) {
             await interaction.reply({
-                embeds: [errorEmbed('Недостаточно прав', `Требуется роль **${ROLE_LABELS[minRole]}** и выше, у вас — **${ROLE_LABELS[role]}**.`)],
+                embeds: [errorEmbed(t('discord.insufficientRoleTitle'), t('discord.insufficientRoleBody', { role: ROLE_LABELS[minRole], yourRole: ROLE_LABELS[role] }))],
                 ephemeral: true
             });
             return null;
@@ -152,7 +152,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const matches = await db.findStatsByName(pname);
 
         if (matches.length === 0) {
-            return { error: `Игрок с ником \`${nickname}\` не найден в статистике.` };
+            return { error: t('discord.stats.notFoundBody', { nickname }) };
         }
 
         if (matches.length === 1) {
@@ -170,7 +170,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
 
     function formatChoices(matches) {
         return matches
-            .map(([auth, stat], i) => `[${i}] ${stat[0]} (${auth}) - ${stat[1]} игр`)
+            .map(([auth, stat], i) => t('discord.stats.choiceEntry', { index: i, name: stat[0], auth, games: stat[1] }))
             .join('\n');
     }
 
@@ -178,10 +178,10 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         return [
             new SlashCommandBuilder()
                 .setName('setrole')
-                .setDescription('[MASTER] Выдать роль игроку')
-                .addStringOption(o => o.setName('public_id').setDescription('public_id игрока (43 символа)').setRequired(true))
+                .setDescription(t('discord.command.setRole'))
+                .addStringOption(o => o.setName('public_id').setDescription(t('discord.command.publicId')).setRequired(true))
                 .addStringOption(o => o.setName('role')
-                    .setDescription('Новая роль')
+                    .setDescription(t('discord.command.newRole'))
                     .setRequired(true)
                     .addChoices(
                         { name: 'player', value: 'player' },
@@ -189,12 +189,12 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
                         { name: 'preadmin', value: 'preadmin' },
                         { name: 'admin', value: 'admin' }
                     ))
-                .addStringOption(o => o.setName('time').setDescription('Время действия роли, напр. 30d (пусто = бессрочно)').setRequired(false)),
+                .addStringOption(o => o.setName('time').setDescription(t('discord.command.roleTime')).setRequired(false)),
             new SlashCommandBuilder()
                 .setName('getrolelist')
-                .setDescription('[MASTER] Список игроков с заданной ролью')
+                .setDescription(t('discord.command.roleList'))
                 .addStringOption(o => o.setName('role')
-                    .setDescription('Роль')
+                    .setDescription(t('discord.command.role'))
                     .setRequired(true)
                     .addChoices(
                         { name: 'player', value: 'player' },
@@ -205,52 +205,52 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
                     )),
             new SlashCommandBuilder()
                 .setName('password')
-                .setDescription('[MASTER] Установить/сбросить пароль комнаты')
+                .setDescription(t('discord.command.password'))
                 .addStringOption(o => o.setName('room')
-                    .setDescription('Комната')
+                    .setDescription(t('discord.command.room'))
                     .setRequired(true)
                     .addChoices(
                         { name: 'public', value: 'public' },
                         { name: 'private', value: 'private' }
                     ))
-                .addStringOption(o => o.setName('value').setDescription('Новый пароль (пусто = сбросить)').setRequired(false)),
+                .addStringOption(o => o.setName('value').setDescription(t('discord.command.passwordValue')).setRequired(false)),
             new SlashCommandBuilder()
                 .setName('statsclear')
-                .setDescription('[MASTER] Сбросить всю статистику (с бекапом)'),
+                .setDescription(t('discord.command.statsClear')),
             new SlashCommandBuilder()
                 .setName('statsbackup')
-                .setDescription('[MASTER] Сделать бекап статистики без сброса'),
+                .setDescription(t('discord.command.statsBackup')),
             new SlashCommandBuilder()
                 .setName('ban')
-                .setDescription('[ADMIN] Забанить игрока')
-                .addStringOption(o => o.setName('public_id').setDescription('public_id игрока (43 символа)').setRequired(true))
-                .addStringOption(o => o.setName('time').setDescription('Время бана, напр. 10min / 1d').setRequired(true))
-                .addStringOption(o => o.setName('reason').setDescription('Причина').setRequired(false)),
+                .setDescription(t('discord.command.ban'))
+                .addStringOption(o => o.setName('public_id').setDescription(t('discord.command.publicId')).setRequired(true))
+                .addStringOption(o => o.setName('time').setDescription(t('discord.command.banTime')).setRequired(true))
+                .addStringOption(o => o.setName('reason').setDescription(t('discord.command.reason')).setRequired(false)),
             new SlashCommandBuilder()
                 .setName('unban')
-                .setDescription('[ADMIN] Разбанить игрока')
-                .addStringOption(o => o.setName('public_id').setDescription('public_id игрока (43 символа)').setRequired(true)),
+                .setDescription(t('discord.command.unban'))
+                .addStringOption(o => o.setName('public_id').setDescription(t('discord.command.publicId')).setRequired(true)),
             new SlashCommandBuilder()
                 .setName('mute')
-                .setDescription('[ADMIN] Замутить игрока')
-                .addStringOption(o => o.setName('public_id').setDescription('public_id игрока (43 символа)').setRequired(true))
-                .addStringOption(o => o.setName('time').setDescription('Время мута, напр. 10min / 1h').setRequired(true))
-                .addStringOption(o => o.setName('reason').setDescription('Причина').setRequired(false)),
+                .setDescription(t('discord.command.mute'))
+                .addStringOption(o => o.setName('public_id').setDescription(t('discord.command.publicId')).setRequired(true))
+                .addStringOption(o => o.setName('time').setDescription(t('discord.command.muteTime')).setRequired(true))
+                .addStringOption(o => o.setName('reason').setDescription(t('discord.command.reason')).setRequired(false)),
             new SlashCommandBuilder()
                 .setName('unmute')
-                .setDescription('[ADMIN] Размутить игрока')
-                .addStringOption(o => o.setName('public_id').setDescription('public_id игрока (43 символа)').setRequired(true)),
+                .setDescription(t('discord.command.unmute'))
+                .addStringOption(o => o.setName('public_id').setDescription(t('discord.command.publicId')).setRequired(true)),
             new SlashCommandBuilder()
                 .setName('bans')
-                .setDescription('[ADMIN] Список банов'),
+                .setDescription(t('discord.command.bans')),
             new SlashCommandBuilder()
                 .setName('mutes')
-                .setDescription('[ADMIN] Список мутов'),
+                .setDescription(t('discord.command.mutes')),
             new SlashCommandBuilder()
                 .setName('tops')
-                .setDescription('Топ игроков по показателю')
+                .setDescription(t('discord.command.tops'))
                 .addStringOption(o => o.setName('stat')
-                    .setDescription('Показатель (или "all" — сразу все топы)')
+                    .setDescription(t('discord.command.stat'))
                     .setRequired(true)
                     .addChoices(
                         { name: 'games', value: 'games' },
@@ -262,16 +262,16 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
                         { name: 'time', value: 'time' },
                         { name: 'all', value: 'all' }
                     ))
-                .addIntegerOption(o => o.setName('count').setDescription('Сколько строк (5-50, по умолчанию 10)').setRequired(false)),
+                .addIntegerOption(o => o.setName('count').setDescription(t('discord.command.count')).setRequired(false)),
             new SlashCommandBuilder()
                 .setName('stats')
-                .setDescription('Статистика игрока')
-                .addStringOption(o => o.setName('nickname').setDescription('Ник игрока (пусто = вы сами)').setRequired(false))
-                .addIntegerOption(o => o.setName('index').setDescription('Номер из списка, если ников несколько').setRequired(false)),
+                .setDescription(t('discord.command.stats'))
+                .addStringOption(o => o.setName('nickname').setDescription(t('discord.command.nickname')).setRequired(false))
+                .addIntegerOption(o => o.setName('index').setDescription(t('discord.command.index')).setRequired(false)),
             new SlashCommandBuilder()
                 .setName('account')
-                .setDescription('Информация об аккаунте')
-                .addStringOption(o => o.setName('public_id').setDescription('public_id игрока (пусто = вы сами, требуется ADMIN для чужих)').setRequired(false))
+                .setDescription(t('discord.command.account'))
+                .addStringOption(o => o.setName('public_id').setDescription(t('discord.command.accountPublicId')).setRequired(false))
         ].map(c => c.toJSON());
     }
 
@@ -284,18 +284,18 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const timeArg = interaction.options.getString('time');
 
         if (!isValidAuth(auth)) {
-            await interaction.reply({ embeds: [errorEmbed('Неверный public_id', 'public_id должен быть строкой из 43 символов.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed(t('discord.invalidPublicIdTitle'), t('discord.invalidPublicIdBody'))], ephemeral: true });
             return;
         }
 
         if (auth === caller.auth) {
-            await interaction.reply({ embeds: [errorEmbed('Недопустимое действие', 'Нельзя менять роль себе.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed(t('discord.setRole.selfTitle'), t('discord.setRole.selfBody'))], ephemeral: true });
             return;
         }
 
         const account = await db.getAccount(auth);
         if (!account) {
-            await interaction.reply({ embeds: [errorEmbed('Аккаунт не найден', 'Аккаунт с таким public_id не найден.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed(t('discord.setRole.notFoundTitle'), t('discord.setRole.notFoundBody'))], ephemeral: true });
             return;
         }
 
@@ -303,7 +303,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         if (timeArg) {
             const parsed = parseTimeArg(timeArg);
             if (!parsed) {
-                await interaction.reply({ embeds: [errorEmbed('Неверный формат времени', 'Пример: `30d`, `12h`.')], ephemeral: true });
+                await interaction.reply({ embeds: [errorEmbed(t('discord.invalidTimeTitle'), t('discord.invalidTimeBody', { example: '`30d`, `12h`' }))], ephemeral: true });
                 return;
             }
             date = Date.now() + parsed.ms;
@@ -315,8 +315,14 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
 
         await interaction.reply({
             embeds: [successEmbed(
-                'Роль обновлена',
-                `${formatIdentity(account.nickname, auth)}\nтеперь **${roleName.toUpperCase()}**${date ? ` до <t:${Math.floor(date / 1000)}:f>` : ' (бессрочно)'}.`
+                t('discord.setRole.successTitle'),
+                t('discord.setRole.successBody', {
+                    identity: formatIdentity(account.nickname, auth, t),
+                    role: roleName.toUpperCase(),
+                    until: date
+                        ? t('discord.setRole.untilTimed', { timestamp: Math.floor(date / 1000) })
+                        : t('discord.setRole.untilPermanent')
+                })
             )]
         });
     }
@@ -330,11 +336,11 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
 
         const description = accounts.length > 0
             ? truncateDescription(formatEntryList(
-                accounts.map((a, i) => `**${i + 1}.** ${formatIdentity(a.nickname, a.auth)}`)
+                accounts.map((a, i) => `**${i + 1}.** ${formatIdentity(a.nickname, a.auth, t)}`)
             ))
-            : 'Пусто.';
+            : t('discord.getRoleList.empty');
 
-        const embed = infoEmbed(`📋 ${roleName.toUpperCase()} — ${accounts.length}`, description);
+        const embed = infoEmbed(t('discord.getRoleList.title', { role: roleName.toUpperCase(), count: accounts.length }), description);
 
         await interaction.reply({ embeds: [embed] });
     }
@@ -349,16 +355,16 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const applied = await applyToRoom(room, { type: 'password', value: value || null });
 
         if (!applied) {
-            await interaction.reply({ embeds: [errorEmbed('Комната недоступна', `Комната **${room}** сейчас не запущена.`)], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed(t('discord.password.roomUnavailableTitle'), t('discord.password.roomUnavailableBody', { room }))], ephemeral: true });
             return;
         }
 
         await interaction.reply({
             embeds: [successEmbed(
-                'Пароль обновлён',
+                t('discord.password.successTitle'),
                 value
-                    ? `Комната **${room}**\nновый пароль: \`${value}\``
-                    : `Комната **${room}**\nпароль сброшен.`
+                    ? t('discord.password.successSet', { room, value })
+                    : t('discord.password.successCleared', { room })
             )]
         });
     }
@@ -377,7 +383,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         }
 
         const payload = {
-            embeds: [successEmbed('Статистика сброшена', `Бекап: \`${backup.filename}\`\nзаписей: ${backup.count}`)]
+            embeds: [successEmbed(t('discord.statsClear.successTitle'), t('discord.statsClear.successBody', { filename: backup.filename, count: backup.count }))]
         };
 
         if (backup.count > 0) {
@@ -399,7 +405,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const backup = await db.backupStats();
 
         const payload = {
-            embeds: [successEmbed('Бекап статистики создан', `Бекап: \`${backup.filename}\`\nзаписей: ${backup.count}`)]
+            embeds: [successEmbed(t('discord.statsClear.successTitle'), t('discord.statsClear.successBody', { filename: backup.filename, count: backup.count }))]
         };
 
         if (backup.count > 0) {
@@ -421,7 +427,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const reason = interaction.options.getString('reason');
 
         if (!isValidAuth(auth)) {
-            await interaction.reply({ embeds: [errorEmbed('Неверный public_id', 'public_id должен быть строкой из 43 символов.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed(t('discord.invalidPublicIdTitle'), t('discord.invalidPublicIdBody'))], ephemeral: true });
             return;
         }
 
@@ -429,13 +435,13 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const targetRole = RoleString[account?.role] ?? Role.PLAYER;
 
         if (auth === caller.auth || (targetRole >= Role.PREADMIN && caller.role !== Role.MASTER)) {
-            await interaction.reply({ embeds: [errorEmbed('Недопустимое действие', 'Нельзя забанить себя или игрока с защитой от бана.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed(t('discord.ban.selfOrProtectedTitle'), t('discord.ban.selfOrProtectedBody'))], ephemeral: true });
             return;
         }
 
         const parsed = parseTimeArg(timeArg);
         if (!parsed) {
-            await interaction.reply({ embeds: [errorEmbed('Неверный формат времени', 'Пример: `10min`, `1d`.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed(t('discord.invalidTimeTitle'), t('discord.invalidTimeBody', { example: '`10min`, `1d`' }))], ephemeral: true });
             return;
         }
 
@@ -458,10 +464,13 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
 
         await interaction.reply({
             embeds: [successEmbed(
-                'Игрок забанен',
-                `${formatIdentity(account?.nickname, auth)}\n` +
-                `на **${parsed.label}**${reason ? `, причина: ${reason}` : ''}\n` +
-                (appliedLive ? '🔴 Был в комнате — кикнут немедленно.' : 'Не в комнате — бан вступит в силу при следующем заходе.')
+                t('discord.ban.successTitle'),
+                t('discord.ban.successBody', {
+                    identity: formatIdentity(account?.nickname, auth, t),
+                    time: parsed.label,
+                    reason: reason ? `, ${reason}` : '',
+                    liveStatus: appliedLive ? t('discord.ban.liveKicked') : t('discord.ban.liveOffline')
+                })
             )]
         });
     }
@@ -473,14 +482,14 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const auth = interaction.options.getString('public_id');
 
         if (!isValidAuth(auth)) {
-            await interaction.reply({ embeds: [errorEmbed('Неверный public_id', 'public_id должен быть строкой из 43 символов.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed(t('discord.invalidPublicIdTitle'), t('discord.invalidPublicIdBody'))], ephemeral: true });
             return;
         }
 
         const ban = await db.removeBanByAuth(auth);
 
         if (!ban) {
-            await interaction.reply({ embeds: [errorEmbed('Не найдено', 'Этот public_id не найден в бан-листе.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed(t('discord.unban.notFoundTitle'), t('discord.unban.notFoundBody'))], ephemeral: true });
             return;
         }
 
@@ -489,7 +498,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         discordBotSend.sendReport(BROADCAST_ROOM_LABEL, caller.nickname, ban.name ?? ban.auth, 'unban', null, null);
 
         await interaction.reply({
-            embeds: [successEmbed('Игрок разбанен', formatIdentity(ban.name, ban.auth))]
+            embeds: [successEmbed(t('discord.unban.successTitle'), formatIdentity(ban.name, ban.auth, t))]
         });
     }
 
@@ -502,7 +511,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const reason = interaction.options.getString('reason');
 
         if (!isValidAuth(auth)) {
-            await interaction.reply({ embeds: [errorEmbed('Неверный public_id', 'public_id должен быть строкой из 43 символов.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed(t('discord.invalidPublicIdTitle'), t('discord.invalidPublicIdBody'))], ephemeral: true });
             return;
         }
 
@@ -510,13 +519,13 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const targetRole = RoleString[account?.role] ?? Role.PLAYER;
 
         if (targetRole >= Role.PREADMIN && caller.role !== Role.MASTER) {
-            await interaction.reply({ embeds: [errorEmbed('Недопустимое действие', 'У игрока защита от мута.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed(t('discord.mute.protectedTitle'), t('discord.mute.protectedBody'))], ephemeral: true });
             return;
         }
 
         const parsed = parseTimeArg(timeArg);
         if (!parsed) {
-            await interaction.reply({ embeds: [errorEmbed('Неверный формат времени', 'Пример: `10min`, `1h`.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed(t('discord.invalidTimeTitle'), t('discord.invalidTimeBody', { example: '`10min`, `1h`' }))], ephemeral: true });
             return;
         }
 
@@ -548,10 +557,13 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
 
         await interaction.reply({
             embeds: [successEmbed(
-                'Игрок замучен',
-                `${formatIdentity(account?.nickname, auth)}\n` +
-                `на **${parsed.label}**${reason ? `, причина: ${reason}` : ''}\n` +
-                (appliedLive ? '🔴 Был в комнате — вступило в силу немедленно.' : 'Не в комнате — мут применится при следующем заходе.')
+                t('discord.mute.successTitle'),
+                t('discord.mute.successBody', {
+                    identity: formatIdentity(account?.nickname, auth, t),
+                    time: parsed.label,
+                    reason: reason ? `, ${reason}` : '',
+                    liveStatus: appliedLive ? t('discord.mute.liveApplied') : t('discord.mute.liveOffline')
+                })
             )]
         });
     }
@@ -563,13 +575,13 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const auth = interaction.options.getString('public_id');
 
         if (!isValidAuth(auth)) {
-            await interaction.reply({ embeds: [errorEmbed('Неверный public_id', 'public_id должен быть строкой из 43 символов.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed(t('discord.invalidPublicIdTitle'), t('discord.invalidPublicIdBody'))], ephemeral: true });
             return;
         }
 
         const removed = await db.removeMuteByAuth(auth);
         if (!removed) {
-            await interaction.reply({ embeds: [errorEmbed('Не найдено', 'Этот игрок не в муте.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed(t('discord.unmute.notFoundTitle'), t('discord.unmute.notFoundBody'))], ephemeral: true });
             return;
         }
 
@@ -582,8 +594,8 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
 
         await interaction.reply({
             embeds: [successEmbed(
-                'Игрок размучен',
-                `${formatIdentity(account?.nickname, auth)}` + (appliedLive ? '\nПрименено немедленно.' : '')
+                t('discord.unmute.successTitle'),
+                `${formatIdentity(account?.nickname, auth, t)}${appliedLive ? t('discord.unmute.liveApplied') : ''}`
             )]
         });
     }
@@ -597,11 +609,11 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const description = bans.length > 0
             ? truncateDescription(formatEntryList(bans.map((b, i) => {
                 const mins = Math.max(0, Math.round((b.date - Date.now()) / 1000 / 60));
-                return `**${i + 1}.** ${formatIdentity(b.name, b.auth)}\nосталось: ${mins}м`;
+                return t('discord.bans.entry', { index: i + 1, identity: formatIdentity(b.name, b.auth, t), mins });
             })))
-            : 'Пусто.';
+            : t('discord.bans.empty');
 
-        const embed = infoEmbed(`📋 Бан-лист — ${bans.length}`, description);
+        const embed = infoEmbed(t('discord.bans.title', { count: bans.length }), description);
 
         await interaction.reply({ embeds: [embed] });
     }
@@ -615,11 +627,11 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const description = mutes.length > 0
             ? truncateDescription(formatEntryList(mutes.map((m, i) => {
                 const mins = Math.max(0, Math.round((m.unmuteDate - Date.now()) / 1000 / 60));
-                return `**${i + 1}.** ${formatIdentity(m.name, m.auth)}\nосталось: ${mins}м`;
+                return t('discord.mutes.entry', { index: i + 1, identity: formatIdentity(m.name, m.auth, t), mins });
             })))
-            : 'Пусто.';
+            : t('discord.mutes.empty');
 
-        const embed = infoEmbed(`📋 Мут-лист — ${mutes.length}`, description);
+        const embed = infoEmbed(t('discord.mutes.title', { count: mutes.length }), description);
 
         await interaction.reply({ embeds: [embed] });
     }
@@ -638,7 +650,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
 
         const list = await db.getTopStats(5);
         if (list.length < len) {
-            await interaction.reply({ embeds: [errorEmbed('Недостаточно данных', `Недостаточно игроков в топе: ещё ${len - list.length}.`)], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed(t('discord.tops.notEnoughDataTitle'), t('discord.tops.notEnoughDataBody', { missing: len - list.length }))], ephemeral: true });
             return;
         }
 
@@ -646,22 +658,22 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
             const idx = TOPS[key];
             const sorted = [...list].sort((a, b) => b[idx] - a[idx]);
             return sorted.slice(0, len).map((s, i) => {
-                const value = key === 'time' ? `${(s[idx] / 60).toFixed(1)}ч` : s[idx];
-                return `\`${i + 1}.\` **${s[0] ?? 'UNKNOWN'}** — ${value}`;
+            const value = key === 'time' ? t('discord.statsFields.time', { hours: (s[idx] / 60).toFixed(1) }) : s[idx];
+                return t('discord.tops.line', { index: i + 1, name: s[0] ?? t('common.unknown'), value });
             }).join('\n');
         };
 
         if (statKey === 'all') {
             const sections = Object.keys(TOPS).map(
-                key => `**🏆 Топ по ${key.toUpperCase()}**\n${formatTopLines(key)}`
+                key => t('discord.tops.sectionHeader', { stat: key.toUpperCase(), lines: formatTopLines(key) })
             );
 
-            const embed = infoEmbed('📊 Топы игроков', truncateDescription(formatEntryList(sections)));
+            const embed = infoEmbed(t('discord.tops.allTitle'), truncateDescription(formatEntryList(sections)));
             await interaction.reply({ embeds: [embed] });
             return;
         }
 
-        const embed = infoEmbed(`📊 Топ: ${statKey.toUpperCase()}`, formatTopLines(statKey));
+        const embed = infoEmbed(t('discord.tops.statTitle', { stat: statKey.toUpperCase() }), formatTopLines(statKey));
 
         await interaction.reply({ embeds: [embed] });
     }
@@ -681,15 +693,15 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
             const resolved = await resolveStatsByNickname(nickname, index);
 
             if (resolved.error) {
-                await interaction.reply({ embeds: [errorEmbed('Не найдено', resolved.error)], ephemeral: true });
+                await interaction.reply({ embeds: [errorEmbed(t('discord.stats.notFoundTitle'), resolved.error)], ephemeral: true });
                 return;
             }
 
             if (resolved.choices) {
                 await interaction.reply({
                     embeds: [infoEmbed(
-                        `Найдено ${resolved.choices.length} игроков с ником "${nickname}"`,
-                        `${formatChoices(resolved.choices)}\n\nПовторите команду с аргументом \`index\`, чтобы выбрать нужного.`
+                        t('discord.stats.multipleFoundTitle', { count: resolved.choices.length, nickname }),
+                        t('discord.stats.multipleFoundBody', { choices: formatChoices(resolved.choices) })
                     )]
                 });
                 return;
@@ -699,12 +711,12 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         }
 
         if (!stat) {
-            await interaction.reply({ embeds: [errorEmbed('Статистика не найдена', 'Нужно сыграть хотя бы одну игру.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed(t('discord.stats.emptyTitle'), t('discord.stats.emptyBody'))], ephemeral: true });
             return;
         }
 
         await interaction.reply({
-            embeds: [infoEmbed(`📊 ${stat[0]}`, formatStats(stat))]
+            embeds: [infoEmbed(`📊 ${stat[0]}`, formatStats(stat, t))]
         });
     }
 
@@ -715,14 +727,14 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const publicId = interaction.options.getString('public_id');
 
         if (publicId && caller.role < Role.ADMIN) {
-            await interaction.reply({ embeds: [errorEmbed('Недостаточно прав', 'Смотреть чужие аккаунты могут только ADMIN и выше.')], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed(t('discord.account.adminOnlyTitle'), t('discord.account.adminOnlyBody'))], ephemeral: true });
             return;
         }
 
         let targetAuth = caller.auth;
         if (publicId) {
             if (!isValidAuth(publicId)) {
-                await interaction.reply({ embeds: [errorEmbed('Неверный public_id', 'public_id должен быть строкой из 43 символов.')], ephemeral: true });
+                await interaction.reply({ embeds: [errorEmbed(t('discord.invalidPublicIdTitle'), t('discord.invalidPublicIdBody'))], ephemeral: true });
                 return;
             }
             targetAuth = publicId;
@@ -730,19 +742,16 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
 
         const account = await db.getAccount(targetAuth);
         if (!account) {
-            await interaction.reply({ embeds: [errorEmbed('Аккаунт не найден', `\`${targetAuth}\``)], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed(t('discord.account.notFoundTitle'), `\`${targetAuth}\``)], ephemeral: true });
             return;
         }
 
-        const toDate = account.date != null ? `<t:${Math.floor(account.date / 1000)}:f>` : 'бессрочно';
-        const discordField = account.discord ? `<@${account.discord}>` : 'не привязан';
+        const toDate = account.date != null ? `<t:${Math.floor(account.date / 1000)}:f>` : t('discord.account.untilPermanent');
+        const discordField = account.discord ? `<@${account.discord}>` : t('discord.account.discordUnlinked');
 
         const embed = infoEmbed(
-            `📋 ${account.nickname}`,
-            `${formatIdentity(account.nickname, targetAuth)}\n` +
-            `**роль:** ${account.role}\n` +
-            `**до:** ${toDate}\n` +
-            `**discord:** ${discordField}`
+            t('discord.account.title', { nickname: account.nickname }),
+            t('discord.account.body', { identity: formatIdentity(account.nickname, targetAuth, t), role: account.role, until: toDate, discord: discordField })
         );
 
         await interaction.reply({ embeds: [embed] });
@@ -774,7 +783,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
             await handler(interaction);
         } catch (err) {
             console.error(`[Discord] /${interaction.commandName} failed:`, err);
-            const payload = { embeds: [errorEmbed('Ошибка', 'Произошла ошибка при выполнении команды.')], ephemeral: true };
+            const payload = { embeds: [errorEmbed(t('discord.genericErrorTitle'), t('discord.genericErrorBody'))], ephemeral: true };
             if (interaction.deferred || interaction.replied) {
                 await interaction.editReply(payload).catch(() => {});
             } else {

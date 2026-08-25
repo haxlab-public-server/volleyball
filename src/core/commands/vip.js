@@ -29,7 +29,8 @@ module.exports = function createVipCommands({
     Mods,
     Color,
     HaxNotification,
-    vipUpCooldownMs
+    vipUpCooldownMs,
+    t
 }) {
     function announce(message, targetId = null, color = Color.WH_GREEN, style = 'small') {
         room.sendAnnouncement(message, targetId, color, style, HaxNotification.CHAT);
@@ -64,7 +65,7 @@ module.exports = function createVipCommands({
         startBallSpawn(settings);
         const desc = formatSpawnDescriptors(settings.slice(0, 4));
         announce(
-            `Настройки спавна мяча: ${desc} ${interval} (x, y, xspeed, yspeed, interval) - ${player.name}`
+            t('ballSpawner.applied', { descriptors: desc, interval, admin: player.name })
         );
     }
 
@@ -72,7 +73,7 @@ module.exports = function createVipCommands({
         const args = message.toLowerCase().split(/ +/).slice(1);
 
         if (args.length === 0) {
-            announceError(player, 'Нужно написать цвет в HEX формате: FFFFFF (это белый)');
+            announceError(player, t('chatColor.usage'));
             return;
         }
 
@@ -80,13 +81,13 @@ module.exports = function createVipCommands({
 
         if (args[0] === 'clear') {
             await db.setChatColor(auth, null);
-            announce('Цвет чата был выключен!', player.id);
+            announce(t('chatColor.cleared'), player.id);
             return;
         }
 
         await db.setChatColor(auth, args[0]);
         announce(
-            `Теперь у вас вот такой цвет чата! \nВыключить цветной чат: !color clear`,
+            t('chatColor.set'),
             player.id,
             `0x${args[0]}`
         );
@@ -94,7 +95,7 @@ module.exports = function createVipCommands({
 
     function trainingSettingCommands(player, message) {
         if (!state.training_mode) {
-            announceError(player, 'Режим тренировки выключен, сейчас нельзя использовать эту команду');
+            announceError(player, t('ballSpawner.disabledNotice'));
             return;
         }
 
@@ -104,19 +105,19 @@ module.exports = function createVipCommands({
             const spawn = state.training_mode_spawn;
             const status =
                 spawn.length === 0
-                    ? 'выключен'
-                    : `${formatSpawnDescriptors(spawn.slice(0, 4))} ${spawn[4]} (x, y, xspeed, yspeed, interval)`;
+                    ? t('ballSpawner.infoOff')
+                    : t('ballSpawner.infoOn', { descriptors: formatSpawnDescriptors(spawn.slice(0, 4)), interval: spawn[4] });
 
             announceInfo(
                 player,
-                `Настройки спавна мяча: ${status}\nМожно указывать диапазон вместо числа: min..max (пример: !bs -450..-350 200 0.5..0.9 -11.9 3000)`
+                t('ballSpawner.info', { status })
             );
             return;
         }
 
         if (args[0] === 'off') {
             stopBallSpawn();
-            announce(`Спавн мяча выключен - ${player.name}`);
+            announce(t('ballSpawner.turnedOff', { admin: player.name }));
             return;
         }
 
@@ -141,14 +142,14 @@ module.exports = function createVipCommands({
             if (descriptors === null) {
                 announceError(
                     player,
-                    'Некорректный вид аргументов: x, y, xspeed, yspeed, interval(мс)\nЧисло или диапазон min..max (пример: -450..-350)'
+                    t('ballSpawner.invalidArgs')
                 );
                 return;
             }
 
             const interval = Number(args[4]);
             if (isNaN(interval)) {
-                announceError(player, 'Некорректный интервал, укажите время в милисекундах 1с=1000мс');
+                announceError(player, t('ballSpawner.invalidInterval'));
                 return;
             }
 
@@ -159,13 +160,13 @@ module.exports = function createVipCommands({
 
         announceError(
             player,
-            'Недостаточно аргументов: !bs x, y, xspeed, yspeed, interval(мс)\nМожно указывать диапазон вместо числа: min..max'
+            t('ballSpawner.notEnoughArgs')
         );
     }
 
     function trainingCommand(player, message) {
         if (state.mode !== Mods.PRIVATE) {
-            announceError(player, 'При public моде нельзя включать режим тренировки вручную');
+            announceError(player, t('training.onlyInPrivate'));
             return;
         }
 
@@ -175,24 +176,24 @@ module.exports = function createVipCommands({
         if (!action || action === 'mode') {
             announceInfo(
                 player,
-                `Сейчас режим тренировки: ${state.training_mode ? 'включён' : 'выключен'}`
+                t('training.status', { status: state.training_mode ? t('training.statusOn') : t('training.statusOff') })
             );
             return;
         }
 
         if (action === 'on' || action === 'true') {
             startTrainingMode();
-            announce(`Режим тренировки включён - ${player.name}`);
+            announce(t('training.enabled', { admin: player.name }));
             return;
         }
 
         if (action === 'off' || action === 'false') {
             stopTrainingMode();
-            announce(`Режим тренировки выключен - ${player.name}`);
+            announce(t('training.disabled', { admin: player.name }));
             return;
         }
 
-        announceError(player, 'Ошибка. Такого варианта нет: mode / on / off');
+        announceError(player, t('training.invalidOption'));
     }
 
     async function upCommand(player) {
@@ -200,14 +201,14 @@ module.exports = function createVipCommands({
 
         if (state.vipUpCooldownUntil > now) {
             const minsLeft = Math.ceil((state.vipUpCooldownUntil - now) / 1000 / 60);
-            announceError(player, `Команда !up сейчас на КД для всей комнаты: ещё ${minsLeft}мин`);
+            announceError(player, t('up.roomCooldown', { mins: minsLeft }));
             return;
         }
 
         if (state.vipUpBooking != null) {
             announceError(
                 player,
-                `Место капитана на следующем пике уже забронировано игроком ${state.vipUpBooking.name}`
+                t('up.alreadyBooked', { name: state.vipUpBooking.name })
             );
             return;
         }
@@ -217,7 +218,7 @@ module.exports = function createVipCommands({
         state.vipUpCooldownUntil = now + vipUpCooldownMs;
 
         announce(
-            `🌟 ${player.name} забронировал место капитана на следующем формировании команд!`,
+            t('up.booked', { name: player.name }),
             null,
             Color.PINK,
             'bold'

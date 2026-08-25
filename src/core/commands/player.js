@@ -26,7 +26,8 @@ module.exports = function createPlayerCommands({
     defaultTeamSize,
     discordBot,
     formatAccountView,
-    resolveTargetAuth
+    resolveTargetAuth,
+    t
 }) {
     function parsePlayerId(arg) {
         const idStr = arg.startsWith('#') ? arg.slice(1) : arg;
@@ -51,13 +52,23 @@ module.exports = function createPlayerCommands({
         const errPerGame = games > 0 ? +(errors / games).toFixed(1) : 0;
         const aceRate = serves > 0 ? +(aces / serves * 100).toFixed(1) : 0;
 
-        return (
-            `📊${stat[0]} - Игры: ${games}, Победы: ${wins} (${winRate}%), ` +
-            `Голы: ${goals}, ПОБ: ${pob}% (из ${goals + blocked}), ` +
-            `Блоки: ${blocks}, Пасы: ${assists}, Ошибки: ${errors} (${errPerGame}/игра), ` +
-            `Подачи: ${serves}, ЭЙСы: ${aces} (${aceRate}%), Время: ${getStatTime(time)}` +
-            `\nПОБ - Процент Обойдённых Блоков (чем ниже процент, тем больше ваших атак было заблокированно)`
-        );
+        return t('stats.line', {
+            name: stat[0],
+            games,
+            wins,
+            winRate,
+            goals,
+            pob,
+            goalsPlusBlocked: goals + blocked,
+            blocks,
+            assists,
+            errors,
+            errPerGame,
+            serves,
+            aces,
+            aceRate,
+            time: getStatTime(time)
+        });
     }
 
     function teamChatCommand(player, message) {
@@ -70,11 +81,11 @@ module.exports = function createPlayerCommands({
             : null;
 
         sendAnnouncementTeam(
-            `${emoji} [TEAM] ${player.name}: ${text}`,
+            t('chat.teamMessage', { emoji, name: player.name, message: text }),
             getTeamArray(player.team),
             color,
             'bold',
-            1
+            HaxNotification.CHAT
         );
     }
 
@@ -86,7 +97,7 @@ module.exports = function createPlayerCommands({
             .map(([key]) => `!${key}`);
 
         room.sendAnnouncement(
-            `Доступные вам команды: ${available.join(', ')}.`,
+            t('help.list', { list: available.join(', ') }),
             player.id,
             Color.GR_GREEN,
             'small',
@@ -111,7 +122,7 @@ module.exports = function createPlayerCommands({
     function serveCommand(player) {
         if (state.training_mode) {
             room.sendAnnouncement(
-                `Чтобы тренировать подачу в тренинг моде используй !bs serve_red или !bs serve_blue`,
+                t('serve.useTrainingCommand'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -122,7 +133,7 @@ module.exports = function createPlayerCommands({
 
         if (player.team === Team.SPECTATORS) {
             room.sendAnnouncement(
-                `Вы должны быть в игре, чтобы сделать подачу`,
+                t('serve.mustBeOnField'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -136,7 +147,7 @@ module.exports = function createPlayerCommands({
             getTeamArray(Team.RED).length < defaultTeamSize
         ) {
             room.sendAnnouncement(
-                `Недостаточно игроков на поле для силовой подачи`,
+                t('serve.notEnoughPlayers'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -147,7 +158,7 @@ module.exports = function createPlayerCommands({
 
         if (state.lastTouches[0] !== undefined) {
             room.sendAnnouncement(
-                `Сейчас нельзя сделать подачу`,
+                t('serve.cannotServeNow'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -158,7 +169,7 @@ module.exports = function createPlayerCommands({
 
         if (state.serveBall) {
             room.sendAnnouncement(
-                `Кто-то уже делает подачу`,
+                t('serve.someoneServing'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -169,7 +180,7 @@ module.exports = function createPlayerCommands({
 
         if (player.team !== state.serve) {
             room.sendAnnouncement(
-                `Сейчас не ваша подача`,
+                t('serve.notYourServe'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -191,7 +202,7 @@ module.exports = function createPlayerCommands({
     }
 
     function bbCommand(player) {
-        room.kickPlayer(player.id, 'Пока!', false);
+        room.kickPlayer(player.id, t('bb.farewell'), false);
     }
 
     async function statsCommand(player, message) {
@@ -201,7 +212,7 @@ module.exports = function createPlayerCommands({
             const stat = await db.getStat(getAuth(player.id));
             if (!stat) {
                 room.sendAnnouncement(
-                    `Вас нет в статистике сыграйте хотя бы одну игру!`,
+                    t('stats.selfEmpty'),
                     player.id,
                     Color.GR_RED,
                     'small',
@@ -225,7 +236,7 @@ module.exports = function createPlayerCommands({
             const id = parsePlayerId(arg);
             if (id === null) {
                 room.sendAnnouncement(
-                    `Некорректный параметр, введите айди игрока если он на сервере или его @никнейм`,
+                    t('stats.invalidArg'),
                     player.id,
                     Color.GR_RED,
                     'small',
@@ -237,7 +248,7 @@ module.exports = function createPlayerCommands({
             const target = room.getPlayer(id);
             if (!target) {
                 room.sendAnnouncement(
-                    `Игрок должен быть на сервере, чтобы вы могли посмотреть его статистику`,
+                    t('stats.targetOffline'),
                     player.id,
                     Color.GR_RED,
                     'small',
@@ -249,7 +260,7 @@ module.exports = function createPlayerCommands({
             const stat = await db.getStat(getAuth(id));
             if (!stat) {
                 room.sendAnnouncement(
-                    `Вас нет в статистике сыграйте хотя бы одну игру!`,
+                    t('stats.selfEmpty'),
                     player.id,
                     Color.GR_RED,
                     'small',
@@ -273,7 +284,7 @@ module.exports = function createPlayerCommands({
 
         if (matches.length === 0) {
             room.sendAnnouncement(
-                `Игрока с таким именем нет в статистике`,
+                t('stats.nameNotFound'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -287,11 +298,11 @@ module.exports = function createPlayerCommands({
             for (let i = 0; i < matches.length; i++) {
                 const [auth] = matches[i];
                 const nicks = await db.getNicknames(auth);
-                names.push(`${i + 1}) ${nicks.length > 0 ? nicks.join(', ') : auth}`);
+                names.push(t('stats.indexEntry', { index: i + 1, names: nicks.length > 0 ? nicks.join(', ') : auth }));
             }
 
             room.sendAnnouncement(
-                `Игроков с таким именем в статистике ${matches.length}, введите команду ещё раз, но после имени введите номер нужного вам\nВот их имена из deanon команды:\n${names.join('\n')}`,
+                t('stats.needIndex', { count: matches.length, names: names.join('\n') }),
                 player.id,
                 Color.WH_BLUE,
                 'small',
@@ -305,7 +316,7 @@ module.exports = function createPlayerCommands({
 
         if (!stat) {
             room.sendAnnouncement(
-                `Игрока нет в статистике он должен сыграть хотя бы одну игру!`,
+                t('stats.notInStats'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -330,7 +341,7 @@ module.exports = function createPlayerCommands({
 
         if (!(await db.setStatName(auth, newName))) {
             room.sendAnnouncement(
-                `Ошибка!`,
+                t('rename.failed'),
                 player.id,
                 Color.GR_RED,
                 'bold',
@@ -340,7 +351,7 @@ module.exports = function createPlayerCommands({
         }
 
         room.sendAnnouncement(
-            `Вы успешно переименовали себя ${newName} !`,
+            t('rename.success', { name: newName }),
             player.id,
             Color.GR_GREEN,
             'bold',
@@ -365,7 +376,7 @@ module.exports = function createPlayerCommands({
 
         if (!top || !validTops.includes(top)) {
             room.sendAnnouncement(
-                `Некорректный топ: ${validTops.map(t => `"${t}"`).join(', ')}\nПример - !tops <топ> <кол-во> / !tops all <кол-во> - чтобы вывести все топы`,
+                t('tops.invalidTop', { list: validTops.map(t2 => `"${t2}"`).join(', ') }),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -379,7 +390,7 @@ module.exports = function createPlayerCommands({
             len = Number(args[1]);
             if (isNaN(len) || len < 5 || len > 50) {
                 room.sendAnnouncement(
-                    `Некорректная длина топа, min: 5 max: 50`,
+                    t('tops.invalidLength'),
                     player.id,
                     Color.GR_RED,
                     'small',
@@ -393,7 +404,7 @@ module.exports = function createPlayerCommands({
 
         if (list.length < len) {
             room.sendAnnouncement(
-                `Недостаточно игроков в топе: ещё ${len - list.length}`,
+                t('tops.notEnoughPlayers', { missing: len - list.length }),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -406,14 +417,14 @@ module.exports = function createPlayerCommands({
             const sorted = [...list].sort((a, b) => b[TOPS[statKey]] - a[TOPS[statKey]]);
             return sorted.slice(0, len).map((s, i) => {
                 const value = statKey === 'time' ? getStatTime(s[TOPS[statKey]]) : s[TOPS[statKey]];
-                return `${i + 1}. ${s[0]} (${value})`;
+                return t('tops.entry', { index: i + 1, name: s[0], value });
             });
         };
 
         if (top === 'all') {
-            for (const t of Object.keys(TOPS)) {
+            for (const statKey of Object.keys(TOPS)) {
                 room.sendAnnouncement(
-                    `${t} - ${buildTopLines(t).join(' ')}`,
+                    t('tops.line', { statName: statKey, entries: buildTopLines(statKey).join(' ') }),
                     player.id,
                     Color.WH_BLUE,
                     'small',
@@ -424,7 +435,7 @@ module.exports = function createPlayerCommands({
         }
 
         room.sendAnnouncement(
-            `${top} - ${buildTopLines(top).join(' ')}`,
+            t('tops.line', { statName: top, entries: buildTopLines(top).join(' ') }),
             player.id,
             Color.WH_BLUE,
             'small',
@@ -437,7 +448,7 @@ module.exports = function createPlayerCommands({
 
         if (args.length === 0) {
             room.sendAnnouncement(
-                `${player.name} ID: ${getAuth(player.id)}`,
+                t('getAuth.self', { name: player.name, auth: getAuth(player.id) }),
                 player.id,
                 Color.WH_BLUE,
                 'small-italic',
@@ -449,7 +460,7 @@ module.exports = function createPlayerCommands({
         const id = parsePlayerId(args[0]);
         if (id === null) {
             room.sendAnnouncement(
-                `Неверный формат! ("!getauth #ID")`,
+                t('getAuth.usage'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -461,7 +472,7 @@ module.exports = function createPlayerCommands({
         const target = room.getPlayer(id);
         if (!target) {
             room.sendAnnouncement(
-                `Игрока с таким ID не существует`,
+                t('getAuth.notFound'),
                 player.id,
                 Color.WH_BLUE,
                 'small',
@@ -471,7 +482,7 @@ module.exports = function createPlayerCommands({
         }
 
         room.sendAnnouncement(
-            `${target.name} ID: ${getAuth(target.id)}`,
+            t('getAuth.target', { name: target.name, auth: getAuth(target.id) }),
             player.id,
             Color.WH_BLUE,
             'small-italic',
@@ -482,7 +493,7 @@ module.exports = function createPlayerCommands({
     async function queueCommand(player) {
         if (state.queue.length === 0) {
             room.sendAnnouncement(
-                `📝В очереди никого нет`,
+                t('queue.empty'),
                 player.id,
                 Color.GR_GREEN,
                 'small',
@@ -505,12 +516,12 @@ module.exports = function createPlayerCommands({
         }
 
         let result = realQueue.length > 0
-            ? `📝Очередь (игрок [пропущ. игр]): ${realQueue.map(([id, missed]) => `${room.getPlayer(id).name} [${missed}]`).join(', ')}.`
-            : '📝В очереди никого нет';
+            ? t('queue.header', { list: realQueue.map(([id, missed]) => t('queue.entry', { name: room.getPlayer(id).name, missed })).join(', ') })
+            : t('queue.empty');
 
-        result += vipQueue.length > 0
-            ? `\n🌟VIP-Очередь (игрок [пропущ. игр]): ${vipQueue.map(([id, missed]) => `${room.getPlayer(id).name} [${missed}]`).join(', ')}.`
-            : '\n🌟В VIP-Очереди никого нет';
+        result += '\n' + (vipQueue.length > 0
+            ? t('queue.vipHeader', { list: vipQueue.map(([id, missed]) => t('queue.entry', { name: room.getPlayer(id).name, missed })).join(', ') })
+            : t('queue.vipEmpty'));
 
         room.sendAnnouncement(
             result,
@@ -526,7 +537,7 @@ module.exports = function createPlayerCommands({
 
         if (args.length === 0) {
             room.sendAnnouncement(
-                `Наш discord: ${Discord}`,
+                t('discordLink.info', { discord: Discord }),
                 player.id,
                 Color.GR_GREEN,
                 'small',
@@ -540,7 +551,7 @@ module.exports = function createPlayerCommands({
 
         if (account && account.discord) {
             room.sendAnnouncement(
-                `Ваш Discord уже привязан к этому аккаунту. Чтобы привязать другой, сначала отвяжите текущий командой !discordunlink`,
+                t('discordLink.alreadyLinked'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -554,7 +565,7 @@ module.exports = function createPlayerCommands({
 
         if (result.ok) {
             room.sendAnnouncement(
-                `✅ Discord успешно привязан к вашему аккаунту!`,
+                t('discordLink.success'),
                 player.id,
                 Color.WH_GREEN,
                 'bold',
@@ -564,15 +575,15 @@ module.exports = function createPlayerCommands({
         }
 
         const messages = {
-            invalid: `Код неверный или истёк. Получите новый командой /link в Discord`,
-            already_linked: `Ваш аккаунт HaxBall уже привязан к Discord`,
-            already_linked_elsewhere: `Этот Discord уже привязан к другому аккаунту`,
-            unknown_account: `Ваш аккаунт HaxBall не найден`,
-            unavailable: `Discord-интеграция сейчас недоступна, попробуйте позже`
+            invalid: t('discordLink.invalidCode'),
+            already_linked: t('discordLink.alreadyLinkedAccount'),
+            already_linked_elsewhere: t('discordLink.alreadyLinkedElsewhere'),
+            unknown_account: t('discordLink.unknownAccount'),
+            unavailable: t('discordLink.unavailable')
         };
 
         room.sendAnnouncement(
-            messages[result.reason] ?? `Не удалось привязать Discord`,
+            messages[result.reason] ?? t('discordLink.genericFail'),
             player.id,
             Color.GR_RED,
             'small',
@@ -589,7 +600,7 @@ module.exports = function createPlayerCommands({
             const role = await getRole(player);
             if (role < Role.ADMIN) {
                 room.sendAnnouncement(
-                    `Отвязать чужой Discord могут только ADMIN и выше`,
+                    t('discordLink.unlink.adminOnly'),
                     player.id,
                     Color.GR_RED,
                     'small',
@@ -609,7 +620,7 @@ module.exports = function createPlayerCommands({
 
                 if (!Number.isInteger(id) || id < 0) {
                     room.sendAnnouncement(
-                        `Некорректный формат: !discordunlink <#ID | AUTH>`,
+                        t('discordLink.unlink.usage'),
                         player.id,
                         Color.GR_RED,
                         'small',
@@ -621,7 +632,7 @@ module.exports = function createPlayerCommands({
                 const target = room.getPlayer(id);
                 if (!target) {
                     room.sendAnnouncement(
-                        `Игрока с таким ID нет на сервере`,
+                        t('discordLink.unlink.targetNotFound'),
                         player.id,
                         Color.GR_RED,
                         'small',
@@ -639,7 +650,7 @@ module.exports = function createPlayerCommands({
 
         if (result.ok) {
             room.sendAnnouncement(
-                `✅ Discord отвязан от аккаунта ${targetLabel}`,
+                t('discordLink.unlink.success', { target: targetLabel }),
                 player.id,
                 Color.WH_GREEN,
                 'bold',
@@ -649,7 +660,7 @@ module.exports = function createPlayerCommands({
         }
 
         room.sendAnnouncement(
-            `Аккаунт ${targetLabel} не привязан к Discord`,
+            t('discordLink.unlink.notLinked', { target: targetLabel }),
             player.id,
             Color.GR_RED,
             'small',
@@ -659,7 +670,7 @@ module.exports = function createPlayerCommands({
 
     function telegramCommand(player) {
         room.sendAnnouncement(
-            `Мой telegram: ${Telegram}`,
+            t('telegram.info', { telegram: Telegram }),
             player.id,
             Color.GR_GREEN,
             'small',
@@ -673,7 +684,7 @@ module.exports = function createPlayerCommands({
         if (index !== -1) {
             state.afkList = state.afkList.filter(p => p[0] !== player.id);
             room.sendAnnouncement(
-                `🐣${player.name} больше не АФК`,
+                t('afk.left', { name: player.name }),
                 null,
                 Color.WH_BLUE,
                 'small',
@@ -685,7 +696,7 @@ module.exports = function createPlayerCommands({
             }
             state.afkList.push([player.id, player.name, Date.now()]);
             room.sendAnnouncement(
-                `💤${player.name} теперь АФК`,
+                t('afk.entered', { name: player.name }),
                 null,
                 Color.WH_BLUE,
                 'small',
@@ -704,7 +715,7 @@ module.exports = function createPlayerCommands({
     function afkListCommand(player) {
         if (state.afkList.length === 0) {
             room.sendAnnouncement(
-                `💤В списке АФК никого нет`,
+                t('afk.listEmpty'),
                 player.id,
                 Color.GR_GREEN,
                 'small',
@@ -714,11 +725,11 @@ module.exports = function createPlayerCommands({
         }
 
         const lines = state.afkList.map(
-            ([, name, time]) => `${name} (${Math.ceil((Date.now() - time) / 1000 / 60)}мин)`
+            ([, name, time]) => t('afk.listEntry', { name, mins: Math.ceil((Date.now() - time) / 1000 / 60) })
         );
 
         room.sendAnnouncement(
-            `💤Список АФК: ${lines.join(', ')}.`,
+            t('afk.listHeader', { list: lines.join(', ') }),
             player.id,
             Color.GR_GREEN,
             'small',
@@ -727,9 +738,9 @@ module.exports = function createPlayerCommands({
     }
 
     function idsCommand(player) {
-        const lines = room.getPlayerList().map(p => `${p.name} (${p.id})`);
+        const lines = room.getPlayerList().map(p => t('ids.entry', { name: p.name, id: p.id }));
         room.sendAnnouncement(
-            `📑player (id): ${lines.join(', ')}.`,
+            t('ids.header', { list: lines.join(', ') }),
             player.id,
             Color.GR_GREEN,
             'small',
@@ -742,7 +753,7 @@ module.exports = function createPlayerCommands({
 
         if (args.length === 0) {
             room.sendAnnouncement(
-                `Напишите айди игрока`,
+                t('deanon.usage'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -754,7 +765,7 @@ module.exports = function createPlayerCommands({
         const id = parsePlayerId(args[0]);
         if (id === null) {
             room.sendAnnouncement(
-                `Игрока нет на сервере`,
+                t('deanon.notFound'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -766,7 +777,7 @@ module.exports = function createPlayerCommands({
         const target = room.getPlayer(id);
         if (!target) {
             room.sendAnnouncement(
-                `Игрока нет на сервере`,
+                t('deanon.notFound'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -779,7 +790,7 @@ module.exports = function createPlayerCommands({
 
         if (!(await db.hasNicknames(auth))) {
             room.sendAnnouncement(
-                `Ошибка, невозможно узнать имена игрока`,
+                t('deanon.noNicknames'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -790,7 +801,7 @@ module.exports = function createPlayerCommands({
 
         const names = (await db.getNicknames(auth)).join(', ');
         room.sendAnnouncement(
-            `🔍${target.name} также известен как: ${names}.`,
+            t('deanon.result', { name: target.name, names }),
             player.id,
             null,
             'small',
@@ -801,7 +812,7 @@ module.exports = function createPlayerCommands({
     function myPointCommand(player) {
         if (player.team === Team.SPECTATORS || room.getScores() == null) {
             room.sendAnnouncement(
-                `Команду можно использовать только на поле`,
+                t('myPoint.onlyInGame'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -812,7 +823,7 @@ module.exports = function createPlayerCommands({
 
         const prop = room.getPlayerDiscProperties(player.id);
         room.sendAnnouncement(
-            `x: ${+prop.x.toFixed(2)} y: ${+prop.y.toFixed(2)}`,
+            t('myPoint.coords', { x: +prop.x.toFixed(2), y: +prop.y.toFixed(2) }),
             player.id,
             Color.WH_BLUE,
             'small',
@@ -828,7 +839,7 @@ module.exports = function createPlayerCommands({
             const role = await getRole(player);
             if (role < Role.ADMIN) {
                 room.sendAnnouncement(
-                    `Смотреть чужие аккаунты могут только ADMIN и выше`,
+                    t('account.adminOnly'),
                     player.id,
                     Color.GR_RED,
                     'small',
@@ -855,7 +866,7 @@ module.exports = function createPlayerCommands({
 
         if (!account) {
             room.sendAnnouncement(
-                arg ? `Аккаунт не найден` : `Ваш аккаунт не найден`,
+                arg ? t('account.notFound') : t('account.notFoundOwn'),
                 player.id,
                 Color.GR_RED,
                 'small',

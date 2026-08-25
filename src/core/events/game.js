@@ -23,7 +23,8 @@ module.exports = function createGameEvents({
     HaxNotification,
     TeamPickMode,
     Sits,
-    defaultTeamSize
+    defaultTeamSize,
+    t
 }) {
     function isFullTeams() {
         return (
@@ -60,18 +61,18 @@ module.exports = function createGameEvents({
 
             if (isGoal) {
                 let emoji = '🏐';
-                let action = assist == null ? '' : `(${assist[0]})`;
+                let action = assist == null ? '' : t('game.goal.withAssist', { assist: assist[0] });
 
                 if (goal[3]) {
                     emoji = '🛡️';
-                    action = `блокировал удар ${state.lastTouches[1][0]}`;
+                    action = t('game.goal.block', { blocked: state.lastTouches[1][0] });
                 } else if (goal[4]) {
                     emoji = '🥏';
-                    action = 'сделал ЭЙС с подачи';
+                    action = t('game.goal.ace');
                 }
 
                 room.sendAnnouncement(
-                    `${timeStr} ${emoji} ${goal[0]} ${action} | ${scoreStr}`,
+                    t('game.goal.scoreLine', { time: timeStr, emoji, scorer: goal[0], action, score: scoreStr }),
                     null,
                     color,
                     'bold',
@@ -99,15 +100,18 @@ module.exports = function createGameEvents({
                 let text;
 
                 if (goal[3]) {
-                    text = `⚔️ ${assist[0]} пробил блок ${goal[0]}`;
+                    text = t('game.goal.counterBlock', { scorer: assist[0], blocked: goal[0] });
                 } else if (assist != null && assist[4]) {
-                    text = `🥏 ${assist[0]} сделал ЭЙС с подачи`;
+                    text = t('game.goal.counterAce', { scorer: assist[0] });
                 } else {
-                    text = `🐔 ${goal[0]}${assist == null ? '' : ` (${assist[0]})`}`;
+                    text = t('game.goal.ownGoal', {
+                        scorer: goal[0],
+                        assist: assist == null ? '' : t('game.goal.withAssist', { assist: assist[0] })
+                    });
                 }
 
                 room.sendAnnouncement(
-                    `${timeStr} ${text} | ${scoreStr}`,
+                    t('game.goal.counterScoreLine', { time: timeStr, text, score: scoreStr }),
                     null,
                     color,
                     'bold',
@@ -129,7 +133,11 @@ module.exports = function createGameEvents({
             }
         } else {
             room.sendAnnouncement(
-                `${timeStr} 📛 Фол ${team === Team.RED ? 'синих' : 'красных'} | ${scoreStr}`,
+                t('game.goal.foul', {
+                    time: timeStr,
+                    team: team === Team.RED ? t('game.goal.teamRed') : t('game.goal.teamBlue'),
+                    score: scoreStr
+                }),
                 null,
                 color,
                 'bold',
@@ -146,7 +154,7 @@ module.exports = function createGameEvents({
                 if (red === blue) {
                     state.newMatchPoint++;
                     room.sendAnnouncement(
-                        `🎯Счёт равный, игра продолжится до ${state.newMatchPoint} мячей`,
+                        t('game.matchPointTied', { value: state.newMatchPoint }),
                         null,
                         Color.WH_BLUE,
                         'bold',
@@ -157,7 +165,7 @@ module.exports = function createGameEvents({
                     (team === Team.BLUE && blue === mp - 1)
                 ) {
                     room.sendAnnouncement(
-                        `🔥Матч поинт ${team === Team.RED ? 'красных' : 'синих'}`,
+                        t('game.matchPoint', { team: team === Team.RED ? t('game.teamRed') : t('game.teamBlue') }),
                         null,
                         color,
                         'bold',
@@ -191,7 +199,7 @@ module.exports = function createGameEvents({
             getTeamArray(Team.RED).length >= defaultTeamSize
         ) {
             sendAnnouncementTeam(
-                `Напиши "!serve" или "!sr", чтобы подать силовую подачу`,
+                t('game.serveHint'),
                 getTeamArray(state.serve),
                 Color.WH_BLUE,
                 'small',
@@ -245,7 +253,7 @@ module.exports = function createGameEvents({
             getTeamArray(Team.RED).length >= state.game.teamSize
         ) {
             sendAnnouncementTeam(
-                `Напиши "!serve" или "!sr", чтобы подать силовую подачу`,
+                t('game.serveHint'),
                 getTeamArray(state.serve),
                 Color.WH_BLUE,
                 'small',
@@ -273,13 +281,13 @@ module.exports = function createGameEvents({
             let resultColor;
 
             if (red > blue) {
-                resultText = '🏆Победа красной команды';
+                resultText = t('game.result.redWin');
                 resultColor = Color.TEAM_RED;
             } else if (red === blue) {
-                resultText = '💤Ничья';
+                resultText = t('game.result.draw');
                 resultColor = Color.WH_BLUE;
             } else {
-                resultText = '🏆Победа синей команды';
+                resultText = t('game.result.blueWin');
                 resultColor = Color.TEAM_BLUE;
             }
 
@@ -322,7 +330,7 @@ module.exports = function createGameEvents({
                     
                     if (getTeamArray(Team.SPECTATORS).length > 0) {
                         room.sendAnnouncement(
-                            `🔥Серия побед: ${state.winstay.streak}`,
+                            t('winstay.streak', { streak: state.winstay.streak }),
                             null,
                             resultColor,
                             'small',
@@ -357,7 +365,7 @@ module.exports = function createGameEvents({
                 const replayName = getIdReplay();
 
                 room.sendAnnouncement(
-                    `💾replay: № ${replayName} | download: ${Discord}`,
+                    t('game.replay', { id: replayName, discord: Discord }),
                     null,
                     Color.WH_BLUE,
                     'small',
@@ -379,7 +387,7 @@ module.exports = function createGameEvents({
 
             if (activePlayers.length > 1) {
                 room.sendAnnouncement(
-                    `⌚️ Игра начнётся через ${gamesTimeout} секунд.`,
+                    t('game.timeout', { seconds: gamesTimeout }),
                     null,
                     Color.GR_GREEN,
                     'small',
@@ -392,7 +400,7 @@ module.exports = function createGameEvents({
                 }, gamesTimeout * 1000);
             } else {
                 room.sendAnnouncement(
-                    `⛔️ Недостаточно игроков, чтобы начать матч.`,
+                    t('game.notEnoughPlayers'),
                     null,
                     Color.GR_RED,
                     'small',

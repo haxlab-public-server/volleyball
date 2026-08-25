@@ -7,7 +7,8 @@ module.exports = function createRoleHelpers({
     RoleString,
     Color,
     HaxNotification,
-    discordBot
+    discordBot,
+    t
 }) {
 
 async function checkRoles() {
@@ -17,7 +18,7 @@ async function checkRoles() {
         if (id != null) {
             room.setPlayerAdmin(id, false);
             room.sendAnnouncement(
-                `Срок вашей роли истёк =(`,
+                t('role.expired'),
                 id,
                 Color.WH_BLUE,
                 "bold",

@@ -34,6 +34,8 @@ const discordOnlineMessages = {
     }
 };
 
+const locale = process.env.LOCALE ?? 'ru';
+
 module.exports = {
     ...roomConstants,
     publicToken,
@@ -44,5 +46,6 @@ module.exports = {
     discordGuildId,
     discordRoleIds,
     discordChannelIds,
-    discordOnlineMessages
+    discordOnlineMessages,
+    locale
 };

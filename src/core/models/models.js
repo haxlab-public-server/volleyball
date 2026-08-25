@@ -2,9 +2,9 @@ module.exports = function createModels({
     room,
     db,
     Color,
-    HaxNotification
+    HaxNotification,
+    t
 }) {
-
 class Game {
     constructor(teamSize) {
         this.rec = room.startRecording();
@@ -80,7 +80,7 @@ class MuteList {
             var player = this.list[i];
             if (now > player.unmuteDate) { 
                 room.sendAnnouncement( 
-                    `${player.name} больше не в муте`, 
+                    t('mute.noLongerMuted', { name: player.name }),
                     null, 
                     Color.WH_BLUE, 
                     "bold", 
@@ -97,7 +97,7 @@ class MuteList {
     }
 }
 
-function createMutePlayer(muteArray, room, Color, HaxNotification) {
+function createMutePlayer(muteArray, room, Color, HaxNotification, t) {
     return class MutePlayer {
         constructor(name, id, auth) {
             this.id = MutePlayer.incrementId();
@@ -120,7 +120,7 @@ function createMutePlayer(muteArray, room, Color, HaxNotification) {
 
         async remove() {
             room.sendAnnouncement(
-                `Теперь ты можешь говорить.`,
+                t('mute.canSpeak'),
                 this.playerId,
                 Color.GR_GREEN,
                 "bold",

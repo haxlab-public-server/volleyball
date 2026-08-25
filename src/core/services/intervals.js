@@ -23,9 +23,10 @@ module.exports = function createIntervals({
     Discord,
     Telegram,
     roomName,
-    maxPlayers
+    maxPlayers,
+    t
 }) {
-    const announcementMessages = createAnnouncementMessages({ Discord, Telegram });
+    const announcementMessages = createAnnouncementMessages({ Discord, Telegram, t });
 
     function formatDate(d = new Date()) {
         const formatter = new Intl.DateTimeFormat('ru-RU', {
@@ -64,7 +65,7 @@ module.exports = function createIntervals({
     setInterval(() => {
         state.vipPassword = getRandomInt(100000, 999999);
         discordBot.sendVipPassword(state.vipPassword);
-        console.log(`[${formatDate()}] 🌟Новый VIP-Пароль: ${state.vipPassword}`);
+        console.log(t('intervals.vipPasswordConsoleLine', { date: formatDate(), password: state.vipPassword }));
         updateVipSlots();
     }, 60 * 60 * 1000);
 
@@ -104,10 +105,10 @@ module.exports = function createIntervals({
             state.inactivityTicks[player.id]++;
 
             if (state.inactivityTicks[player.id] >= maxInactivity) {
-                room.kickPlayer(player.id, 'АФК на площадке', false);
+                room.kickPlayer(player.id, t('afk.forcedToSpectate', { name: player.name }), false);
             } else if (state.inactivityTicks[player.id] === warningThreshold) {
                 room.sendAnnouncement(
-                    `⛔️Если ты не проявишь признаки жизни в течении ${Math.round(maxInactivity / 3)}сек, ты будешь кикнут`,
+                    t('intervals.inactivityWarning', { seconds: Math.round(maxInactivity / 3) }),
                     player.id,
                     Color.GR_RED,
                     'bold',

@@ -176,11 +176,12 @@ async function main() {
         const room = { sendAnnouncement: () => {} };
         const Color = { WH_BLUE: 1, GR_GREEN: 2 };
         const HaxNotification = { CHAT: 1 };
+        const t = (key) => key;
         const createModels = require(path.join(__dirname, '..', 'src', 'core', 'models', 'models'));
-        const { MuteList, createMutePlayer } = createModels({ room, db, Color, HaxNotification });
+        const { MuteList, createMutePlayer } = createModels({ room, db, Color, HaxNotification, t });
 
         const muteArray = new MuteList();
-        const MutePlayer = createMutePlayer(muteArray, room, Color, HaxNotification);
+        const MutePlayer = createMutePlayer(muteArray, room, Color, HaxNotification, t);
 
         const mute = new MutePlayer('Alice', 1, 'auth1');
         mute.setDuration(60000);

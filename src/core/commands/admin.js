@@ -15,7 +15,8 @@ module.exports = function createAdminCommands({
     Discord,
     Telegram,
     db,
-    discordBot
+    discordBot,
+    t
 }) {
     function parsePlayerId(arg) {
         const idStr = arg.startsWith('#') ? arg.slice(1) : arg;
@@ -28,7 +29,7 @@ module.exports = function createAdminCommands({
 
         if (args.length !== 1) {
             room.sendAnnouncement(
-                `Неверное количество аргументов: !unban <ID | AUTH>`,
+                t('common.wrongArgsCount', { usage: t('ban.unbanUsage') }),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -51,7 +52,7 @@ module.exports = function createAdminCommands({
 
         if (!ban) {
             room.sendAnnouncement(
-                `Введенный вами идентификатор не связан с баном`,
+                t('ban.notFoundForUnban'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -67,7 +68,7 @@ module.exports = function createAdminCommands({
         }
 
         room.sendAnnouncement(
-            `${player.name} разбанил ${target}`,
+            t('ban.unbanned', { admin: player.name, target }),
             null,
             Color.RED,
             'bold',
@@ -81,7 +82,7 @@ module.exports = function createAdminCommands({
 
         if (args.length < 2) {
             room.sendAnnouncement(
-                `Неверное количество аргументов: !ban <#ID | AUTH> <time> [причина]`,
+                t('common.wrongArgsCount', { usage: t('ban.usage') }),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -119,7 +120,7 @@ module.exports = function createAdminCommands({
                 (await getRole({}, banAuth) >= Role.PREADMIN && await getRole(player) !== Role.MASTER)
             ) {
                 room.sendAnnouncement(
-                    `Вы не можете забанить себя или у этого игрока защита от бана`,
+                    t('ban.selfOrProtected'),
                     player.id,
                     Color.GR_RED,
                     'small',
@@ -132,7 +133,7 @@ module.exports = function createAdminCommands({
             const id = parsePlayerId(targetArg);
             if (id === null) {
                 room.sendAnnouncement(
-                    `Введен неверный ID`,
+                    t('ban.invalidId'),
                     player.id,
                     Color.GR_RED,
                     'small',
@@ -146,7 +147,7 @@ module.exports = function createAdminCommands({
 
             if (!banPlayer) {
                 room.sendAnnouncement(
-                    `Введен неверный ID`,
+                    t('ban.invalidId'),
                     player.id,
                     Color.GR_RED,
                     'small',
@@ -160,7 +161,7 @@ module.exports = function createAdminCommands({
                 (await getRole(banPlayer) >= Role.PREADMIN && await getRole(player) !== Role.MASTER)
             ) {
                 room.sendAnnouncement(
-                    `Вы не можете забанить себя или у этого игрока защита от бана`,
+                    t('ban.selfOrProtected'),
                     player.id,
                     Color.GR_RED,
                     'small',
@@ -177,7 +178,7 @@ module.exports = function createAdminCommands({
         const time = stringToTime(timeArg);
         if (time == null) {
             room.sendAnnouncement(
-                `Нужно написать время в правильном формате (пример: 10min)`,
+                t('ban.invalidTime'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -188,7 +189,7 @@ module.exports = function createAdminCommands({
 
         if (await getRole(player) === Role.PREADMIN && time > 30 * 60 * 1000) {
             room.sendAnnouncement(
-                `У вашей роли ограничение на время бана: максимум 30min`,
+                t('ban.roleTimeLimit'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -208,10 +209,10 @@ module.exports = function createAdminCommands({
 
         const targetDisplay = banName ?? banAuth;
         const timeStr = getStringTime(timeArg);
-        const reasonStr = reason ? ` по причине: ${reason}` : '';
+        const reasonStr = reason ? t('ban.reasonSuffix', { reason }) : '';
 
         room.sendAnnouncement(
-            `${player.name} забанил ${targetDisplay} на ${timeStr}${reasonStr}.`,
+            t('ban.success', { admin: player.name, target: targetDisplay, time: timeStr, reason: reasonStr }),
             null,
             Color.RED,
             'bold',
@@ -230,7 +231,7 @@ module.exports = function createAdminCommands({
         if (onlinePlayer) {
             room.kickPlayer(
                 onlinePlayer.id,
-                `${player.name} забанил вас на ${timeStr}${reasonStr}\n discord: ${Discord}`,
+                t('ban.kickMessage', { admin: player.name, time: timeStr, reason: reasonStr, discord: Discord }),
                 false
             );
         }
@@ -241,7 +242,7 @@ module.exports = function createAdminCommands({
 
         if (banList.length === 0) {
             room.sendAnnouncement(
-                'Никого нет в бан-листе.',
+                t('ban.listEmpty'),
                 player.id,
                 Color.GR_GREEN,
                 'small',
@@ -253,11 +254,11 @@ module.exports = function createAdminCommands({
         const lines = banList.map((ban, i) => {
             const name = ban.name ?? ban.auth;
             const mins = Math.round((ban.date - Date.now()) / 1000 / 60);
-            return `${name} (${mins}мин) [${i}]`;
+            return t('ban.listEntry', { name, mins, index: i });
         });
 
         room.sendAnnouncement(
-            `Бан-лист: ${lines.join(', ')}.`,
+            t('ban.listHeader', { list: lines.join(', ') }),
             player.id,
             Color.GR_GREEN,
             'small',
@@ -270,7 +271,7 @@ module.exports = function createAdminCommands({
 
         if (args.length < 2) {
             room.sendAnnouncement(
-                `Неверное количество аргументов: !mute <#ID> <время> [причина]`,
+                t('common.wrongArgsCount', { usage: t('mute.usage') }),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -282,7 +283,7 @@ module.exports = function createAdminCommands({
         const targetId = parsePlayerId(args[0]);
         if (targetId === null) {
             room.sendAnnouncement(
-                `Неверный формат`,
+                t('mute.invalidId'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -294,7 +295,7 @@ module.exports = function createAdminCommands({
         const target = room.getPlayer(targetId);
         if (!target) {
             room.sendAnnouncement(
-                `Игрока с таким ID в руме нет`,
+                t('mute.notInRoom'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -306,7 +307,7 @@ module.exports = function createAdminCommands({
         const time = stringToTime(args[1]);
         if (time == null || time <= 0) {
             room.sendAnnouncement(
-                `Нужно написать время в правильном формате (пример: 10min)`,
+                t('mute.invalidTime'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -317,7 +318,7 @@ module.exports = function createAdminCommands({
 
         if (await getRole(player) === Role.PREADMIN && time > 60 * 60 * 1000) {
             room.sendAnnouncement(
-                `У вашей роли ограничение на время мута: максимум 1h (1 час)`,
+                t('mute.roleTimeLimit'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -331,7 +332,7 @@ module.exports = function createAdminCommands({
             await getRole(player) !== Role.MASTER
         ) {
             room.sendAnnouncement(
-                `У игрока защита от мута.`,
+                t('mute.protected'),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -349,10 +350,10 @@ module.exports = function createAdminCommands({
 
         const reason = args.slice(2).join(' ');
         const timeStr = getStringTime(args[1]);
-        const reasonStr = reason ? ` по причине: ${reason}` : '';
+        const reasonStr = reason ? t('mute.reasonSuffix', { reason }) : '';
 
         room.sendAnnouncement(
-            `${player.name} замутил ${target.name} на ${timeStr}${reasonStr}.`,
+            t('mute.success', { admin: player.name, target: target.name, time: timeStr, reason: reasonStr }),
             null,
             Color.RED,
             'bold',
@@ -373,7 +374,7 @@ module.exports = function createAdminCommands({
 
         if (args.length === 0) {
             room.sendAnnouncement(
-                `Неверное количество аргументов: !unmute <#ID| ID(из мут списка)>`,
+                t('common.wrongArgsCount', { usage: t('mute.unmuteUsage') }),
                 player.id,
                 Color.GR_RED,
                 'small',
@@ -393,7 +394,7 @@ module.exports = function createAdminCommands({
                 if (muteObj) {
                     await muteArray.removeById(muteObj.id);
                     room.sendAnnouncement(
-                        `${player.name} размутил ${target.name}!`,
+                        t('mute.unmuted', { admin: player.name, target: target.name }),
                         null,
                         Color.RED,
                         'bold',
@@ -404,7 +405,7 @@ module.exports = function createAdminCommands({
                 }
 
                 room.sendAnnouncement(
-                    `Этот игрок не в муте!`,
+                    t('mute.notMuted'),
                     player.id,
                     Color.GR_RED,
                     'small',
@@ -420,7 +421,7 @@ module.exports = function createAdminCommands({
             if (muteObj) {
                 await muteArray.removeById(muteId);
                 room.sendAnnouncement(
-                    `${player.name} размутил ${muteObj.name}!`,
+                    t('mute.unmuted', { admin: player.name, target: muteObj.name }),
                     null,
                     Color.RED,
                     'bold',
@@ -432,7 +433,7 @@ module.exports = function createAdminCommands({
         }
 
         room.sendAnnouncement(
-            `Неверный формат`,
+            t('mute.invalidId'),
             player.id,
             Color.GR_RED,
             'small',
@@ -443,7 +444,7 @@ module.exports = function createAdminCommands({
     function muteListCommand(player) {
         if (muteArray.list.length === 0) {
             room.sendAnnouncement(
-                'В мут-листе пусто.',
+                t('mute.listEmpty'),
                 player.id,
                 Color.GR_GREEN,
                 'small',
@@ -454,11 +455,11 @@ module.exports = function createAdminCommands({
 
         const lines = muteArray.list.map(mute => {
             const mins = Math.round((mute.unmuteDate - Date.now()) / 1000 / 60);
-            return `${mute.name} (${mins}мин)[${mute.id}]`;
+            return t('mute.listEntry', { name: mute.name, mins, id: mute.id });
         });
 
         room.sendAnnouncement(
-            `Мут-лист: ${lines.join(', ')}.`,
+            t('mute.listHeader', { list: lines.join(', ') }),
             player.id,
             Color.GR_GREEN,
             'small',

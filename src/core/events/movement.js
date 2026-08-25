@@ -23,15 +23,9 @@ module.exports = function createMovementEvents({
     Sits,
     getPickTeam,
     getCaptain,
-    sendPickList
+    sendPickList,
+    t
 }) {
-    const ROLE_NAMES = {
-        [Role.MASTER]: 'Создатель',
-        [Role.ADMIN]: 'Администратор',
-        [Role.PREADMIN]: 'Мл. Администратор',
-        [Role.VIP]: 'VIP'
-    };
-
     function onPlayerJoin(player) {
         if (GhostKick && room.getPlayerList().length > 1) {
             const alreadyOnline = room.getPlayerList()
@@ -42,7 +36,7 @@ module.exports = function createMovementEvents({
                 );
 
             if (alreadyOnline) {
-                room.kickPlayer(player.id, 'Кажется ты уже есть в комнате', false);
+                room.kickPlayer(player.id, t('join.alreadyOnline'), false);
                 return;
             }
         }
@@ -66,7 +60,7 @@ module.exports = function createMovementEvents({
                 setTimeout(() => {
                     room.kickPlayer(
                         player.id,
-                        `Вы забанены: ${minsLeft} мин\n discord: ${Discord}`,
+                        t('join.banned', { mins: minsLeft, discord: Discord }),
                         false
                     );
                 }, 700);
@@ -78,7 +72,7 @@ module.exports = function createMovementEvents({
                     setTimeout(() => {
                         room.kickPlayer(
                             player.id,
-                            `Сейчас в комнату могут зайти только авторизованные игроки\n discord: ${Discord}`,
+                            t('join.authOnly', { discord: Discord }),
                             false
                         );
                     }, 700);
@@ -93,14 +87,15 @@ module.exports = function createMovementEvents({
             await db.ensureStat(player.auth, player.name);
 
             const role = await getRole(player);
-            const roleName = ROLE_NAMES[role];
+            const roleKey = Object.keys(Role).find(key => Role[key] === role)?.toLowerCase();
+            const roleName = t(`role.names.${roleKey ?? 'player'}`);
 
             discordBot.syncRole(player.auth);
 
             if (role >= Role.ADMIN) {
                 room.setPlayerAdmin(player.id, true);
                 room.sendAnnouncement(
-                    `💥 ${roleName} ${player.name} зашёл на комнату!`,
+                    t('join.announceAdmin', { roleName, name: player.name }),
                     null,
                     Color.RED,
                     'bold',
@@ -111,7 +106,7 @@ module.exports = function createMovementEvents({
                     room.setPlayerAdmin(player.id, true);
                 }
                 room.sendAnnouncement(
-                    `🌟 ${roleName} ${player.name} зашёл на комнату!`,
+                    t('join.announceVip', { roleName, name: player.name }),
                     null,
                     Color.PINK,
                     'bold',
@@ -120,7 +115,7 @@ module.exports = function createMovementEvents({
             } else if (role === Role.PREADMIN) {
                 room.setPlayerAdmin(player.id, true);
                 room.sendAnnouncement(
-                    `💢 ${roleName} ${player.name} зашёл на комнату!`,
+                    t('join.announcePreadmin', { roleName, name: player.name }),
                     null,
                     Color.RED,
                     'bold',
@@ -129,7 +124,7 @@ module.exports = function createMovementEvents({
             }
 
             room.sendAnnouncement(
-                `Заходи на наш discord-сервер: ${Discord}\nПодписывайся на мой telegram: ${Telegram}\nНапиши "!help" чтобы узнать список доступных команд.\nНапиши перед сообщением "ч", чтобы писать в чат команды\nПо всем вопросам tg: chesdes`,
+                t('join.welcome', { discord: Discord, telegram: Telegram, contactTelegram: 'chesdes' }),
                 player.id,
                 Color.GR_GREEN,
                 'small',
@@ -158,7 +153,7 @@ module.exports = function createMovementEvents({
         player.auth = getAuth(player.id);
 
         room.sendAnnouncement(
-            `${player.name} ID: ${player.auth}`,
+            t('join.leaveIdEcho', { name: player.name, auth: player.auth }),
             null,
             Color.GR_GREEN,
             'small',
@@ -216,7 +211,7 @@ module.exports = function createMovementEvents({
         ) {
             room.setPlayerTeam(changedPlayer.id, Team.SPECTATORS);
             room.sendAnnouncement(
-                `${changedPlayer.name} АФК!`,
+                t('afk.forcedToSpectate', { name: changedPlayer.name }),
                 byPlayer?.id,
                 Color.GR_RED,
                 'small',
@@ -234,7 +229,7 @@ module.exports = function createMovementEvents({
 
         if (room.getScores() != null && changedPlayer.team !== Team.SPECTATORS && byPlayer == null) {
             room.sendAnnouncement(
-                `@${changedPlayer.name} ты в игре!`,
+                t('join.wentInGame', { name: changedPlayer.name }),
                 changedPlayer.id,
                 Color.WH_BLUE,
                 'bold',

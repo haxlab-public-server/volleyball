@@ -22,7 +22,8 @@ module.exports = function createActivityEvents({
     updateBallColor,
     Sits,
     isCurrentPickingCaptain,
-    capPick
+    capPick,
+    t
 }) {
 
     async function getDisplayName(player) {
@@ -86,7 +87,7 @@ module.exports = function createActivityEvents({
                     commands[command].function(player, message);
                 } else {
                     room.sendAnnouncement(
-                        `Команда, которую вы пытались ввести, для вас не существует. Пожалуйста, введите '!help', чтобы получить доступные команды.`,
+                        t('chat.unknownCommand'),
                         player.id,
                         Color.GR_RED,
                         'small',
@@ -102,7 +103,7 @@ module.exports = function createActivityEvents({
                     const minsLeft = Math.round((mute.unmuteDate - Date.now()) / 1000 / 60);
 
                     room.sendAnnouncement(
-                        `Вы в муте: ${minsLeft}мин (ваши сообщения видят админы)`,
+                        t('mute.stillMuted', { mins: minsLeft }),
                         player.id,
                         Color.GR_RED,
                         'bold',
@@ -116,7 +117,7 @@ module.exports = function createActivityEvents({
                     }
 
                     sendAnnouncementTeam(
-                        `*MUTED* ${player.name} (${player.id}): ${message}`,
+                        t('mute.mutedChatEcho', { name: player.name, id: player.id, message }),
                         adminPlayers,
                         Color.GREY,
                         null,
@@ -150,7 +151,7 @@ module.exports = function createActivityEvents({
 
             if (isAllMention) {
                 sendAnnouncementTeam(
-                    `${displayName} (${player.id}): ${message}`,
+                    t('chat.messageWithId', { displayName, id: player.id, message }),
                     preAdmins,
                     chatColor,
                     'bold',
@@ -158,7 +159,7 @@ module.exports = function createActivityEvents({
                 );
 
                 sendAnnouncementTeam(
-                    `${displayName}: ${message}`,
+                    t('chat.message', { displayName, message }),
                     normals,
                     chatColor,
                     'bold',
@@ -180,8 +181,8 @@ module.exports = function createActivityEvents({
                 for (const id of mentionedIds) {
                     const isAdmin = preAdmins.some(p => p.id === id);
                     const text = isAdmin
-                        ? `${displayName} (${player.id}): ${message}`
-                        : `${displayName}: ${message}`;
+                        ? t('chat.messageWithId', { displayName, id: player.id, message })
+                        : t('chat.message', { displayName, message });
 
                     room.sendAnnouncement(text, id, chatColor, 'bold', HaxNotification.MENTION);
                 }
@@ -191,7 +192,7 @@ module.exports = function createActivityEvents({
 
                 if (nonMentionedAdmins.length > 0) {
                     sendAnnouncementTeam(
-                        `${displayName} (${player.id}): ${message}`,
+                        t('chat.messageWithId', { displayName, id: player.id, message }),
                         nonMentionedAdmins,
                         chatColor,
                         style,
@@ -201,7 +202,7 @@ module.exports = function createActivityEvents({
 
                 if (nonMentionedNormals.length > 0) {
                     sendAnnouncementTeam(
-                        `${displayName}: ${message}`,
+                        t('chat.message', { displayName, message }),
                         nonMentionedNormals,
                         chatColor,
                         style,
@@ -228,7 +229,7 @@ module.exports = function createActivityEvents({
 
         if (!state.goal_sit && state.serveBall) {
             room.sendAnnouncement(
-                `🥏Силовая подача: ${player.name}`,
+                t('game.powerServe', { name: player.name }),
                 null, teamColor, 'bold', HaxNotification.CHAT
             );
 
@@ -258,7 +259,7 @@ module.exports = function createActivityEvents({
             isBlockZone
         ) {
             room.sendAnnouncement(
-                `🛡️Блок: ${player.name}`,
+                t('game.block', { name: player.name }),
                 null, teamColor, 'bold', HaxNotification.CHAT
             );
 
@@ -282,7 +283,7 @@ module.exports = function createActivityEvents({
                 });
 
                 room.sendAnnouncement(
-                    `📛Двойное касание: ${player.name}`,
+                    t('game.doubleTouch', { name: player.name }),
                     null, enemyColor, 'bold', HaxNotification.NONE
                 );
 
@@ -305,7 +306,7 @@ module.exports = function createActivityEvents({
                 });
 
                 room.sendAnnouncement(
-                    `📛4 касания: ${player.team === Team.RED ? 'красные' : 'синие'}`,
+                    t('game.fourTouches', { team: player.team === Team.RED ? t('game.teamRed') : t('game.teamBlue') }),
                     null, enemyColor, 'bold', HaxNotification.NONE
                 );
 
@@ -332,7 +333,7 @@ module.exports = function createActivityEvents({
             });
 
             room.sendAnnouncement(
-                `✳️Сейв-мяч`,
+                t('game.saveBall'),
                 null, teamColor, 'bold', HaxNotification.CHAT
             );
 

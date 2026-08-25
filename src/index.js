@@ -4,6 +4,7 @@ const esbuild = require('esbuild');
 
 const { createDb } = require('../db/sqlite');
 const { createDiscordBot } = require('./core/discordBot');
+const { createLocale } = require('./core/locale');
 const {
     publicToken,
     privateToken,
@@ -13,13 +14,24 @@ const {
     discordGuildId,
     discordRoleIds,
     discordChannelIds,
-    discordOnlineMessages
+    discordOnlineMessages,
+    locale: localeCode
 } = require('./core/config');
 
 const { publicConfig, privateConfig } = require('./core/roomConstants');
 
 const projectRoot = path.resolve(__dirname, '..');
 const db = createDb(path.join(projectRoot, 'db', 'volleyball.sqlite'));
+
+/*
+ * Node-side locale instance. Used directly by discordBot.js /
+ * discordCommands.js (Node-only, never bundled into the browser). The
+ * browser context builds its own instance from the same locale code —
+ * see the `locale` field added to the page.evaluate payload below and
+ * src/browser/entry.js — rather than sharing this object across the
+ * Puppeteer boundary, since only serializable data crosses page.evaluate.
+ */
+const { t } = createLocale(localeCode);
 
 async function handleDbCall(method, args) {
     const fn = db[method];
@@ -111,10 +123,12 @@ async function launchRoom(type, config, secrets, discordBot) {
         window.__secrets = payload.secrets;
         window.__roomConfig = payload.config;
         window.__roomType = payload.type;
+        window.__locale = payload.locale;
     }, {
         secrets,
         config,
-        type
+        type,
+        locale: localeCode
     });
 
     await page.evaluate(() => {
@@ -160,13 +174,14 @@ async function main() {
         guildId: discordGuildId,
         roleIds: discordRoleIds,
         channelIds: discordChannelIds,
-        db
+        db,
+        t
     });
 
     if (discordBotToken) {
         await discordBot.login();
     } else {
-        console.warn('[Discord] DISCORD_BOT_TOKEN не задан, Discord-интеграция отключена.');
+        console.warn(t('common.discordTokenMissing'));
     }
 
     const [publicRoom, privateRoom] = await Promise.all([

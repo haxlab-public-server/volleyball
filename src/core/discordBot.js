@@ -44,7 +44,8 @@ function createDiscordBot({
     guildId,
     roleIds,
     channelIds,
-    db
+    db,
+    t
 }) {
     const client = new Client({
         intents: [
@@ -81,7 +82,8 @@ function createDiscordBot({
         discordBotSend: {
             sendReport: (...args) => sendReport(...args),
             sendStatsBackup: (...args) => sendStatsBackup(...args)
-        }
+        },
+        t
     });
 
     const pendingLinkCodes = new Map();
@@ -226,15 +228,24 @@ function createDiscordBot({
 
     async function sendReport(roomLabel, adminName, toPlayerName, action, reason, time) {
         if (!channelIds.report) return;
-        const actions = { mute: 'замутил', ban: 'забанил', unmute: 'размутил', unban: 'разбанил' };
+        const actions = {
+            mute: t('discordBot.report.mute'),
+            ban: t('discordBot.report.ban'),
+            unmute: t('discordBot.report.unmute'),
+            unban: t('discordBot.report.unban')
+        };
         const channel = await client.channels.fetch(channelIds.report).catch(() => null);
         if (!channel) return;
 
         const prefix = roomLabel ? `\`[${roomLabel}]\` ` : '';
-        const content =
-            `## ${prefix}🔴 ${adminName} ${actions[action]} ${toPlayerName}` +
-            `${time != null ? ` на ${time}` : ''}` +
-            `${reason != null ? ` по причине: ${reason}` : ''}`;
+        const content = t('discordBot.report.line', {
+            prefix,
+            admin: adminName,
+            action: actions[action],
+            target: toPlayerName,
+            time: time != null ? t('discordBot.report.timeSuffix', { time }) : '',
+            reason: reason != null ? t('discordBot.report.reasonSuffix', { reason }) : ''
+        });
 
         await channel.send({ content: truncate(content) }).catch(() => {});
     }
@@ -263,7 +274,9 @@ function createDiscordBot({
         const channel = await client.channels.fetch(channelIds.vip).catch(() => null);
         if (channel) {
             const prefix = roomLabel ? `\`[${roomLabel}]\` ` : '';
-            await channel.send({ content: `# ${prefix}🌟VIP-Пароль: ${vipPassword}` }).catch(() => {});
+            await channel.send({
+                content: t('discordBot.vipPasswordHeader', { prefix, password: vipPassword })
+            }).catch(() => {});
         }
     }
 
@@ -285,7 +298,7 @@ function createDiscordBot({
             const file = new AttachmentBuilder(buffer, { name: filename });
 
             await channel.send({
-                content: `${prefix}📦 Бекап статистики перед сбросом`,
+                content: t('discordBot.statsBackupUploaded', { prefix }),
                 files: [file]
             });
         } catch (err) {
@@ -304,14 +317,14 @@ function createDiscordBot({
             const embed = new EmbedBuilder()
                 .setColor(ONLINE_EMBED_COLOR)
                 .setTitle(`${title} - ${count}/${maxPlayers}`)
-                .addFields({ name: 'PLAYERS:', value: playersLine || '' })
-                .setFooter({ text: `updated once per minute, latest update: ${formatDate()}` });
+                .addFields({ name: t('discordBot.onlineEmbed.playersField'), value: playersLine || '' })
+                .setFooter({ text: t('discordBot.onlineEmbed.footer', { date: formatDate() }) });
 
             const components = [];
             if (roomLink) {
                 const row = new ActionRowBuilder().addComponents(
                     new ButtonBuilder()
-                        .setLabel('Присоединиться')
+                        .setLabel(t('discordBot.onlineEmbed.joinButton'))
                         .setStyle(ButtonStyle.Link)
                         .setURL(roomLink)
                 );
@@ -328,10 +341,10 @@ function createDiscordBot({
         const commands = [
             new SlashCommandBuilder()
                 .setName('link')
-                .setDescription('Получить код для привязки Discord к аккаунту HaxBall'),
+                .setDescription(t('discord.command.link')),
             new SlashCommandBuilder()
                 .setName('unlink')
-                .setDescription('Отвязать ваш Discord от аккаунта HaxBall'),
+                .setDescription(t('discord.command.unlink')),
             ...roomCommands.buildCommandDefinitions()
         ].map(c => (typeof c.toJSON === 'function' ? c.toJSON() : c));
 
@@ -346,7 +359,7 @@ function createDiscordBot({
             const existing = await db.getAccountByDiscordId(interaction.user.id);
             if (existing) {
                 await interaction.reply({
-                    content: `❌ Ваш Discord уже привязан к аккаунту HaxBall. Чтобы привязать другой, сначала отвяжите текущий командой \`/unlink\`.`,
+                    content: t('discordBot.linkSlash.alreadyLinked'),
                     ephemeral: true
                 });
                 return;
@@ -355,10 +368,7 @@ function createDiscordBot({
             const code = createLinkCode(interaction.user.id);
 
             await interaction.reply({
-                content:
-                    `🔗 Ваш код привязки: **${code}**\n` +
-                    `Введите в HaxBall команду: \`!discord ${code}\`\n` +
-                    `Код действует 10 минут.`,
+                content: t('discordBot.linkSlash.codeReply', { code }),
                 ephemeral: true
             });
             return;
@@ -369,12 +379,12 @@ function createDiscordBot({
 
             if (result.ok) {
                 await interaction.reply({
-                    content: `✅ Discord отвязан от аккаунта HaxBall.`,
+                    content: t('discordBot.linkSlash.unlinked'),
                     ephemeral: true
                 });
             } else {
                 await interaction.reply({
-                    content: `❌ Ваш Discord не привязан ни к одному аккаунту HaxBall.`,
+                    content: t('discordBot.linkSlash.notLinked'),
                     ephemeral: true
                 });
             }

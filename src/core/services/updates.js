@@ -21,7 +21,8 @@ module.exports = function createUpdatesUtils({
     getPickTeam,
     getCaptain,
     sendPickList,
-    clearCaptainPickTimer
+    clearCaptainPickTimer,
+    t
 }) {
     const CAPTAIN_PICK_TIMEOUT_MS = 10_000;
     const CAPTAIN_ALERT_OFFSET_MS = 4_000;
@@ -180,7 +181,7 @@ module.exports = function createUpdatesUtils({
         const teamColor = pickTeam === Team.RED ? Color.TEAM_RED : Color.TEAM_BLUE;
 
         room.sendAnnouncement(
-            `🧢 Ход капитана ${captain.name}`,
+            t('captains.turnAnnounce', { captain: captain.name }),
             null,
             teamColor,
             'bold',
@@ -193,7 +194,7 @@ module.exports = function createUpdatesUtils({
             if (state.sit !== Sits.CHOICE) return;
 
             room.sendAnnouncement(
-                `⏳ Осталось 4 секунды для выбора!`,
+                t('captains.timeWarning'),
                 captain.id,
                 Color.GR_RED,
                 'bold',
@@ -214,7 +215,7 @@ module.exports = function createUpdatesUtils({
                 room.setPlayerTeam(randomPlayer.id, team);
 
                 room.sendAnnouncement(
-                    `⏰ Время вышло — случайно выбран ${randomPlayer.name}`,
+                    t('captains.timeUp', { name: randomPlayer.name }),
                     null,
                     Color.GR_RED,
                     'bold',
@@ -386,7 +387,7 @@ module.exports = function createUpdatesUtils({
             specs = await placeVipOrFirst(
                 specs,
                 Team.BLUE,
-                name => `🌟 ${name} стал капитаном СИНИХ по брони !up!`
+                name => t('up.captainBlue', { name })
             );
         } else {
             resetWinstay();
@@ -394,7 +395,7 @@ module.exports = function createUpdatesUtils({
             specs = await placeVipOrFirst(
                 specs,
                 Team.RED,
-                name => `🌟 ${name} стал капитаном КРАСНЫХ по брони !up!`
+                name => t('up.captainRed', { name })
             );
 
             if (specs[0]) {
@@ -454,7 +455,7 @@ module.exports = function createUpdatesUtils({
         state.sit = Sits.RANDOMIZE;
 
         room.sendAnnouncement(
-            `⚖️ Рандомизация команд...`,
+            t('captains.randomizing'),
             null,
             Color.GR_GREEN,
             'small',

@@ -4,7 +4,8 @@ module.exports = function createCaptainsHelpers({
     getTeamArray,
     Team,
     Color,
-    HaxNotification
+    HaxNotification,
+    t
 }) {
 
 function clearCaptainPickTimer() {
@@ -52,7 +53,7 @@ function sendPickList(captain) {
         .join(', ');
 
     room.sendAnnouncement(
-        `Выберите игрока: ${specsList}\nДля выбора игрока напишите его номер в чат.`,
+        t('captains.pickPrompt', { list: specsList }),
         captain.id,
         Color.GREY,
         'bold',
@@ -67,7 +68,7 @@ function capPick(captain, team, num) {
         const chosen = specs[num - 1];
         room.setPlayerTeam(chosen.id, team);
         room.sendAnnouncement(
-            `${captain.name} выбрал ${chosen.name}`,
+            t('captains.picked', { captain: captain.name, chosen: chosen.name }),
             null,
             Color.WH_BLUE,
             'bold',
@@ -78,7 +79,7 @@ function capPick(captain, team, num) {
     }
 
     room.sendAnnouncement(
-        `Такого номера нет в списке!`,
+        t('captains.noSuchNumber'),
         captain.id,
         Color.GR_RED,
         'bold',
