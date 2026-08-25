@@ -474,6 +474,10 @@ module.exports = {
             successTitle: 'Stats reset',
             successBody: 'Backup: `{filename}`\nrecords: {count}'
         },
+        statsBackup: {
+            successTitle: 'Stats backup created',
+            successBody: 'File: `{filename}`\nrecords: {count}'
+        },
         ban: {
             selfOrProtectedTitle: 'Invalid action',
             selfOrProtectedBody: 'You cannot ban yourself or a player protected from bans.',

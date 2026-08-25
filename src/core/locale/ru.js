@@ -479,6 +479,10 @@ module.exports = {
             successTitle: 'Статистика сброшена',
             successBody: 'Бекап: `{filename}`\nзаписей: {count}'
         },
+        statsBackup: {
+            successTitle: 'Бекап статистики создан',
+            successBody: 'Файл: `{filename}`\nзаписей: {count}'
+        },
         ban: {
             selfOrProtectedTitle: 'Недопустимое действие',
             selfOrProtectedBody: 'Нельзя забанить себя или игрока с защитой от бана.',

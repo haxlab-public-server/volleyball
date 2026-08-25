@@ -391,7 +391,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const backup = await db.backupStats();
 
         const payload = {
-            embeds: [successEmbed(t('discord.statsClear.successTitle'), t('discord.statsClear.successBody', { filename: backup.filename, count: backup.count }))]
+            embeds: [successEmbed(t('discord.statsBackup.successTitle'), t('discord.statsBackup.successBody', { filename: backup.filename, count: backup.count }))]
         };
 
         if (backup.count > 0) {
