@@ -72,6 +72,18 @@ The bot connects to Discord as a real bot application (not webhooks), which prov
 
   Commands targeting a specific player take their public ID (43 characters) directly, with no nickname resolution. The exception is `/stats`: it's read-only and additionally supports looking a player up by nickname (if several accounts share that nickname, a list is shown with an `index` to disambiguate on a re-run). `/ban`, `/unban`, `/mute`, `/unmute`, and `/password` first write the change to the DB/state, then apply it **instantly, live**, in whichever room the target currently is, via the Node→browser bridge (`window.__applyModeration`) — no need to wait for the player to rejoin. `/statsbackup` snapshots the stats table to a timestamped file and attaches it to the reply, without clearing anything (`/statsclear` is the destructive variant that also wipes the table).
 
+### Localization
+
+All player-facing room and Discord text is read through the locale service. The currently included locales are `ru` and `en`; Russian is the default.
+
+Set the locale in `.env`:
+
+```ini
+LOCALE="en"
+```
+
+Chat formats, announcements, command responses, Discord embeds, slash-command descriptions, and time-unit labels are stored in `src/core/locale/ru.js` and `src/core/locale/en.js`. To add a language, copy one dictionary, translate its string values while keeping the key structure unchanged, register it in `src/core/locale/index.js`, and set `LOCALE` to its code. Missing keys fall back to Russian.
+
 ### Architecture
 
 The project runs across two processes:
@@ -95,6 +107,7 @@ HaxBall Room API (HBInit)
 
 - The **Node side** is responsible for the browser lifecycle, bundle building (esbuild), the single access point to SQLite — `window.__dbCall`, exposed to the browser via `page.exposeFunction` — and the single access point to Discord — `window.__discordCall`, exposed the same way. The Discord bot client itself lives here too, including slash-command registration and handling.
 - The **browser side** (all code under `src/core/*`) is plain JS with no Node APIs, bundled by esbuild and run inside the HaxBall page. DB calls go asynchronously through the bridge `window.__db.*` → `__dbCall` → Node → SQLite. Discord calls go the same way through `window.__discord.*` → `__discordCall` → Node → the `discord.js` client.
+- The browser bundle creates its own locale instance from the locale code passed by Node. This keeps room announcements and chat formatting independent from the Node process while using the same dictionaries.
 - The Discord bot itself (login, slash commands, role management, message editing) only exists on the Node side — it never gets bundled into the browser context, since a real Gateway connection needs Node APIs that aren't available in the page's sandbox.
 - A **reverse bridge** runs the other way: `src/index.js` exposes `applyModeration` (broadcast to both rooms) and `applyToRoom` (targeted at one room) to the Discord slash-command layer, which call `window.__applyModeration(action)` inside the relevant page(s) via `page.evaluate` — no `page.exposeFunction` registration is needed for this direction, since `page.evaluate` can always reach into the page's global scope from the Node side.
 
@@ -110,6 +123,9 @@ src/
     config.js               — secrets and tokens from process.env
     roomConstants.js         — public/private room configs
     maps.js                  — stadium maps (with goals / without goals)
+    locale/
+      index.js               — locale factory, interpolation, and fallback handling
+      ru.js, en.js            — Russian and English dictionaries for room and Discord text
     announcementMessages.js  — rotating promo announcements
     safeEventHandlers.js     — wraps room.onX with error catching
     discordBot.js            — Node-only Discord bot client (discord.js): login, slash-command registration/handling, link codes, role sync, channel messages, online embed
@@ -178,6 +194,8 @@ PUBLIC_TOKEN="token here"
 PRIVATE_TOKEN="token here"
 PUBLIC_PASSWORD="password or empty here"
 PRIVATE_PASSWORD="password or empty here"
+
+LOCALE="locale code here (ru | en | your_localization_code)"
 
 DISCORD_BOT_TOKEN="discord bot token here"
 DISCORD_GUILD_ID="your server id here"
@@ -323,6 +341,18 @@ In-memory smoke tests (`tools/smoke-test.js`) cover the DB layer (accounts, bans
 
   Команды, нацеленные на конкретного игрока, принимают его public ID (43 символа) напрямую, без резолвинга по нику. Исключение — `/stats`: она доступна только на чтение и дополнительно поддерживает поиск игрока по нику (при совпадении у нескольких аккаунтов показывается список с `index`, чтобы уточнить повторным вызовом). `/ban`, `/unban`, `/mute`, `/unmute` и `/password` сначала пишут изменение в БД/состояние, а затем применяют его **мгновенно вживую** в той комнате, где сейчас находится цель, через мост Node→browser (`window.__applyModeration`) — без ожидания перезахода игрока. `/statsbackup` делает снимок таблицы статистики в файл с меткой времени и прикрепляет его к ответу, ничего не очищая (`/statsclear` — деструктивный вариант, который дополнительно очищает таблицу).
 
+### Локализация
+
+Все пользовательские сообщения комнаты и Discord проходят через сервис локализации. Сейчас доступны языки `ru` и `en`; русский используется по умолчанию.
+
+Язык задаётся в `.env`:
+
+```ini
+LOCALE="ru"
+```
+
+Форматы чата, объявления, ответы команд, Discord embed'ы, описания slash-команд и единицы времени находятся в `src/core/locale/ru.js` и `src/core/locale/en.js`. Чтобы добавить язык, скопируйте один словарь, переведите его строковые значения, сохранив структуру ключей, зарегистрируйте файл в `src/core/locale/index.js` и укажите его код в `LOCALE`. Отсутствующие ключи используют русский перевод.
+
 ### Архитектура
 
 Проект работает в двух процессах:
@@ -346,6 +376,7 @@ HaxBall Room API (HBInit)
 
 - **Node-сторона** отвечает за жизненный цикл браузера, сборку бандла (esbuild), единственную точку доступа к SQLite — `window.__dbCall`, проброшенную в браузер через `page.exposeFunction`, — и единственную точку доступа к Discord — `window.__discordCall`, проброшенную так же. Здесь же живёт сам клиент Discord-бота, включая регистрацию и обработку slash-команд.
 - **Browser-сторона** (весь код в `src/core/*`) — чистый JS без Node-API, собирается esbuild'ом и исполняется внутри страницы HaxBall. Обращения к БД идут асинхронно через мост `window.__db.*` → `__dbCall` → Node → SQLite. Обращения к Discord идут так же через `window.__discord.*` → `__discordCall` → Node → клиент `discord.js`.
+- Браузерный бандл создаёт собственный экземпляр локали из кода языка, переданного Node. Поэтому объявления комнаты и форматирование чата работают независимо от Node-процесса, используя те же словари.
 - Сам Discord-бот (логин, slash-команды, управление ролями, редактирование сообщений) существует только на Node-стороне — в бандл браузера он никогда не попадает, поскольку для реального Gateway-соединения нужны Node-API, которых нет в песочнице страницы.
 - В обратную сторону работает **reverse-мост**: `src/index.js` пробрасывает в слой Discord slash-команд функции `applyModeration` (широковещательно на обе комнаты) и `applyToRoom` (в конкретную комнату), которые вызывают `window.__applyModeration(action)` внутри нужной страницы(-иц) через `page.evaluate` — регистрация через `page.exposeFunction` для этого направления не нужна, так как `page.evaluate` всегда может обратиться к глобальной области страницы со стороны Node.
 
@@ -361,6 +392,9 @@ src/
     config.js               — секреты и токены из process.env
     roomConstants.js         — конфиги public/private комнат
     maps.js                  — карты стадиона (с воротами / без ворот)
+    locale/
+      index.js               — фабрика локали, интерполяция и fallback
+      ru.js, en.js            — русско- и англоязычные словари комнаты и Discord
     announcementMessages.js  — ротация рекламных объявлений
     safeEventHandlers.js     — обёртка room.onX с перехватом ошибок
     discordBot.js            — Node-only клиент Discord-бота (discord.js): логин, регистрация/обработка slash-команд, коды привязки, синк ролей, сообщения в каналах, онлайн-embed
@@ -429,6 +463,8 @@ PUBLIC_TOKEN="token here"
 PRIVATE_TOKEN="token here"
 PUBLIC_PASSWORD="password or empty here"
 PRIVATE_PASSWORD="password or empty here"
+
+LOCALE="locale code here (ru | en | your_localization_code)"
 
 DISCORD_BOT_TOKEN="discord bot token here"
 DISCORD_GUILD_ID="your server id here"
