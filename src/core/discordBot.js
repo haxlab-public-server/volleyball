@@ -306,6 +306,30 @@ function createDiscordBot({
         }
     }
 
+    async function sendAnalyticsDailyReport(dayKey, report) {
+        if (!channelIds.analytics) return false;
+
+        const channel = await client.channels.fetch(channelIds.analytics).catch(() => null);
+        if (!channel) return false;
+
+        const fmt = (value) => {
+            const num = Number(value ?? 0);
+            return Number.isFinite(num) ? num.toFixed(2) : '0.00';
+        };
+
+        const content = [
+            t('discordBot.analyticsDaily.header', { day: dayKey }),
+            t('discordBot.analyticsDaily.online', { peak: report.onlinePeak, avg: fmt(report.onlineAvg) }),
+            t('discordBot.analyticsDaily.joins', { total: report.joinsTotal, unique: report.joinsUnique }),
+            t('discordBot.analyticsDaily.players', { newPlayers: report.newPlayers, returningPlayers: report.returningPlayers }),
+            t('discordBot.analyticsDaily.sessions', { started: report.sessionsStarted, finished: report.sessionsFinished, avgSec: fmt(report.avgSessionSec) }),
+            t('discordBot.analyticsDaily.matches', { started: report.matchesStarted, finished: report.matchesFinished, avgSec: fmt(report.avgMatchSec) })
+        ].join('\n');
+
+        await channel.send({ content: truncate(content) }).catch(() => {});
+        return true;
+    }
+
     async function editOnlineMessage(channelId, messageId, payload) {
         if (!channelId || !messageId || !payload) return;
         try {
@@ -417,6 +441,7 @@ function createDiscordBot({
         sendRecording,
         sendVipPassword,
         sendStatsBackup,
+        sendAnalyticsDailyReport,
         editOnlineMessage,
         setModerationBridge,
         setRoomActionBridge

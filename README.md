@@ -65,6 +65,7 @@ The bot connects to Discord as a real bot application (not webhooks), which prov
 - **Automatic role sync** — when a player's in-room role (`VIP`/`PREADMIN`/`ADMIN`/`MASTER`) is granted, changed, expires, or the player rejoins the room, their Discord role is granted or revoked to match, as long as their Discord is linked and they're a member of the configured guild.
 - **Live online status message** — an embed in a dedicated Discord channel is edited once a minute and shows the room name, current player count, the list of players online, and a **"Присоединиться" (Join)** link button pointing at the current room link.
 - Chat/event logs, ban/mute reports, and auto-uploaded match replays go to dedicated Discord channels.
+- A daily analytics report for the previous day is posted to a dedicated Discord channel.
 - **Slash commands mirroring moderation and stats lookup**, with access gated by the same in-room role hierarchy, checked against the caller's linked account:
   - `MASTER`: `/setrole`, `/getrolelist`, `/password`, `/statsclear`, `/statsbackup`
   - `ADMIN`: `/ban`, `/unban`, `/mute`, `/unmute`, `/bans`, `/mutes`
@@ -209,6 +210,7 @@ DISCORD_LOG_CHANNEL_ID="discord channel id"
 DISCORD_REPORT_CHANNEL_ID="discord channel id"
 DISCORD_REPLAY_CHANNEL_ID="discord channel id"
 DISCORD_VIP_CHANNEL_ID="discord channel id"
+DISCORD_ANALYTICS_CHANNEL_ID="discord channel id"
 
 DISCORD_PUBLIC_ONLINE_CHANNEL_ID="discord channel id"
 DISCORD_PUBLIC_ONLINE_MESSAGE_ID="filled in after running scripts/send-online-messages.js"
@@ -334,6 +336,7 @@ In-memory smoke tests (`tools/smoke-test.js`) cover the DB layer (accounts, bans
 - **Автоматическую синхронизацию ролей** — при выдаче, изменении, истечении роли (`VIP`/`PREADMIN`/`ADMIN`/`MASTER`), а также при каждом заходе игрока в комнату, его Discord-роль выдаётся или снимается автоматически, если Discord привязан и игрок состоит в настроенной гильдии.
 - **Живое сообщение об онлайне** — embed в отдельном Discord-канале редактируется раз в минуту и показывает название комнаты, текущее число игроков, список игроков онлайн и кнопку-ссылку **"Присоединиться"** на текущую ссылку комнаты.
 - Логи чата и событий, отчёты о банах/мутах и авто-отправка реплеев матчей идут в выделенные Discord-каналы.
+- Ежедневный аналитический отчет за предыдущий день публикуется в специальном канале Discord.
 - **Slash-команды, зеркалирующие модерацию и просмотр статистики**, с доступом по той же иерархии ролей, что и в комнате, через привязанный Discord-аккаунт:
   - `MASTER`: `/setrole`, `/getrolelist`, `/password`, `/statsclear`, `/statsbackup`
   - `ADMIN`: `/ban`, `/unban`, `/mute`, `/unmute`, `/bans`, `/mutes`
@@ -478,6 +481,7 @@ DISCORD_LOG_CHANNEL_ID="discord channel id"
 DISCORD_REPORT_CHANNEL_ID="discord channel id"
 DISCORD_REPLAY_CHANNEL_ID="discord channel id"
 DISCORD_VIP_CHANNEL_ID="discord channel id"
+DISCORD_ANALYTICS_CHANNEL_ID="discord channel id"
 
 DISCORD_PUBLIC_ONLINE_CHANNEL_ID="discord channel id"
 DISCORD_PUBLIC_ONLINE_MESSAGE_ID="filled in after running scripts/send-online-messages.js"

@@ -20,7 +20,8 @@ const discordChannelIds = {
     log: process.env.DISCORD_LOG_CHANNEL_ID ?? null,
     report: process.env.DISCORD_REPORT_CHANNEL_ID ?? null,
     replay: process.env.DISCORD_REPLAY_CHANNEL_ID ?? null,
-    vip: process.env.DISCORD_VIP_CHANNEL_ID ?? null
+    vip: process.env.DISCORD_VIP_CHANNEL_ID ?? null,
+    analytics: process.env.DISCORD_ANALYTICS_CHANNEL_ID ?? null
 };
 
 const discordOnlineMessages = {

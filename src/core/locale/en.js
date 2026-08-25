@@ -403,6 +403,14 @@ module.exports = {
         roomOnlineLog: '**[{date}] ROOM ONLINE**',
         vipPasswordHeader: '# {prefix}🌟VIP password: {password}',
         statsBackupUploaded: '{prefix}📦 Stats backup before reset',
+        analyticsDaily: { 
+            header: '📊 Analytics for {day}',
+            online: 'Online: peak {peak}, average {avg}',
+            joins: 'Joins: total {total}, unique {unique}',
+            players: 'Players: new {newPlayers}, returning {returningPlayers}',
+            sessions: 'Sessions: started {started}, finished {finished}, avg. duration {avgSec} sec',
+            matches: 'Matches: started {started}, finished {finished}, avg. duration {avgSec} sec'
+        },
         onlineEmbed: {
             playersField: 'PLAYERS:',
             footer: 'updated once per minute, latest update: {date}',

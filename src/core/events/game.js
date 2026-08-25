@@ -23,6 +23,7 @@ module.exports = function createGameEvents({
     transitionTo,
     Sits,
     defaultTeamSize,
+    analytics,
     t
 }) {
     function isFullTeams() {
@@ -245,6 +246,10 @@ module.exports = function createGameEvents({
         state.serve = Team.BLUE;
         state.waitingForServe = true;
 
+        analytics.onGameStart().catch((error) => {
+            console.error('Error in analytics.onGameStart:', error);
+        });
+
         room.setDiscProperties(0, { color: state.ball_color });
 
         if (
@@ -263,6 +268,14 @@ module.exports = function createGameEvents({
 
     function onGameStop(byPlayer) {
         transitionTo(Sits.NONE);
+
+        analytics.onGameStop({
+            byPlayer,
+            scores: state.scores
+        }).catch((error) => {
+            console.error('Error in analytics.onGameStop:', error);
+        });
+
         if (state.training_mode) {
             clearInterval(state.training_interval);
             room.setCustomStadium(noGoal_map);

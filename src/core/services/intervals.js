@@ -24,6 +24,7 @@ module.exports = function createIntervals({
     Telegram,
     roomName,
     maxPlayers,
+    analytics,
     t
 }) {
     const announcementMessages = createAnnouncementMessages({ Discord, Telegram, t });
@@ -130,6 +131,18 @@ module.exports = function createIntervals({
             roomLink: state.roomLink ?? null
         });
     }, 60 * 1000);
+
+    setInterval(() => {
+        analytics.captureOnlineSnapshot().catch((error) => {
+            console.error('Error in analytics.captureOnlineSnapshot:', error);
+        });
+    }, 60 * 1000);
+
+    setInterval(() => {
+        analytics.aggregateRecentDays().catch((error) => {
+            console.error('Error in analytics.aggregateRecentDays:', error);
+        });
+    }, 15 * 60 * 1000);
 
     // onGameTick replacement
     setInterval(async () => {

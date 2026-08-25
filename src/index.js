@@ -26,6 +26,68 @@ const activeBrowsers = new Set();
 let isShuttingDown = false;
 let isDbClosed = false;
 let discordBotForShutdown = null;
+const ANALYTICS_TIME_ZONE = 'Europe/Moscow';
+
+const analyticsDayKeyFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: ANALYTICS_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+});
+
+function getDayKeyInTimezone(ts = Date.now()) {
+    const parts = analyticsDayKeyFormatter.formatToParts(new Date(ts));
+    const byType = Object.fromEntries(parts.map((p) => [p.type, p.value]));
+    return `${byType.year}-${byType.month}-${byType.day}`;
+}
+
+function getHourInTimezone(ts = Date.now()) {
+    const formatter = new Intl.DateTimeFormat('en-GB', {
+        timeZone: ANALYTICS_TIME_ZONE,
+        hour: '2-digit',
+        hour12: false
+    });
+
+    return Number(formatter.format(new Date(ts)));
+}
+
+function startAnalyticsDailyReporting({ db, discordBot }) {
+    let isRunning = false;
+
+    const runOnce = async () => {
+        if (isRunning) return;
+        isRunning = true;
+
+        try {
+            const now = Date.now();
+            const localHour = getHourInTimezone(now);
+
+            if (localHour < 1) return;
+
+            const yesterdayDay = getDayKeyInTimezone(now - 24 * 60 * 60 * 1000);
+
+            if (db.analyticsIsDailyReportSent(yesterdayDay)) {
+                return;
+            }
+
+            db.analyticsAggregateDaily(yesterdayDay);
+            const report = db.analyticsGetDaily(yesterdayDay);
+            if (!report) return;
+
+            const sent = await discordBot.sendAnalyticsDailyReport(yesterdayDay, report);
+            if (sent) {
+                db.analyticsMarkDailyReportSent(yesterdayDay, Date.now());
+            }
+        } catch (err) {
+            console.error('[Analytics] Failed to send daily report:', err);
+        } finally {
+            isRunning = false;
+        }
+    };
+
+    setTimeout(runOnce, 15 * 1000);
+    setInterval(runOnce, 10 * 60 * 1000);
+}
 
 /*
  * Node-side locale instance. Used directly by discordBot.js /
@@ -149,7 +211,10 @@ async function launchRoom(type, config, secrets, discordBot) {
             'getNicknames', 'hasNicknames', 'addNickname',
             'getMutes', 'addMute', 'removeMuteById', 'removeMuteByAuth',
             'getMuteById', 'getMuteByPlayerId', 'getMuteByAuth',
-            'setDiscordId', 'getAccountByDiscordId'
+            'setDiscordId', 'getAccountByDiscordId',
+            'analyticsTouchPlayer', 'analyticsStartSession', 'analyticsEndSession',
+            'analyticsStartMatch', 'analyticsEndMatch', 'analyticsAddEvent',
+            'analyticsUpsertOnlineMinute', 'analyticsAggregateDaily'
         ];
 
         window.__db = {};
@@ -188,6 +253,7 @@ async function main() {
 
     if (discordBotToken) {
         await discordBot.login();
+        startAnalyticsDailyReporting({ db, discordBot });
     } else {
         console.warn(t('common.discordTokenMissing'));
     }

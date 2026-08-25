@@ -24,6 +24,7 @@ module.exports = function createMovementEvents({
     getPickTeam,
     getCaptain,
     sendPickList,
+    analytics,
     t
 }) {
     function onPlayerJoin(player) {
@@ -85,6 +86,7 @@ module.exports = function createMovementEvents({
 
             await db.addNickname(player.auth, player.name);
             await db.ensureStat(player.auth, player.name);
+            await analytics.onPlayerJoin(player);
 
             const role = await getRole(player);
             const roleKey = Object.keys(Role).find(key => Role[key] === role)?.toLowerCase();
@@ -171,6 +173,7 @@ module.exports = function createMovementEvents({
         }
 
         (async () => {
+            await analytics.onPlayerLeave(player, 'leave');
             updateVipSlots();
             await updateTeams();
             updateTeamSize();

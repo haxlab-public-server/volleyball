@@ -278,6 +278,15 @@ const {
 })
 
 const createIntervals = require('../core/services/intervals');
+const createAnalyticsService = require('../core/services/analytics');
+const analytics = createAnalyticsService({
+    room,
+    state,
+    db,
+    roomLabel,
+    Team
+});
+
 createIntervals({
     room,
     state,
@@ -302,6 +311,7 @@ createIntervals({
     Telegram,
     roomName,
     maxPlayers,
+    analytics,
     t
 })
 
@@ -543,6 +553,7 @@ Object.assign(room, wrapEventHandlers(createMovementEvents({
     getPickTeam,
     getCaptain,
     sendPickList,
+    analytics,
     t
 })));
 
@@ -604,6 +615,7 @@ Object.assign(room, wrapEventHandlers(createGameEvents({
     transitionTo,
     Sits,
     defaultTeamSize,
+    analytics,
     t
 })));
 

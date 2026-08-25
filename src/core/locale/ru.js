@@ -408,6 +408,14 @@ module.exports = {
         roomOnlineLog: '**[{date}] ROOM ONLINE**',
         vipPasswordHeader: '# {prefix}🌟VIP-Пароль: {password}',
         statsBackupUploaded: '{prefix}📦 Бекап статистики перед сбросом',
+        analyticsDaily: {
+            header: '📊 Аналитика за {day}',
+            online: 'Онлайн: пик {peak}, средний {avg}',
+            joins: 'Заходы: всего {total}, уникальных {unique}',
+            players: 'Игроки: новых {newPlayers}, вернувшихся {returningPlayers}',
+            sessions: 'Сессии: начато {started}, завершено {finished}, средняя длительность {avgSec} сек',
+            matches: 'Матчи: начато {started}, завершено {finished}, средняя длительность {avgSec} сек'
+        },
         onlineEmbed: {
             playersField: 'PLAYERS:',
             footer: 'updated once per minute, latest update: {date}',
