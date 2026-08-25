@@ -401,8 +401,13 @@ function createDiscordBot({
         console.log(`[Discord] Bot ready as ${client.user.tag}`);
     }
 
+    function destroy() {
+        client.destroy();
+    }
+
     return {
         login,
+        destroy,
         consumeLinkCode,
         unlinkByAuth,
         syncRoleForAuth,

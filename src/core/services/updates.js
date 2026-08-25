@@ -17,6 +17,7 @@ module.exports = function createUpdatesUtils({
     maxPlayers,
     vipSlots,
     Sits,
+    transitionTo,
     TeamPickMode,
     getPickTeam,
     getCaptain,
@@ -28,6 +29,20 @@ module.exports = function createUpdatesUtils({
     const CAPTAIN_ALERT_OFFSET_MS = 4_000;
     const RANDOMIZE_DELAY_MS = 3_000;
     const FILL_GUARD_LIMIT = 20;
+    let randomizeTimer = null;
+
+    function clearRandomizeTimer() {
+        if (randomizeTimer != null) {
+            clearTimeout(randomizeTimer);
+            randomizeTimer = null;
+        }
+    }
+
+    function setSit(nextSit) {
+        if (nextSit !== Sits.CHOICE) clearCaptainPickTimer();
+        if (nextSit !== Sits.RANDOMIZE) clearRandomizeTimer();
+        transitionTo(nextSit);
+    }
 
     function getActivePlayers() {
         return room.getPlayerList().filter(
@@ -131,12 +146,13 @@ module.exports = function createUpdatesUtils({
 
     function stopCaptainPick() {
         clearCaptainPickTimer();
+        clearRandomizeTimer();
         state.captainPickForTeam = null;
         state.pickSize = null;
         state.pickUsedVipUpFor = null;
 
         if (state.sit === Sits.CHOICE) {
-            state.sit = room.getScores() != null ? Sits.GAME : Sits.NONE;
+            setSit(room.getScores() != null ? Sits.GAME : Sits.NONE);
         }
 
         try {
@@ -165,7 +181,7 @@ module.exports = function createUpdatesUtils({
         }
 
         state.pickUsedVipUpFor = null;
-        state.sit = room.getScores() != null ? Sits.GAME : Sits.NONE;
+        setSit(room.getScores() != null ? Sits.GAME : Sits.NONE);
 
         try {
             room.pauseGame(false);
@@ -203,7 +219,7 @@ module.exports = function createUpdatesUtils({
             sendPickList(captain);
         }, CAPTAIN_PICK_TIMEOUT_MS - CAPTAIN_ALERT_OFFSET_MS);
 
-        state.captainPickTimer = setTimeout(() => {
+        state.captainPickTimer = setTimeout(async () => {
             state.captainPickTimer = null;
             if (state.sit !== Sits.CHOICE) return;
 
@@ -221,6 +237,13 @@ module.exports = function createUpdatesUtils({
                     'bold',
                     HaxNotification.CHAT
                 );
+
+                try {
+                    await continueCaptainPick();
+                } catch (error) {
+                    console.error('Failed to continue captain pick:', error);
+                    setSit(Sits.NONE);
+                }
             }
         }, CAPTAIN_PICK_TIMEOUT_MS);
     }
@@ -372,7 +395,7 @@ module.exports = function createUpdatesUtils({
     }
 
     async function initCaptainPick() {
-        state.sit = Sits.FORMING;
+        setSit(Sits.FORMING);
 
         const size = getTeamSize();
         state.pickSize = size;
@@ -403,7 +426,7 @@ module.exports = function createUpdatesUtils({
             }
         }
 
-        state.sit = Sits.CHOICE;
+        setSit(Sits.CHOICE);
     }
 
     async function advanceCaptainPick(size) {
@@ -421,7 +444,7 @@ module.exports = function createUpdatesUtils({
             return;
         }
 
-        state.sit = Sits.CHOICE;
+        setSit(Sits.CHOICE);
         if (room.getScores() != null) {
             try {
                 room.pauseGame(true);
@@ -445,6 +468,11 @@ module.exports = function createUpdatesUtils({
         startCaptainTimer(captain, pickTeam);
     }
 
+    async function continueCaptainPick() {
+        if (state.sit !== Sits.CHOICE) return;
+        await handleChoiceSit();
+    }
+
     async function randomizeTeams() {
         if (getTeamArray(Team.SPECTATORS).length < 2) {
             stopCaptainPick();
@@ -452,7 +480,7 @@ module.exports = function createUpdatesUtils({
         }
 
         stopCaptainPick();
-        state.sit = Sits.RANDOMIZE;
+        setSit(Sits.RANDOMIZE);
 
         room.sendAnnouncement(
             t('captains.randomizing'),
@@ -462,8 +490,17 @@ module.exports = function createUpdatesUtils({
             HaxNotification.NONE
         );
 
-        setTimeout(async () => {
-            await performRandomize();
+        clearRandomizeTimer();
+        randomizeTimer = setTimeout(async () => {
+            randomizeTimer = null;
+            if (state.sit !== Sits.RANDOMIZE) return;
+
+            try {
+                await performRandomize();
+            } catch (error) {
+                console.error('Failed to randomize teams:', error);
+                setSit(Sits.NONE);
+            }
         }, RANDOMIZE_DELAY_MS);
     }
 
@@ -483,7 +520,7 @@ module.exports = function createUpdatesUtils({
             takeCount = Math.min(specs.length, maxOnField);
             if (takeCount % 2 === 1) takeCount -= 1;
             if (takeCount < 2) {
-                state.sit = Sits.NONE;
+                setSit(Sits.NONE);
                 return;
             }
         }
@@ -496,7 +533,7 @@ module.exports = function createUpdatesUtils({
             }
         } else {
             for (let i = selectedIds.length - 1; i > 0; i--) {
-                const j = getRandomInt(0, i);
+                const j = getRandomInt(0, i + 1);
                 [selectedIds[i], selectedIds[j]] = [selectedIds[j], selectedIds[i]];
             }
 
@@ -561,7 +598,7 @@ module.exports = function createUpdatesUtils({
 
         const rest = specs.filter(p => !used.has(p.id));
         while (selectedIds.length < takeCount && rest.length > 0) {
-            const idx = getRandomInt(0, rest.length - 1);
+            const idx = getRandomInt(0, rest.length);
             selectedIds.push(rest[idx].id);
             used.add(rest[idx].id);
             rest.splice(idx, 1);
@@ -628,6 +665,7 @@ module.exports = function createUpdatesUtils({
         updateTeams,
         startPickingTeams,
         startCaptains,
+        continueCaptainPick,
         updateVipSlots,
         updateBallColor
     };

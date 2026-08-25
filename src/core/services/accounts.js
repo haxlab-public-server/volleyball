@@ -1,6 +1,5 @@
 module.exports = function createAccountsHelpers({
     room,
-    db,
     getAuth,
     discordBot,
     getDate,

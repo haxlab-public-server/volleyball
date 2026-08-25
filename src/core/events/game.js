@@ -16,12 +16,11 @@ module.exports = function createGameEvents({
     volleyball_map,
     gamesTimeout,
     Discord,
-    Telegram,
     Team,
     Mods,
     Color,
     HaxNotification,
-    TeamPickMode,
+    transitionTo,
     Sits,
     defaultTeamSize,
     t
@@ -209,7 +208,7 @@ module.exports = function createGameEvents({
     }
 
     function onGameStart() {
-        state.sit = Sits.GAME;
+        transitionTo(Sits.GAME);
         if (state.mode === Mods.PUBLIC && !state.training_mode) {
             clearTimeout(state.onGameStopTimeout);
 
@@ -263,7 +262,7 @@ module.exports = function createGameEvents({
     }
 
     function onGameStop(byPlayer) {
-        state.sit = Sits.NONE;
+        transitionTo(Sits.NONE);
         if (state.training_mode) {
             clearInterval(state.training_interval);
             room.setCustomStadium(noGoal_map);
@@ -393,9 +392,9 @@ module.exports = function createGameEvents({
                     'small',
                     HaxNotification.NONE
                 );
-                state.sit = Sits.TIMEOUT; 
+                  transitionTo(Sits.TIMEOUT);
                 state.onGameStopTimeout = setTimeout(async () => {
-                    state.sit = Sits.NONE;
+                      transitionTo(Sits.NONE);
                     await startPickingTeams();
                 }, gamesTimeout * 1000);
             } else {

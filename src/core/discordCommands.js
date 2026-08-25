@@ -2,6 +2,7 @@ const {
     SlashCommandBuilder,
     EmbedBuilder
 } = require('discord.js');
+const { parseDuration } = require('./utils/utils');
 
 const Role = {
     PLAYER: 0,
@@ -32,22 +33,8 @@ const ERROR_COLOR = 0xE62C2C;
 const BROADCAST_ROOM_LABEL = 'Room';
 
 function parseTimeArg(str) {
-    const coef = {
-        s: 1000,
-        min: 1000 * 60,
-        h: 1000 * 60 * 60,
-        d: 1000 * 60 * 60 * 24,
-        w: 1000 * 60 * 60 * 24 * 7,
-        mon: 1000 * 60 * 60 * 24 * 30
-    };
-    for (const unit of Object.keys(coef)) {
-        if (str.includes(unit)) {
-            const n = Number(str.replace(/[^\d]/g, ''));
-            if (!Number.isFinite(n)) return null;
-            return { ms: n * coef[unit], label: `${n}${unit}` };
-        }
-    }
-    return null;
+    const parsed = parseDuration(str);
+    return parsed ? { ms: parsed.ms, label: `${parsed.amount}${parsed.unit}` } : null;
 }
 
 function isValidAuth(str) {
@@ -375,8 +362,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
 
         await interaction.deferReply();
 
-        const backup = await db.backupStats();
-        await db.clearStats();
+        const backup = await db.backupAndClearStats();
 
         if (backup.count > 0) {
             discordBotSend.sendStatsBackup(BROADCAST_ROOM_LABEL, backup.filePath, backup.filename);

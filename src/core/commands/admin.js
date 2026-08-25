@@ -13,7 +13,6 @@ module.exports = function createAdminCommands({
     Color,
     HaxNotification,
     Discord,
-    Telegram,
     db,
     discordBot,
     t
@@ -232,7 +231,7 @@ module.exports = function createAdminCommands({
             room.kickPlayer(
                 onlinePlayer.id,
                 t('ban.kickMessage', { admin: player.name, time: timeStr, reason: reasonStr, discord: Discord }),
-                false
+                true
             );
         }
     }

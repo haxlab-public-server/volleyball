@@ -46,6 +46,11 @@ CREATE TABLE IF NOT EXISTS stats (
     serves INTEGER,
     play_time INTEGER
 );
+CREATE INDEX IF NOT EXISTS idx_bans_auth ON bans (auth);
+CREATE INDEX IF NOT EXISTS idx_bans_conn ON bans (conn);
+CREATE INDEX IF NOT EXISTS idx_mutes_auth ON mutes (auth);
+CREATE INDEX IF NOT EXISTS idx_accounts_discord ON accounts (discord);
+CREATE INDEX IF NOT EXISTS idx_stats_name ON stats (name);
 `;
 
 const STAT_FIELDS = [
@@ -257,7 +262,7 @@ function createDb(dbPath) {
     function findStatsByName(pname) {
         const rows = db.prepare('SELECT auth, name, games, wins, goals, blocks, assists, blocked_attacks, errors, aces, serves, play_time FROM stats').all();
         return rows
-            .filter(r => r.name.toLowerCase().replace(/_/g, ' ') === pname)
+            .filter(r => r.name != null && r.name.toLowerCase().replace(/_/g, ' ') === pname)
             .map(r => [
                 r.auth,
                 [
@@ -318,6 +323,19 @@ function createDb(dbPath) {
         fs.writeFileSync(filePath, JSON.stringify(rows, null, 2), 'utf8');
 
         return { filename, filePath, count: rows.length };
+    }
+
+    function backupAndClearStats() {
+        const backup = backupStats();
+        try {
+            inTransaction(clearStats);
+            return backup;
+        } catch (error) {
+            try {
+                fs.unlinkSync(backup.filePath);
+            } catch {}
+            throw error;
+        }
     }
 
     function getNicknames(auth) {
@@ -418,6 +436,7 @@ function createDb(dbPath) {
         incrementStat,
         clearStats,
         backupStats,
+        backupAndClearStats,
         getNicknames,
         hasNicknames,
         addNickname,

@@ -61,7 +61,7 @@ module.exports = function createMovementEvents({
                     room.kickPlayer(
                         player.id,
                         t('join.banned', { mins: minsLeft, discord: Discord }),
-                        false
+                        true
                     );
                 }, 700);
                 return;
@@ -142,7 +142,9 @@ module.exports = function createMovementEvents({
             discordBot.sendLog(
                 `${player.auth} / ${player.conn} | **${player.name}** join ${room.getPlayerList().length}/${maxPlayers}`
             );
-        })();
+        })().catch((error) => {
+            console.error('Error in room.onPlayerJoin:', error);
+        });
     }
 
     function onPlayerLeave(player) {
@@ -172,7 +174,9 @@ module.exports = function createMovementEvents({
             updateVipSlots();
             await updateTeams();
             updateTeamSize();
-        })();
+        })().catch((error) => {
+            console.error('Error in room.onPlayerLeave:', error);
+        });
 
         discordBot.sendLog(
             `[${player.auth}] **${player.name}** leave ${room.getPlayerList().length}/${maxPlayers}`
@@ -196,7 +200,9 @@ module.exports = function createMovementEvents({
                 ) {
                     room.setPlayerAdmin(byPlayer.id, false);
                 }
-            })();
+                })().catch((error) => {
+                    console.error('Error in room.onPlayerKicked:', error);
+                });
 
             discordBot.sendLog(
                 `[${kickedPlayer.auth}] **${kickedPlayer.name}** was ${ban ? 'banned' : 'kicked'} by **${byPlayer.name}** | ${byPlayer.auth} / ${byPlayer.conn}`

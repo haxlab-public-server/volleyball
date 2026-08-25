@@ -4,7 +4,6 @@ module.exports = function createPlayerCommands({
     db,
     getAuth,
     getRole,
-    getOnlyInt,
     getTeamArray,
     sendAnnouncementTeam,
     getStatTime,

@@ -1,51 +1,30 @@
 function getOnlyInt(str) {
     return Number(str.replace(/[^+\d]/g, ''))
 }
-    
-function stringToTime(string) {
-    var coef = {
-        "s": 1000,
-        "min": 1000 * 60,
-        "h": 1000 * 60 * 60,
-        "d": 1000 * 60 * 60 * 24,
-        "w": 1000 * 60 * 60 * 24 * 7,
-        "mon": 1000 * 60 * 60 * 24 * 30,
-    }
-    for (var i of Object.keys(coef)) {
-        if (string.includes(i)) {
-            return getOnlyInt(string) * coef[i]
-        }
-    }
-    return null
+
+const MS_PER_TIME_UNIT = {
+    s: 1000,
+    min: 1000 * 60,
+    h: 1000 * 60 * 60,
+    d: 1000 * 60 * 60 * 24,
+    w: 1000 * 60 * 60 * 24 * 7,
+    mon: 1000 * 60 * 60 * 24 * 30
+};
+
+function parseDuration(input) {
+    const value = String(input);
+    const match = value.match(/^\+?(\d+)(mon|min|s|h|d|w)$/);
+    if (!match) return null;
+
+    const amount = Number(match[1]);
+    const unit = match[2];
+    if (!Number.isSafeInteger(amount) || amount <= 0) return null;
+
+    return { amount, unit, ms: amount * MS_PER_TIME_UNIT[unit] };
 }
-    
-function getStringTime(str) {
-    var rus = {
-        "s": "сек",
-        "min": "мин",
-        "h": "ч",
-        "d": "дн",
-        "w": "нед",
-        "mon": "мес",
-    }
-    for (var i of Object.keys(rus)) {
-        if (str.includes(i)) {
-            return `${getOnlyInt(str)}${rus[i]}`
-        }
-    }
-    return null
-}
-    
+
 function getStatTime(time) {
     return `${(time / 60).toFixed(2)}ч`
-}
-    
-function getActTime() {
-    return new Date().toLocaleTimeString("ru-RU", {
-        timeZone: "Europe/Moscow",
-        hour: "2-digit",
-        minute: "2-digit"
-    });
 }
     
 function getDate(mils) {
@@ -74,14 +53,17 @@ function getRandomFloat(min, max) {
     return Math.random() * (max - min) + min;
 }
 
+function formatTimePart(value) {
+    return String(Math.floor(value)).padStart(2, '0');
+}
+
 function getMinutesGame(time) {
-    var t = Math.floor(time / 60);
-    return `${Math.floor(t / 10)}${Math.floor(t % 10)}`;
+    return formatTimePart(time / 60);
 }
 
 function getSecondsGame(time) {
-    var t = Math.floor(time - Math.floor(time / 60) * 60);
-    return `${Math.floor(t / 10)}${Math.floor(t % 10)}`;
+    const minutes = Math.floor(time / 60);
+    return formatTimePart(time - minutes * 60);
 }
 
 function getTimeGame(time) {
@@ -90,10 +72,8 @@ function getTimeGame(time) {
 
 module.exports = {
     getOnlyInt,
-    stringToTime,
-    getStringTime,
+    parseDuration,
     getStatTime,
-    getActTime,
     getDate,
     findFirstNumberCharString,
     getRandomInt,

@@ -1,7 +1,3 @@
-const {
-    findFirstNumberCharString
-} = require('./utils')
-
 function getMoscowParts(d = new Date()) {
     const formatter = new Intl.DateTimeFormat('en-CA', {
         timeZone: 'Europe/Moscow',

@@ -80,7 +80,6 @@ const MutePlayer = createMutePlayer(muteArray, room, Color, HaxNotification, t);
 const {
     getOnlyInt,
     getStatTime,
-    getActTime,
     getDate,
     findFirstNumberCharString,
     getRandomInt,
@@ -162,6 +161,12 @@ const {
     Team
 })
 
+const createSitState = require('../core/services/sitState');
+const { transitionTo } = createSitState({
+    state,
+    Sits
+});
+
 const {
     getRecordingName,
     getIdReplay,
@@ -194,7 +199,6 @@ const {
     resolveTargetAuth
 } = createAccountsHelpers({
     room,
-    db,
     getAuth,
     discordBot,
     getDate,
@@ -225,6 +229,7 @@ const {
     updateTeams,
     startPickingTeams,
     startCaptains,
+    continueCaptainPick,
     updateVipSlots,
     updateBallColor
 } = createUpdatesUtils({
@@ -246,6 +251,7 @@ const {
     maxPlayers,
     vipSlots,
     Sits,
+    transitionTo,
     TeamPickMode,
     getPickTeam,
     getCaptain,
@@ -344,7 +350,6 @@ const {
     db,
     getAuth,
     getRole,
-    getOnlyInt,
     getTeamArray,
     sendAnnouncementTeam,
     getStatTime,
@@ -417,7 +422,6 @@ const {
     Color,
     HaxNotification,
     Discord,
-    Telegram,
     db,
     discordBot,
     t
@@ -448,7 +452,6 @@ const {
     setRole,
     stringToTime,
     getStringTime,
-    getDate,
     stopTrainingMode,
     Role,
     RoleString,
@@ -570,6 +573,7 @@ Object.assign(room, wrapEventHandlers(createActivityEvents({
     Sits,
     isCurrentPickingCaptain,
     capPick,
+    continueCaptainPick,
     t
 })));
 
@@ -593,12 +597,11 @@ Object.assign(room, wrapEventHandlers(createGameEvents({
     volleyball_map,
     gamesTimeout,
     Discord,
-    Telegram,
     Team,
     Mods,
     Color,
     HaxNotification,
-    TeamPickMode,
+    transitionTo,
     Sits,
     defaultTeamSize,
     t
@@ -663,7 +666,7 @@ window.__applyModeration = function (action) {
             room.kickPlayer(
                 online.id,
                 t('ban.kickMessageLive', { admin: action.name ?? t('role.names.admin'), time: timeStr, reason: reasonStr, discord: Discord }),
-                false
+                true
             );
 
             room.sendAnnouncement(
@@ -677,8 +680,10 @@ window.__applyModeration = function (action) {
         }
 
         if (action.type === 'unban') {
-            if (action.unban_id) {
-                room.clearBan(unban_id);
+            const banId = action.unban_id ?? lastIds[action.auth]?.[0];
+            if (banId != null) {
+                room.clearBan(banId);
+                return true;
             }
             return false;
         }

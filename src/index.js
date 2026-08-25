@@ -22,6 +22,10 @@ const { publicConfig, privateConfig } = require('./core/roomConstants');
 
 const projectRoot = path.resolve(__dirname, '..');
 const db = createDb(path.join(projectRoot, 'db', 'volleyball.sqlite'));
+const activeBrowsers = new Set();
+let isShuttingDown = false;
+let isDbClosed = false;
+let discordBotForShutdown = null;
 
 /*
  * Node-side locale instance. Used directly by discordBot.js /
@@ -62,8 +66,11 @@ async function launchRoom(type, config, secrets, discordBot) {
             '--disable-setuid-sandbox',
         ],
     });
+    activeBrowsers.add(browser);
 
     browser.on('disconnected', () => {
+        activeBrowsers.delete(browser);
+        if (isShuttingDown) return;
         console.error(`[FATAL] Browser (${type}) disconnected/crashed.`);
         setTimeout(() => process.exit(1), 2000);
     });
@@ -138,7 +145,7 @@ async function launchRoom(type, config, secrets, discordBot) {
             'hasAuth', 'addAuth', 'removeAuth', 'clearAuths',
             'getAccount', 'hasAccount', 'getAccountsByRole', 'ensureAccount',
             'setRole', 'setChatColor', 'expireRoles', 'addMaster',
-            'getStat', 'getAllStats', 'setStatName', 'findStatsByName', 'getTopStats', 'ensureStat', 'incrementStat', 'clearStats', 'backupStats',
+            'getStat', 'getAllStats', 'setStatName', 'findStatsByName', 'getTopStats', 'ensureStat', 'incrementStat', 'clearStats', 'backupStats', 'backupAndClearStats',
             'getNicknames', 'hasNicknames', 'addNickname',
             'getMutes', 'addMute', 'removeMuteById', 'removeMuteByAuth',
             'getMuteById', 'getMuteByPlayerId', 'getMuteByAuth',
@@ -177,6 +184,7 @@ async function main() {
         db,
         t
     });
+    discordBotForShutdown = discordBot;
 
     if (discordBotToken) {
         await discordBot.login();
@@ -247,6 +255,25 @@ main().catch((err) => {
     console.error('[FATAL] Failed to launch rooms:', err);
     process.exitCode = 1;
 });
+
+async function shutdown(signal) {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    console.log(`[INFO] Shutting down (${signal})...`);
+
+    await Promise.allSettled(
+        [...activeBrowsers].map(browser => browser.close())
+    );
+    discordBotForShutdown?.destroy();
+
+    if (!isDbClosed) {
+        db.close();
+        isDbClosed = true;
+    }
+}
+
+process.on('SIGINT', () => shutdown('SIGINT').finally(() => process.exit(0)));
+process.on('SIGTERM', () => shutdown('SIGTERM').finally(() => process.exit(0)));
 
 process.on('uncaughtException', (err) => {
     console.error('[FATAL] Uncaught exception:', err);

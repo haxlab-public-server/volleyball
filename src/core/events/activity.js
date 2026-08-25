@@ -23,6 +23,7 @@ module.exports = function createActivityEvents({
     Sits,
     isCurrentPickingCaptain,
     capPick,
+    continueCaptainPick,
     t
 }) {
 
@@ -75,6 +76,7 @@ module.exports = function createActivityEvents({
 
             if (state.sit === Sits.CHOICE && isCurrentPickingCaptain(player) && isPickMessage(message)) {
                 capPick(player, player.team, parseInt(message, 10));
+                await continueCaptainPick();
                 return;
             }
 
@@ -212,7 +214,9 @@ module.exports = function createActivityEvents({
             }
         };
 
-        processChatAsync();
+        processChatAsync().catch((error) => {
+            console.error('Error in room.onPlayerChat:', error);
+        });
 
         return false;
     }

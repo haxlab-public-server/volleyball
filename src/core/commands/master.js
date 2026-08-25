@@ -7,7 +7,6 @@ module.exports = function createMasterCommands({
     setRole,
     stringToTime,
     getStringTime,
-    getDate,
     stopTrainingMode,
     Role,
     RoleString,
@@ -248,9 +247,7 @@ module.exports = function createMasterCommands({
     }
 
     async function statsResetCommand(player) {
-        const backup = await db.backupStats();
-
-        await db.clearStats();
+        const backup = await db.backupAndClearStats();
 
         if (backup.count > 0) {
             discordBot.sendStatsBackup(backup.filePath, backup.filename);
@@ -457,7 +454,21 @@ module.exports = function createMasterCommands({
             return;
         }
 
-        const date = args.length >= 3 ? Date.now() + stringToTime(args[2]) : null;
+        let date = null;
+        if (args.length >= 3) {
+            const duration = stringToTime(args[2]);
+            if (duration == null || duration <= 0) {
+                room.sendAnnouncement(
+                    t('common.invalidFormat'),
+                    player.id,
+                    Color.GR_RED,
+                    'small',
+                    HaxNotification.CHAT
+                );
+                return;
+            }
+            date = Date.now() + duration;
+        }
         await setRole(target, roleName, date, target.auth);
 
         const timeStr = date == null ? '' : t('role.updatedTimed', { timeStr: getStringTime(args[2]) });

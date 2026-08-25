@@ -20,6 +20,7 @@
 
 const ru = require('./ru');
 const en = require('./en');
+const { parseDuration } = require('../utils/utils');
 
 const dicts = {
     ru,
@@ -72,36 +73,14 @@ function createLocale(localeCode = DEFAULT_LOCALE) {
         return interpolate(template, params);
     }
 
-    const MS_PER_UNIT = {
-        s: 1000,
-        min: 1000 * 60,
-        h: 1000 * 60 * 60,
-        d: 1000 * 60 * 60 * 24,
-        w: 1000 * 60 * 60 * 24 * 7,
-        mon: 1000 * 60 * 60 * 24 * 30
-    };
-
     function stringToTime(input) {
-        for (const unit of Object.keys(MS_PER_UNIT)) {
-            if (input.includes(unit)) {
-                const n = Number(input.replace(/[^+\d]/g, ''));
-                if (isNaN(n)) return null;
-                return n * MS_PER_UNIT[unit];
-            }
-        }
-        return null;
+        return parseDuration(input)?.ms ?? null;
     }
 
     function getStringTime(input) {
         const units = dict.time?.units ?? fallbackDict.time.units;
-        for (const unit of Object.keys(MS_PER_UNIT)) {
-            if (input.includes(unit)) {
-                const n = Number(input.replace(/[^+\d]/g, ''));
-                if (isNaN(n)) return null;
-                return `${n}${units[unit]}`;
-            }
-        }
-        return null;
+        const parsed = parseDuration(input);
+        return parsed ? `${parsed.amount}${units[parsed.unit]}` : null;
     }
 
     return {
