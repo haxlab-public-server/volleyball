@@ -281,7 +281,8 @@ module.exports = {
         listEmpty: '💤В списке АФК никого нет',
         listHeader: '💤Список АФК: {list}.',
         listEntry: '{name} ({mins}мин)',
-        forcedToSpectate: '{name} АФК!'
+        forcedToSpectate: '{name} АФК!',
+        afkKick: 'АФК'
     },
 
     ids: {

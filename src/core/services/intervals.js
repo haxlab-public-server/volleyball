@@ -105,7 +105,7 @@ module.exports = function createIntervals({
             state.inactivityTicks[player.id]++;
 
             if (state.inactivityTicks[player.id] >= maxInactivity) {
-                room.kickPlayer(player.id, t('afk.forcedToSpectate', { name: player.name }), false);
+                room.kickPlayer(player.id, t('afk.afkKick', { name: player.name }), false);
             } else if (state.inactivityTicks[player.id] === warningThreshold) {
                 room.sendAnnouncement(
                     t('intervals.inactivityWarning', { seconds: Math.round(maxInactivity / 3) }),

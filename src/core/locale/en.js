@@ -276,7 +276,8 @@ module.exports = {
         listEmpty: '💤No one is on the AFK list',
         listHeader: '💤AFK list: {list}.',
         listEntry: '{name} ({mins}min)',
-        forcedToSpectate: '{name} is AFK!'
+        forcedToSpectate: '{name} is AFK!',
+        afkKick: 'AFK'
     },
 
     ids: {
