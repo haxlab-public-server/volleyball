@@ -11,6 +11,7 @@ const {
 const base = {
     roomName: "🏐 Volleyball [chds] 🏐",
     roomLabel: "Room",
+    roomCategory: "public",
     maxPlayers: 14,
     roomPublic: true,
     geo: { code: 'RU', lat: 55.7558, lon: 37.6173 },
@@ -30,12 +31,14 @@ const base = {
     joinAuths: false,
     Discord: "https://dsc.gg/chds",
     Telegram: "https://t.me/chesdesq",
+    timeZone: "Europe/Moscow",
 };
 
 const publicConfig = {
     ...base,
     roomName: "🏐 Volleyball [chds] | CAPTAINS 🏐",
     roomLabel: "Public",
+    roomCategory: "public",
     defaultTeamPickMode: TeamPickMode.CAPTAINS,
     defaultWinstay: true
 };
@@ -44,6 +47,7 @@ const privateConfig = {
     ...base,
     roomName: "🏐 Volleyball [chds] | PRIVATE 🏐",
     roomLabel: "Private",
+    roomCategory: "private",
     maxPlayers: 20,
     mode: Mods.PRIVATE,
     defaultMatchPoint: 25,

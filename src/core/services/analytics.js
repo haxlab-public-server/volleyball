@@ -1,38 +1,27 @@
-const ANALYTICS_TIME_ZONE = 'Europe/Moscow';
-
-const dayKeyFormatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: ANALYTICS_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-});
-
-function getDayKey(ts = Date.now()) {
-    const parts = dayKeyFormatter.formatToParts(new Date(ts));
-    const byType = Object.fromEntries(parts.map((p) => [p.type, p.value]));
-    return `${byType.year}-${byType.month}-${byType.day}`;
-}
-
-function minuteBucket(ts = Date.now()) {
-    return Math.floor(ts / 60000) * 60000;
-}
-
-function safeRandomId(prefix) {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-        return `${prefix}_${crypto.randomUUID()}`;
-    }
-
-    return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-}
-
 module.exports = function createAnalyticsService({
     room,
     state,
     db,
     roomLabel,
-    Team
+    roomCategory,
+    Team,
+    timeFormat
 }) {
+    const { getDayKey } = timeFormat;
+
     const roomType = String(roomLabel || 'unknown').toLowerCase();
+
+    function minuteBucket(ts = Date.now()) {
+        return Math.floor(ts / 60000) * 60000;
+    }
+
+    function safeRandomId(prefix) {
+        if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+            return `${prefix}_${crypto.randomUUID()}`;
+        }
+
+        return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    }
 
     if (!state.analytics) {
         state.analytics = {
@@ -41,6 +30,19 @@ module.exports = function createAnalyticsService({
         };
     }
 
+    function closeDanglingSessionsOnStartup() {
+        const now = Date.now();
+        const closed = db.analyticsCloseDanglingSessions({
+            roomType,
+            closedAt: now,
+            dayKey: getDayKey(now)
+        });
+        if (closed > 0) {
+            console.log(`[Analytics] Closed ${closed} dangling session(s) from a previous run for room "${roomType}".`);
+        }
+    }
+    closeDanglingSessionsOnStartup();
+
     async function trackEvent({ eventType, auth = null, sessionId = null, matchId = null, payload = null, ts = Date.now() }) {
         await db.analyticsAddEvent({
             eventId: safeRandomId('evt'),
@@ -48,6 +50,7 @@ module.exports = function createAnalyticsService({
             dayKey: getDayKey(ts),
             eventType,
             roomType,
+            roomCategory,
             auth,
             sessionId,
             matchId,
@@ -73,7 +76,8 @@ module.exports = function createAnalyticsService({
             nick: player.name,
             joinedAt: ts,
             dayKey,
-            roomType
+            roomType,
+            roomCategory
         });
 
         state.analytics.sessionsByAuth[player.auth] = sessionId;
@@ -111,7 +115,7 @@ module.exports = function createAnalyticsService({
         });
     }
 
-    async function onGameStart() {
+    async function onGameStart(isFull = false) {
         const ts = Date.now();
         const dayKey = getDayKey(ts);
         const matchId = safeRandomId('match');
@@ -122,7 +126,9 @@ module.exports = function createAnalyticsService({
             startedAt: ts,
             dayKey,
             roomType,
-            playersStart
+            roomCategory,
+            playersStart,
+            isFull
         });
 
         state.analytics.currentMatchId = matchId;
@@ -131,7 +137,7 @@ module.exports = function createAnalyticsService({
             eventType: 'match_start',
             matchId,
             ts,
-            payload: { playersStart }
+            payload: { playersStart, isFull }
         });
     }
 
@@ -180,6 +186,7 @@ module.exports = function createAnalyticsService({
             minuteTs: minuteBucket(ts),
             dayKey: getDayKey(ts),
             roomType,
+            roomCategory,
             onlineCount: room.getPlayerList().length
         });
     }
@@ -188,8 +195,8 @@ module.exports = function createAnalyticsService({
         const now = Date.now();
         const yesterday = now - 24 * 60 * 60 * 1000;
 
-        await db.analyticsAggregateDaily(getDayKey(yesterday));
-        await db.analyticsAggregateDaily(getDayKey(now));
+        await db.analyticsAggregateDaily(getDayKey(yesterday), roomCategory);
+        await db.analyticsAggregateDaily(getDayKey(now), roomCategory);
     }
 
     return {

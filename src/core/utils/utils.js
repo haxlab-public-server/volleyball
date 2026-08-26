@@ -27,7 +27,10 @@ function getStatTime(time) {
     return `${(time / 60).toFixed(2)}ч`
 }
     
-function getDate(mils) {
+function getDate(mils, timeFormat) {
+    if (timeFormat && typeof timeFormat.formatDateShort === 'function') {
+        return timeFormat.formatDateShort(mils);
+    }
     const formatter = new Intl.DateTimeFormat('ru-RU', {
         timeZone: 'Europe/Moscow',
         day: '2-digit',

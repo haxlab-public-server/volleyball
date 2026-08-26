@@ -4,20 +4,10 @@ module.exports = function createMiscEvents({
     roomName,
     state,
     discordBot,
+    timeFormat,
     t
 }) {
-    function formatDate(d = new Date()) {
-        const formatter = new Intl.DateTimeFormat('ru-RU', {
-            timeZone: 'Europe/Moscow',
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-
-        return formatter.format(d).replace(', ', ' ');
-    }
+    const { formatDate } = timeFormat;
 
     let hasFirstRoomLink = false;
     function onRoomLink(url) {

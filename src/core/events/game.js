@@ -246,7 +246,7 @@ module.exports = function createGameEvents({
         state.serve = Team.BLUE;
         state.waitingForServe = true;
 
-        analytics.onGameStart().catch((error) => {
+        analytics.onGameStart(isFullTeams()).catch((error) => {
             console.error('Error in analytics.onGameStart:', error);
         });
 

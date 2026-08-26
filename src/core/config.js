@@ -36,6 +36,7 @@ const discordOnlineMessages = {
 };
 
 const locale = process.env.LOCALE ?? 'ru';
+const timeZone = process.env.TIME_ZONE ?? roomConstants.base.timeZone;
 
 module.exports = {
     ...roomConstants,
@@ -48,5 +49,6 @@ module.exports = {
     discordRoleIds,
     discordChannelIds,
     discordOnlineMessages,
-    locale
+    locale,
+    timeZone
 };

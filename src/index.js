@@ -5,6 +5,7 @@ const esbuild = require('esbuild');
 const { createDb } = require('../db/sqlite');
 const { createDiscordBot } = require('./core/discordBot');
 const { createLocale } = require('./core/locale');
+const { createTimeFormat } = require('./core/utils/timeFormat');
 const {
     publicToken,
     privateToken,
@@ -15,7 +16,8 @@ const {
     discordRoleIds,
     discordChannelIds,
     discordOnlineMessages,
-    locale: localeCode
+    locale: localeCode,
+    timeZone
 } = require('./core/config');
 
 const { publicConfig, privateConfig } = require('./core/roomConstants');
@@ -26,32 +28,12 @@ const activeBrowsers = new Set();
 let isShuttingDown = false;
 let isDbClosed = false;
 let discordBotForShutdown = null;
-const ANALYTICS_TIME_ZONE = 'Europe/Moscow';
 
-const analyticsDayKeyFormatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: ANALYTICS_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-});
+const timeFormat = createTimeFormat(timeZone);
+const ROOM_CATEGORIES = ['public', 'private'];
 
-function getDayKeyInTimezone(ts = Date.now()) {
-    const parts = analyticsDayKeyFormatter.formatToParts(new Date(ts));
-    const byType = Object.fromEntries(parts.map((p) => [p.type, p.value]));
-    return `${byType.year}-${byType.month}-${byType.day}`;
-}
-
-function getHourInTimezone(ts = Date.now()) {
-    const formatter = new Intl.DateTimeFormat('en-GB', {
-        timeZone: ANALYTICS_TIME_ZONE,
-        hour: '2-digit',
-        hour12: false
-    });
-
-    return Number(formatter.format(new Date(ts)));
-}
-
-function startAnalyticsDailyReporting({ db, discordBot }) {
+function startAnalyticsDailyReporting({ db, discordBot, timeFormat }) {
+    const { getDayKey, getHour } = timeFormat;
     let isRunning = false;
 
     const runOnce = async () => {
@@ -60,23 +42,25 @@ function startAnalyticsDailyReporting({ db, discordBot }) {
 
         try {
             const now = Date.now();
-            const localHour = getHourInTimezone(now);
+            const localHour = getHour(now);
 
             if (localHour < 1) return;
 
-            const yesterdayDay = getDayKeyInTimezone(now - 24 * 60 * 60 * 1000);
+            const yesterdayDay = getDayKey(now - 24 * 60 * 60 * 1000);
 
-            if (db.analyticsIsDailyReportSent(yesterdayDay)) {
-                return;
-            }
+            for (const roomCategory of ROOM_CATEGORIES) {
+                if (db.analyticsIsDailyReportSent(yesterdayDay, roomCategory)) {
+                    continue;
+                }
 
-            db.analyticsAggregateDaily(yesterdayDay);
-            const report = db.analyticsGetDaily(yesterdayDay);
-            if (!report) return;
+                db.analyticsAggregateDaily(yesterdayDay, roomCategory);
+                const report = db.analyticsGetDaily(yesterdayDay, roomCategory);
+                if (!report) continue;
 
-            const sent = await discordBot.sendAnalyticsDailyReport(yesterdayDay, report);
-            if (sent) {
-                db.analyticsMarkDailyReportSent(yesterdayDay, Date.now());
+                const sent = await discordBot.sendAnalyticsDailyReport(yesterdayDay, roomCategory, report);
+                if (sent) {
+                    db.analyticsMarkDailyReportSent(yesterdayDay, roomCategory, Date.now());
+                }
             }
         } catch (err) {
             console.error('[Analytics] Failed to send daily report:', err);
@@ -195,7 +179,7 @@ async function launchRoom(type, config, secrets, discordBot) {
         window.__locale = payload.locale;
     }, {
         secrets,
-        config,
+        config: { ...config, timeZone },
         type,
         locale: localeCode
     });
@@ -213,6 +197,7 @@ async function launchRoom(type, config, secrets, discordBot) {
             'getMuteById', 'getMuteByPlayerId', 'getMuteByAuth',
             'setDiscordId', 'getAccountByDiscordId',
             'analyticsTouchPlayer', 'analyticsStartSession', 'analyticsEndSession',
+            'analyticsCloseDanglingSessions',
             'analyticsStartMatch', 'analyticsEndMatch', 'analyticsAddEvent',
             'analyticsUpsertOnlineMinute', 'analyticsAggregateDaily'
         ];
@@ -247,13 +232,14 @@ async function main() {
         roleIds: discordRoleIds,
         channelIds: discordChannelIds,
         db,
+        timeFormat,
         t
     });
     discordBotForShutdown = discordBot;
 
     if (discordBotToken) {
         await discordBot.login();
-        startAnalyticsDailyReporting({ db, discordBot });
+        startAnalyticsDailyReporting({ db, discordBot, timeFormat });
     } else {
         console.warn(t('common.discordTokenMissing'));
     }

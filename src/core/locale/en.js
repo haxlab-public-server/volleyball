@@ -403,13 +403,25 @@ module.exports = {
         roomOnlineLog: '**[{date}] ROOM ONLINE**',
         vipPasswordHeader: '# {prefix}🌟VIP password: {password}',
         statsBackupUploaded: '{prefix}📦 Stats backup before reset',
-        analyticsDaily: { 
-            header: '📊 Analytics for {day}',
-            online: 'Online: peak {peak}, average {avg}',
-            joins: 'Joins: total {total}, unique {unique}',
-            players: 'Players: new {newPlayers}, returning {returningPlayers}',
-            sessions: 'Sessions: started {started}, finished {finished}, avg. duration {avgSec} sec',
-            matches: 'Matches: started {started}, finished {finished}, avg. duration {avgSec} sec'
+        analyticsDaily: {
+            title: '📊 Analytics — {category}',
+            description: 'Report for {day}',
+            durationMinSec: '{mins}m {secs}s',
+            fields: {
+                online: '🟢 Online',
+                avgSession: '⏱️ Avg. time on server',
+                joins: '🚪 Joins',
+                players: '👥 Players',
+                matches: '🏐 Matches',
+                avgMatch: '⏳ Avg. match duration'
+            },
+            values: {
+                online: 'peak {peak}, average {avg}',
+                joins: 'total {total}, unique {unique}',
+                players: 'new {newPlayers}, returning {returningPlayers} ({retentionPct}%)',
+                matches: 'total {total}, with full lineup {full} ({fullPct}%)'
+            },
+            footer: 'updated: {date}'
         },
         onlineEmbed: {
             playersField: 'PLAYERS:',

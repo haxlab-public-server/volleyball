@@ -27,8 +27,13 @@ const {
     joinAuths,
     mode,
     roomLabel,
+    roomCategory,
+    timeZone,
     vipUpCooldownMs
 } = config;
+
+const { createTimeFormat } = require('../core/utils/timeFormat');
+const timeFormat = createTimeFormat(timeZone);
 
 const room = HBInit(buildGameConfig(window.__secrets.token, config));
 
@@ -168,10 +173,14 @@ const { transitionTo } = createSitState({
 });
 
 const {
-    getRecordingName,
-    getIdReplay,
-    fetchRecording
+    getRecordingName: getRecordingNameRaw,
+    getIdReplay: getIdReplayRaw,
+    fetchRecording: fetchRecordingRaw
 } = require('../core/utils/reports');
+
+const getRecordingName = () => getRecordingNameRaw(timeFormat);
+const getIdReplay = () => getIdReplayRaw(timeFormat);
+const fetchRecording = (game, discord) => fetchRecordingRaw(game, discord, timeFormat);
 
 const createRoleHelpers = require('../core/utils/roles');
 const {
@@ -202,6 +211,7 @@ const {
     getAuth,
     discordBot,
     getDate,
+    timeFormat,
     t
 })
 
@@ -284,7 +294,9 @@ const analytics = createAnalyticsService({
     state,
     db,
     roomLabel,
-    Team
+    roomCategory,
+    Team,
+    timeFormat
 });
 
 createIntervals({
@@ -312,6 +324,7 @@ createIntervals({
     roomName,
     maxPlayers,
     analytics,
+    timeFormat,
     t
 })
 
@@ -627,6 +640,7 @@ Object.assign(room, wrapEventHandlers(createMiscEvents({
     roomName,
     state,
     discordBot,
+    timeFormat,
     t
 })));
 

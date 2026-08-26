@@ -17,6 +17,7 @@ const createDiscordCommands = require('./discordCommands');
 const LINK_CODE_TTL_MS = 10 * 60 * 1000;
 const LINK_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const ONLINE_EMBED_COLOR = 0x5865F2;
+const ANALYTICS_EMBED_COLOR = 0x57F287;
 
 function generateCode(length = 6) {
     let out = '';
@@ -26,27 +27,17 @@ function generateCode(length = 6) {
     return out;
 }
 
-function formatDate(d = new Date()) {
-    const formatter = new Intl.DateTimeFormat('ru-RU', {
-        timeZone: 'Europe/Moscow',
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-
-    return formatter.format(d).replace(', ', ' ');
-}
-
 function createDiscordBot({
     token,
     guildId,
     roleIds,
     channelIds,
     db,
+    timeFormat,
     t
 }) {
+    const { formatDate } = timeFormat;
+
     const client = new Client({
         intents: [
             GatewayIntentBits.Guilds,
@@ -306,27 +297,87 @@ function createDiscordBot({
         }
     }
 
-    async function sendAnalyticsDailyReport(dayKey, report) {
+    const CATEGORY_LABELS = {
+        public: 'PUBLIC',
+        private: 'PRIVATE'
+    };
+
+    async function sendAnalyticsDailyReport(dayKey, roomCategory, report) {
         if (!channelIds.analytics) return false;
 
         const channel = await client.channels.fetch(channelIds.analytics).catch(() => null);
         if (!channel) return false;
 
-        const fmt = (value) => {
-            const num = Number(value ?? 0);
-            return Number.isFinite(num) ? num.toFixed(2) : '0.00';
+        const categoryLabel = CATEGORY_LABELS[roomCategory] ?? String(roomCategory ?? '').toUpperCase();
+
+        const fmtSec = (value) => {
+            const totalSec = Math.round(Number(value ?? 0));
+            const mins = Math.floor(totalSec / 60);
+            const secs = totalSec % 60;
+            return t('discordBot.analyticsDaily.durationMinSec', { mins, secs });
         };
 
-        const content = [
-            t('discordBot.analyticsDaily.header', { day: dayKey }),
-            t('discordBot.analyticsDaily.online', { peak: report.onlinePeak, avg: fmt(report.onlineAvg) }),
-            t('discordBot.analyticsDaily.joins', { total: report.joinsTotal, unique: report.joinsUnique }),
-            t('discordBot.analyticsDaily.players', { newPlayers: report.newPlayers, returningPlayers: report.returningPlayers }),
-            t('discordBot.analyticsDaily.sessions', { started: report.sessionsStarted, finished: report.sessionsFinished, avgSec: fmt(report.avgSessionSec) }),
-            t('discordBot.analyticsDaily.matches', { started: report.matchesStarted, finished: report.matchesFinished, avgSec: fmt(report.avgMatchSec) })
-        ].join('\n');
+        const retentionPct = report.joinsUnique > 0
+            ? Math.round((report.returningPlayers / report.joinsUnique) * 100)
+            : 0;
 
-        await channel.send({ content: truncate(content) }).catch(() => {});
+        const fullMatchPct = report.matchesTotal > 0
+            ? Math.round((report.matchesFull / report.matchesTotal) * 100)
+            : 0;
+
+        const embed = new EmbedBuilder()
+            .setColor(ANALYTICS_EMBED_COLOR)
+            .setTitle(t('discordBot.analyticsDaily.title', { category: categoryLabel }))
+            .setDescription(t('discordBot.analyticsDaily.description', { day: dayKey }))
+            .addFields(
+                {
+                    name: t('discordBot.analyticsDaily.fields.online'),
+                    value: t('discordBot.analyticsDaily.values.online', {
+                        peak: report.onlinePeak,
+                        avg: Number(report.onlineAvg ?? 0).toFixed(1)
+                    }),
+                    inline: true
+                },
+                {
+                    name: t('discordBot.analyticsDaily.fields.avgSession'),
+                    value: fmtSec(report.avgSessionSec),
+                    inline: true
+                },
+                {
+                    name: t('discordBot.analyticsDaily.fields.joins'),
+                    value: t('discordBot.analyticsDaily.values.joins', {
+                        total: report.joinsTotal,
+                        unique: report.joinsUnique
+                    }),
+                    inline: true
+                },
+                {
+                    name: t('discordBot.analyticsDaily.fields.players'),
+                    value: t('discordBot.analyticsDaily.values.players', {
+                        newPlayers: report.newPlayers,
+                        returningPlayers: report.returningPlayers,
+                        retentionPct
+                    }),
+                    inline: true
+                },
+                {
+                    name: t('discordBot.analyticsDaily.fields.matches'),
+                    value: t('discordBot.analyticsDaily.values.matches', {
+                        total: report.matchesTotal,
+                        full: report.matchesFull,
+                        fullPct: fullMatchPct
+                    }),
+                    inline: true
+                },
+                {
+                    name: t('discordBot.analyticsDaily.fields.avgMatch'),
+                    value: fmtSec(report.avgMatchSec),
+                    inline: true
+                }
+            )
+            .setFooter({ text: t('discordBot.analyticsDaily.footer', { date: formatDate() }) });
+
+        await channel.send({ embeds: [embed] }).catch(() => {});
         return true;
     }
 

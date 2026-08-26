@@ -1,30 +1,11 @@
-function getMoscowParts(d = new Date()) {
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'Europe/Moscow',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-    });
-
-    const parts = {};
-    for (const part of formatter.formatToParts(d)) {
-        if (part.type !== 'literal') parts[part.type] = part.value;
-    }
-    return parts;
-}
-
-function getRecordingName() {
-    const p = getMoscowParts();
+function getRecordingName(timeFormat) {
+    const p = timeFormat.getParts();
     const year = p.year.slice(2);
     return `${p.day}-${p.month}-${year}-${p.hour}h${p.minute}.hbr2`;
 }
 
-function getIdReplay() {
-    const p = getMoscowParts();
+function getIdReplay(timeFormat) {
+    const p = timeFormat.getParts();
     return `${p.year.slice(2)}${p.month}${p.day}${p.hour}${p.minute}${p.second}`;
 }
 
@@ -54,7 +35,7 @@ function uint8ToBase64(bytes) {
     return btoa(binary);
 }
 
-function fetchRecording(game, discord) {
+function fetchRecording(game, discord, timeFormat) {
     const rec = game.rec;
 
     if (!rec) {
@@ -68,7 +49,7 @@ function fetchRecording(game, discord) {
         return;
     }
 
-    discord.sendRecording(base64, getRecordingName(), getIdReplay());
+    discord.sendRecording(base64, getRecordingName(timeFormat), getIdReplay(timeFormat));
 }
 
 module.exports = {

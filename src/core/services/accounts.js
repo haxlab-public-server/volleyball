@@ -3,6 +3,7 @@ module.exports = function createAccountsHelpers({
     getAuth,
     discordBot,
     getDate,
+    timeFormat,
     t
 }) {
 
@@ -14,7 +15,7 @@ async function formatDiscordField(discordId) {
 }
 
 async function formatAccountView(obj) {
-    const toDate = obj.date != null ? getDate(obj.date) : t('account.untilPermanent');
+    const toDate = obj.date != null ? getDate(obj.date, timeFormat) : t('account.untilPermanent');
     const discordField = await formatDiscordField(obj.discord);
 
     return t('account.view', { nickname: obj.nickname, auth: obj.auth, role: obj.role, until: toDate, discord: discordField });

@@ -22,6 +22,7 @@ async function main() {
             getTimeGame
         } = require('../src/core/utils/utils');
         const { createLocale } = require('../src/core/locale');
+        const { createTimeFormat } = require('../src/core/utils/timeFormat');
         const {
             parseSpawnValue,
             parseSpawnSettings,
@@ -139,10 +140,20 @@ async function main() {
                     return true;
                 }
             })(), true);
+
+            const tf = createTimeFormat('Europe/Moscow');
+            check('timeFormat getDayKey format', /^\d{4}-\d{2}-\d{2}$/.test(tf.getDayKey(Date.UTC(2026, 0, 15, 12, 0, 0))), true);
+            check('timeFormat getDayKey fixed date', tf.getDayKey(Date.UTC(2026, 0, 15, 20, 0, 0)), '2026-01-15');
+            check('timeFormat getHour range', tf.getHour(Date.now()) >= 0 && tf.getHour(Date.now()) <= 23, true);
+            check('timeFormat getParts has fields', Object.keys(tf.getParts(new Date())).sort(), ['day', 'hour', 'minute', 'month', 'second', 'year']);
+            check('timeFormat exposes timeZone', tf.timeZone, 'Europe/Moscow');
     }
 
         console.log('\n--- isolated core services ---');
         {
+            const { createTimeFormat } = require('../src/core/utils/timeFormat');
+            const timeFormat = createTimeFormat('Europe/Moscow');
+
             const announcements = [];
             const createChatHelpers = require('../src/core/services/chat');
             const chat = createChatHelpers({
@@ -297,9 +308,11 @@ async function main() {
             let recordingArgs = null;
             reports.fetchRecording({ rec: Uint8Array.from([72, 105]) }, {
                 sendRecording: (...args) => { recordingArgs = args; }
-            });
+            }, timeFormat);
             check('report recording encoding', recordingArgs[0], 'SGk=');
-            check('report missing recording', reports.fetchRecording({ rec: null }, { sendRecording: () => { throw new Error('unexpected'); } }), undefined);
+            check('report missing recording', reports.fetchRecording({ rec: null }, { sendRecording: () => { throw new Error('unexpected'); } }, timeFormat), undefined);
+            check('report recording name uses timeFormat', typeof reports.getRecordingName(timeFormat), 'string');
+            check('report replay id uses timeFormat', /^\d+$/.test(reports.getIdReplay(timeFormat)), true);
 
             const { createMockRoom, createMockDiscordBridge } = require('./test-mocks');
             const mockRoom = createMockRoom({
@@ -348,6 +361,7 @@ async function main() {
                     sendVipPassword: value => discordCalls.push(['password', value]),
                     sendLog: value => discordCalls.push(['log', value])
                 },
+                timeFormat,
                 t: key => key
             });
             misc.onRoomLink('https://room.test');
@@ -531,6 +545,101 @@ async function main() {
         db.addMute({ id: 2, name: 'B', playerId: 6, auth: 'b', unmuteDate: 456 });
         db.removeMuteByAuth('b');
         check('removeMuteByAuth', db.getMutes().length, 0);
+
+        db.close();
+    }
+
+    console.log('\n--- analytics ---');
+    {
+        const db = createDb(':memory:');
+        const { createTimeFormat } = require('../src/core/utils/timeFormat');
+        const timeFormat = createTimeFormat('Europe/Moscow');
+        const { getDayKey } = timeFormat;
+
+        const dayKey = getDayKey();
+        const ts = Date.now();
+
+        db.analyticsTouchPlayer({ auth: 'p1', nick: 'Alice', ts, dayKey });
+        db.analyticsStartSession({
+            sessionId: 'sess1', auth: 'p1', nick: 'Alice', joinedAt: ts, dayKey,
+            roomType: 'public', roomCategory: 'public'
+        });
+        db.analyticsAddEvent({
+            eventId: 'evt1', ts, dayKey, eventType: 'player_join',
+            roomType: 'public', roomCategory: 'public', auth: 'p1', sessionId: 'sess1'
+        });
+
+        db.analyticsTouchPlayer({ auth: 'p2', nick: 'Bob', ts, dayKey });
+        db.analyticsStartSession({
+            sessionId: 'sess2', auth: 'p2', nick: 'Bob', joinedAt: ts, dayKey,
+            roomType: 'public-2', roomCategory: 'public'
+        });
+        db.analyticsAddEvent({
+            eventId: 'evt2', ts, dayKey, eventType: 'player_join',
+            roomType: 'public-2', roomCategory: 'public', auth: 'p2', sessionId: 'sess2'
+        });
+
+        db.analyticsEndSession({ sessionId: 'sess1', leftAt: ts + 60_000, dayKey, leaveReason: 'leave' });
+
+        db.analyticsTouchPlayer({ auth: 'p3', nick: 'Carl', ts, dayKey });
+        db.analyticsStartSession({
+            sessionId: 'sess3', auth: 'p3', nick: 'Carl', joinedAt: ts, dayKey,
+            roomType: 'private', roomCategory: 'private'
+        });
+        db.analyticsAddEvent({
+            eventId: 'evt3', ts, dayKey, eventType: 'player_join',
+            roomType: 'private', roomCategory: 'private', auth: 'p3', sessionId: 'sess3'
+        });
+
+        db.analyticsStartMatch({
+            matchId: 'match1', startedAt: ts, dayKey, roomType: 'public', roomCategory: 'public',
+            playersStart: 4, isFull: true
+        });
+        db.analyticsEndMatch({ matchId: 'match1', endedAt: ts + 120000, dayKey, playersEnd: 4, winnerTeam: 1, endReason: 'finished' });
+
+        db.analyticsStartMatch({
+            matchId: 'match2', startedAt: ts, dayKey, roomType: 'public-2', roomCategory: 'public',
+            playersStart: 2, isFull: false
+        });
+        db.analyticsEndMatch({ matchId: 'match2', endedAt: ts + 60000, dayKey, playersEnd: 2, winnerTeam: null, endReason: 'stopped' });
+
+        db.analyticsUpsertOnlineMinute({
+            minuteTs: Math.floor(ts / 60000) * 60000, dayKey, roomType: 'public', roomCategory: 'public', onlineCount: 3
+        });
+        db.analyticsUpsertOnlineMinute({
+            minuteTs: Math.floor(ts / 60000) * 60000, dayKey, roomType: 'public-2', roomCategory: 'public', onlineCount: 2
+        });
+
+        db.analyticsAggregateDaily(dayKey, 'public');
+        db.analyticsAggregateDaily(dayKey, 'private');
+
+        const publicReport = db.analyticsGetDaily(dayKey, 'public');
+        const privateReport = db.analyticsGetDaily(dayKey, 'private');
+
+        check('analytics public joins summed across room_type', publicReport.joinsTotal, 2);
+        check('analytics public joins unique', publicReport.joinsUnique, 2);
+        check('analytics public new players', publicReport.newPlayers, 2);
+        check('analytics public matches total summed across room_type', publicReport.matchesTotal, 2);
+        check('analytics public matches full (is_full flag)', publicReport.matchesFull, 1);
+        check('analytics public online peak summed across rooms', publicReport.onlinePeak, 5);
+        check('analytics private isolated from public', privateReport.joinsTotal, 1);
+        check('analytics private online peak zero (no online rows)', privateReport.onlinePeak, 0);
+        check('analytics private matches total zero (no matches)', privateReport.matchesTotal, 0);
+        check('analytics report not sent initially (public)', db.analyticsIsDailyReportSent(dayKey, 'public'), false);
+        check('analytics report not sent initially (private)', db.analyticsIsDailyReportSent(dayKey, 'private'), false);
+        db.analyticsMarkDailyReportSent(dayKey, 'public');
+        check('analytics report sent flag scoped to public only', db.analyticsIsDailyReportSent(dayKey, 'public'), true);
+        check('analytics report sent flag does not leak to private', db.analyticsIsDailyReportSent(dayKey, 'private'), false);
+
+        db.analyticsStartSession({
+            sessionId: 'dangling1', auth: 'p1', nick: 'Alice', joinedAt: ts - 5000, dayKey,
+            roomType: 'public', roomCategory: 'public'
+        });
+        const closedCount = db.analyticsCloseDanglingSessions({ roomType: 'public', closedAt: ts, dayKey });
+        check('analytics closes dangling sessions for room_type', closedCount, 1);
+
+        const secondClose = db.analyticsCloseDanglingSessions({ roomType: 'public', closedAt: ts + 1000, dayKey });
+        check('analytics dangling session already closed, no double-close', secondClose, 0);
 
         db.close();
     }

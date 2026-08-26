@@ -409,12 +409,24 @@ module.exports = {
         vipPasswordHeader: '# {prefix}🌟VIP-Пароль: {password}',
         statsBackupUploaded: '{prefix}📦 Бекап статистики перед сбросом',
         analyticsDaily: {
-            header: '📊 Аналитика за {day}',
-            online: 'Онлайн: пик {peak}, средний {avg}',
-            joins: 'Заходы: всего {total}, уникальных {unique}',
-            players: 'Игроки: новых {newPlayers}, вернувшихся {returningPlayers}',
-            sessions: 'Сессии: начато {started}, завершено {finished}, средняя длительность {avgSec} сек',
-            matches: 'Матчи: начато {started}, завершено {finished}, средняя длительность {avgSec} сек'
+            title: '📊 Аналитика — {category}',
+            description: 'Отчёт за {day}',
+            durationMinSec: '{mins}м {secs}с',
+            fields: {
+                online: '🟢 Онлайн',
+                avgSession: '⏱️ Ср. время на сервере',
+                joins: '🚪 Заходы',
+                players: '👥 Игроки',
+                matches: '🏐 Матчи',
+                avgMatch: '⏳ Ср. длительность матча'
+            },
+            values: {
+                online: 'пик {peak}, средний {avg}',
+                joins: 'всего {total}, уникальных {unique}',
+                players: 'новых {newPlayers}, вернувшихся {returningPlayers} ({retentionPct}%)',
+                matches: 'всего {total}, с полным составом {full} ({fullPct}%)'
+            },
+            footer: 'обновлено: {date}'
         },
         onlineEmbed: {
             playersField: 'PLAYERS:',

@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS analytics_sessions (
     session_id TEXT PRIMARY KEY,
     auth TEXT NOT NULL,
     room_type TEXT NOT NULL,
+    room_category TEXT NOT NULL,
     nick_at_join TEXT,
     joined_at INTEGER NOT NULL,
     joined_day TEXT NOT NULL,
@@ -80,6 +81,7 @@ CREATE TABLE IF NOT EXISTS analytics_sessions (
 CREATE TABLE IF NOT EXISTS analytics_matches (
     match_id TEXT PRIMARY KEY,
     room_type TEXT NOT NULL,
+    room_category TEXT NOT NULL,
     started_at INTEGER NOT NULL,
     started_day TEXT NOT NULL,
     ended_at INTEGER,
@@ -88,7 +90,8 @@ CREATE TABLE IF NOT EXISTS analytics_matches (
     players_end INTEGER,
     winner_team INTEGER,
     end_reason TEXT,
-    duration_sec INTEGER
+    duration_sec INTEGER,
+    is_full INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS analytics_events (
@@ -97,6 +100,7 @@ CREATE TABLE IF NOT EXISTS analytics_events (
     day_key TEXT NOT NULL,
     event_type TEXT NOT NULL,
     room_type TEXT NOT NULL,
+    room_category TEXT NOT NULL,
     auth TEXT,
     session_id TEXT,
     match_id TEXT,
@@ -107,41 +111,48 @@ CREATE TABLE IF NOT EXISTS analytics_online_minute (
     minute_ts INTEGER NOT NULL,
     day_key TEXT NOT NULL,
     room_type TEXT NOT NULL,
+    room_category TEXT NOT NULL,
     online_count INTEGER NOT NULL,
     PRIMARY KEY (minute_ts, room_type)
 );
 
 CREATE TABLE IF NOT EXISTS analytics_daily (
-    day_key TEXT PRIMARY KEY,
+    day_key TEXT NOT NULL,
+    room_category TEXT NOT NULL,
     joins_total INTEGER NOT NULL,
     joins_unique INTEGER NOT NULL,
     new_players INTEGER NOT NULL,
     returning_players INTEGER NOT NULL,
-    sessions_started INTEGER NOT NULL,
-    sessions_finished INTEGER NOT NULL,
     avg_session_sec REAL NOT NULL,
-    matches_started INTEGER NOT NULL,
-    matches_finished INTEGER NOT NULL,
+    matches_total INTEGER NOT NULL,
+    matches_full INTEGER NOT NULL,
     avg_match_sec REAL NOT NULL,
     online_peak INTEGER NOT NULL,
     online_avg REAL NOT NULL,
-    generated_at INTEGER NOT NULL
+    generated_at INTEGER NOT NULL,
+    PRIMARY KEY (day_key, room_category)
 );
 
 CREATE TABLE IF NOT EXISTS analytics_daily_reports_sent (
-    day_key TEXT PRIMARY KEY,
-    sent_at INTEGER NOT NULL
+    day_key TEXT NOT NULL,
+    room_category TEXT NOT NULL,
+    sent_at INTEGER NOT NULL,
+    PRIMARY KEY (day_key, room_category)
 );
 
 CREATE INDEX IF NOT EXISTS idx_analytics_players_first_seen_day ON analytics_players (first_seen_day);
 CREATE INDEX IF NOT EXISTS idx_analytics_sessions_joined_day ON analytics_sessions (joined_day);
 CREATE INDEX IF NOT EXISTS idx_analytics_sessions_left_day ON analytics_sessions (left_day);
 CREATE INDEX IF NOT EXISTS idx_analytics_sessions_auth ON analytics_sessions (auth, joined_at);
+CREATE INDEX IF NOT EXISTS idx_analytics_sessions_category_day ON analytics_sessions (room_category, joined_day);
 CREATE INDEX IF NOT EXISTS idx_analytics_matches_started_day ON analytics_matches (started_day);
 CREATE INDEX IF NOT EXISTS idx_analytics_matches_ended_day ON analytics_matches (ended_day);
+CREATE INDEX IF NOT EXISTS idx_analytics_matches_category_day ON analytics_matches (room_category, ended_day);
 CREATE INDEX IF NOT EXISTS idx_analytics_events_day_type ON analytics_events (day_key, event_type);
 CREATE INDEX IF NOT EXISTS idx_analytics_events_auth ON analytics_events (auth, ts);
+CREATE INDEX IF NOT EXISTS idx_analytics_events_category_day ON analytics_events (room_category, day_key, event_type);
 CREATE INDEX IF NOT EXISTS idx_analytics_online_day ON analytics_online_minute (day_key, minute_ts);
+CREATE INDEX IF NOT EXISTS idx_analytics_online_category_day ON analytics_online_minute (room_category, day_key, minute_ts);
 `;
 
 const STAT_FIELDS = [
@@ -503,10 +514,10 @@ function createDb(dbPath) {
         ).run(auth, ts, dayKey, ts, dayKey, nick ?? null, nick ?? null);
     }
 
-    function analyticsStartSession({ sessionId, auth, nick, joinedAt, dayKey, roomType }) {
+    function analyticsStartSession({ sessionId, auth, nick, joinedAt, dayKey, roomType, roomCategory }) {
         db.prepare(
-            'INSERT OR IGNORE INTO analytics_sessions (session_id, auth, room_type, nick_at_join, joined_at, joined_day) VALUES (?, ?, ?, ?, ?, ?)'
-        ).run(sessionId, auth, roomType, nick ?? null, joinedAt, dayKey);
+            'INSERT OR IGNORE INTO analytics_sessions (session_id, auth, room_type, room_category, nick_at_join, joined_at, joined_day) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        ).run(sessionId, auth, roomType, roomCategory, nick ?? null, joinedAt, dayKey);
     }
 
     function analyticsEndSession({ sessionId, leftAt, dayKey, leaveReason }) {
@@ -520,10 +531,27 @@ function createDb(dbPath) {
         ).run(leftAt, dayKey, leaveReason ?? null, leftAt, sessionId);
     }
 
-    function analyticsStartMatch({ matchId, startedAt, dayKey, roomType, playersStart }) {
+    function analyticsCloseDanglingSessions({ roomType, closedAt, dayKey }) {
+        const dangling = db.prepare(
+            'SELECT session_id FROM analytics_sessions WHERE room_type = ? AND left_at IS NULL'
+        ).all(roomType);
+
+        for (const row of dangling) {
+            analyticsEndSession({
+                sessionId: row.session_id,
+                leftAt: closedAt,
+                dayKey,
+                leaveReason: 'process_restart'
+            });
+        }
+
+        return dangling.length;
+    }
+
+    function analyticsStartMatch({ matchId, startedAt, dayKey, roomType, roomCategory, playersStart, isFull }) {
         db.prepare(
-            'INSERT OR IGNORE INTO analytics_matches (match_id, room_type, started_at, started_day, players_start) VALUES (?, ?, ?, ?, ?)'
-        ).run(matchId, roomType, startedAt, dayKey, playersStart ?? null);
+            'INSERT OR IGNORE INTO analytics_matches (match_id, room_type, room_category, started_at, started_day, players_start, is_full) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        ).run(matchId, roomType, roomCategory, startedAt, dayKey, playersStart ?? null, isFull ? 1 : 0);
     }
 
     function analyticsEndMatch({ matchId, endedAt, dayKey, playersEnd, winnerTeam, endReason }) {
@@ -539,17 +567,18 @@ function createDb(dbPath) {
         ).run(endedAt, dayKey, playersEnd ?? null, winnerTeam ?? null, endReason ?? null, endedAt, matchId);
     }
 
-    function analyticsAddEvent({ eventId, ts, dayKey, eventType, roomType, auth, sessionId, matchId, payloadJson }) {
+    function analyticsAddEvent({ eventId, ts, dayKey, eventType, roomType, roomCategory, auth, sessionId, matchId, payloadJson }) {
         db.prepare(
             `INSERT OR IGNORE INTO analytics_events (
-                event_id, ts, day_key, event_type, room_type, auth, session_id, match_id, payload_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                event_id, ts, day_key, event_type, room_type, room_category, auth, session_id, match_id, payload_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         ).run(
             eventId,
             ts,
             dayKey,
             eventType,
             roomType,
+            roomCategory,
             auth ?? null,
             sessionId ?? null,
             matchId ?? null,
@@ -557,56 +586,52 @@ function createDb(dbPath) {
         );
     }
 
-    function analyticsUpsertOnlineMinute({ minuteTs, dayKey, roomType, onlineCount }) {
+    function analyticsUpsertOnlineMinute({ minuteTs, dayKey, roomType, roomCategory, onlineCount }) {
         db.prepare(
-            `INSERT INTO analytics_online_minute (minute_ts, day_key, room_type, online_count)
-             VALUES (?, ?, ?, ?)
+            `INSERT INTO analytics_online_minute (minute_ts, day_key, room_type, room_category, online_count)
+             VALUES (?, ?, ?, ?, ?)
              ON CONFLICT(minute_ts, room_type) DO UPDATE SET
                 day_key = excluded.day_key,
                 online_count = excluded.online_count`
-        ).run(minuteTs, dayKey, roomType, onlineCount);
+        ).run(minuteTs, dayKey, roomType, roomCategory, onlineCount);
     }
 
-    function analyticsAggregateDaily(dayKey) {
+    function analyticsAggregateDaily(dayKey, roomCategory) {
         const joinsTotal = db.prepare(
             `SELECT COUNT(*) AS c
              FROM analytics_events
-             WHERE event_type = 'player_join' AND day_key = ?`
-        ).get(dayKey)?.c ?? 0;
+             WHERE event_type = 'player_join' AND day_key = ? AND room_category = ?`
+        ).get(dayKey, roomCategory)?.c ?? 0;
 
         const joinsUnique = db.prepare(
             `SELECT COUNT(DISTINCT auth) AS c
              FROM analytics_events
-             WHERE event_type = 'player_join' AND day_key = ? AND auth IS NOT NULL`
-        ).get(dayKey)?.c ?? 0;
+             WHERE event_type = 'player_join' AND day_key = ? AND room_category = ? AND auth IS NOT NULL`
+        ).get(dayKey, roomCategory)?.c ?? 0;
 
         const newPlayers = db.prepare(
-            'SELECT COUNT(*) AS c FROM analytics_players WHERE first_seen_day = ?'
-        ).get(dayKey)?.c ?? 0;
-
-        const sessionsStarted = db.prepare(
-            'SELECT COUNT(*) AS c FROM analytics_sessions WHERE joined_day = ?'
-        ).get(dayKey)?.c ?? 0;
-
-        const sessionsFinished = db.prepare(
-            'SELECT COUNT(*) AS c FROM analytics_sessions WHERE left_day = ?'
-        ).get(dayKey)?.c ?? 0;
+            `SELECT COUNT(DISTINCT ae.auth) AS c
+             FROM analytics_events ae
+             JOIN analytics_players ap ON ap.auth = ae.auth
+             WHERE ae.event_type = 'player_join' AND ae.day_key = ? AND ae.room_category = ?
+               AND ap.first_seen_day = ?`
+        ).get(dayKey, roomCategory, dayKey)?.c ?? 0;
 
         const avgSessionSec = db.prepare(
-            'SELECT COALESCE(AVG(duration_sec), 0) AS v FROM analytics_sessions WHERE left_day = ? AND duration_sec IS NOT NULL'
-        ).get(dayKey)?.v ?? 0;
+            'SELECT COALESCE(AVG(duration_sec), 0) AS v FROM analytics_sessions WHERE left_day = ? AND room_category = ? AND duration_sec IS NOT NULL'
+        ).get(dayKey, roomCategory)?.v ?? 0;
 
-        const matchesStarted = db.prepare(
-            'SELECT COUNT(*) AS c FROM analytics_matches WHERE started_day = ?'
-        ).get(dayKey)?.c ?? 0;
+        const matchesTotal = db.prepare(
+            'SELECT COUNT(*) AS c FROM analytics_matches WHERE started_day = ? AND room_category = ?'
+        ).get(dayKey, roomCategory)?.c ?? 0;
 
-        const matchesFinished = db.prepare(
-            'SELECT COUNT(*) AS c FROM analytics_matches WHERE ended_day = ?'
-        ).get(dayKey)?.c ?? 0;
+        const matchesFull = db.prepare(
+            'SELECT COUNT(*) AS c FROM analytics_matches WHERE started_day = ? AND room_category = ? AND is_full = 1'
+        ).get(dayKey, roomCategory)?.c ?? 0;
 
         const avgMatchSec = db.prepare(
-            'SELECT COALESCE(AVG(duration_sec), 0) AS v FROM analytics_matches WHERE ended_day = ? AND duration_sec IS NOT NULL'
-        ).get(dayKey)?.v ?? 0;
+            'SELECT COALESCE(AVG(duration_sec), 0) AS v FROM analytics_matches WHERE ended_day = ? AND room_category = ? AND duration_sec IS NOT NULL'
+        ).get(dayKey, roomCategory)?.v ?? 0;
 
         const onlineStats = db.prepare(
             `SELECT
@@ -615,55 +640,51 @@ function createDb(dbPath) {
              FROM (
                 SELECT minute_ts, SUM(online_count) AS total_online
                 FROM analytics_online_minute
-                WHERE day_key = ?
+                WHERE day_key = ? AND room_category = ?
                 GROUP BY minute_ts
              )`
-        ).get(dayKey) ?? { peak: 0, avg: 0 };
+        ).get(dayKey, roomCategory) ?? { peak: 0, avg: 0 };
 
         const returningPlayers = Math.max(0, joinsUnique - newPlayers);
 
         db.prepare(
             `INSERT INTO analytics_daily (
                 day_key,
+                room_category,
                 joins_total,
                 joins_unique,
                 new_players,
                 returning_players,
-                sessions_started,
-                sessions_finished,
                 avg_session_sec,
-                matches_started,
-                matches_finished,
+                matches_total,
+                matches_full,
                 avg_match_sec,
                 online_peak,
                 online_avg,
                 generated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(day_key) DO UPDATE SET
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(day_key, room_category) DO UPDATE SET
                 joins_total = excluded.joins_total,
                 joins_unique = excluded.joins_unique,
                 new_players = excluded.new_players,
                 returning_players = excluded.returning_players,
-                sessions_started = excluded.sessions_started,
-                sessions_finished = excluded.sessions_finished,
                 avg_session_sec = excluded.avg_session_sec,
-                matches_started = excluded.matches_started,
-                matches_finished = excluded.matches_finished,
+                matches_total = excluded.matches_total,
+                matches_full = excluded.matches_full,
                 avg_match_sec = excluded.avg_match_sec,
                 online_peak = excluded.online_peak,
                 online_avg = excluded.online_avg,
                 generated_at = excluded.generated_at`
         ).run(
             dayKey,
+            roomCategory,
             joinsTotal,
             joinsUnique,
             newPlayers,
             returningPlayers,
-            sessionsStarted,
-            sessionsFinished,
             avgSessionSec,
-            matchesStarted,
-            matchesFinished,
+            matchesTotal,
+            matchesFull,
             avgMatchSec,
             onlineStats.peak ?? 0,
             onlineStats.avg ?? 0,
@@ -671,38 +692,39 @@ function createDb(dbPath) {
         );
     }
 
-    function analyticsGetDaily(dayKey) {
+    function analyticsGetDaily(dayKey, roomCategory) {
         return db.prepare(
             `SELECT
                 day_key AS dayKey,
+                room_category AS roomCategory,
                 joins_total AS joinsTotal,
                 joins_unique AS joinsUnique,
                 new_players AS newPlayers,
                 returning_players AS returningPlayers,
-                sessions_started AS sessionsStarted,
-                sessions_finished AS sessionsFinished,
                 avg_session_sec AS avgSessionSec,
-                matches_started AS matchesStarted,
-                matches_finished AS matchesFinished,
+                matches_total AS matchesTotal,
+                matches_full AS matchesFull,
                 avg_match_sec AS avgMatchSec,
                 online_peak AS onlinePeak,
                 online_avg AS onlineAvg,
                 generated_at AS generatedAt
              FROM analytics_daily
-             WHERE day_key = ?`
-        ).get(dayKey) ?? null;
+             WHERE day_key = ? AND room_category = ?`
+        ).get(dayKey, roomCategory) ?? null;
     }
 
-    function analyticsIsDailyReportSent(dayKey) {
-        return db.prepare('SELECT 1 FROM analytics_daily_reports_sent WHERE day_key = ?').get(dayKey) != null;
+    function analyticsIsDailyReportSent(dayKey, roomCategory) {
+        return db.prepare(
+            'SELECT 1 FROM analytics_daily_reports_sent WHERE day_key = ? AND room_category = ?'
+        ).get(dayKey, roomCategory) != null;
     }
 
-    function analyticsMarkDailyReportSent(dayKey, sentAt = Date.now()) {
+    function analyticsMarkDailyReportSent(dayKey, roomCategory, sentAt = Date.now()) {
         db.prepare(
-            `INSERT INTO analytics_daily_reports_sent (day_key, sent_at)
-             VALUES (?, ?)
-             ON CONFLICT(day_key) DO UPDATE SET sent_at = excluded.sent_at`
-        ).run(dayKey, sentAt);
+            `INSERT INTO analytics_daily_reports_sent (day_key, room_category, sent_at)
+             VALUES (?, ?, ?)
+             ON CONFLICT(day_key, room_category) DO UPDATE SET sent_at = excluded.sent_at`
+        ).run(dayKey, roomCategory, sentAt);
     }
 
     function close() {
@@ -756,6 +778,7 @@ function createDb(dbPath) {
         analyticsTouchPlayer,
         analyticsStartSession,
         analyticsEndSession,
+        analyticsCloseDanglingSessions,
         analyticsStartMatch,
         analyticsEndMatch,
         analyticsAddEvent,
