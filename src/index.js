@@ -33,7 +33,7 @@ const timeFormat = createTimeFormat(timeZone);
 const ROOM_CATEGORIES = ['public', 'private'];
 
 function startAnalyticsDailyReporting({ db, discordBot, timeFormat }) {
-    const { getDayKey, getHour } = timeFormat;
+    const { getDayKey } = timeFormat;
     let isRunning = false;
 
     const runOnce = async () => {
@@ -42,9 +42,6 @@ function startAnalyticsDailyReporting({ db, discordBot, timeFormat }) {
 
         try {
             const now = Date.now();
-            const localHour = getHour(now);
-
-            if (localHour < 1) return;
 
             const yesterdayDay = getDayKey(now - 24 * 60 * 60 * 1000);
 
