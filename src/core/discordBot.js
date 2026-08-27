@@ -335,21 +335,14 @@ function createDiscordBot({
                     value: t('discordBot.analyticsDaily.values.online', {
                         peak: report.onlinePeak,
                         avg: Number(report.onlineAvg ?? 0).toFixed(1)
-                    }),
-                    inline: true
-                },
-                {
-                    name: t('discordBot.analyticsDaily.fields.avgSession'),
-                    value: fmtSec(report.avgSessionSec),
-                    inline: true
+                    })
                 },
                 {
                     name: t('discordBot.analyticsDaily.fields.joins'),
                     value: t('discordBot.analyticsDaily.values.joins', {
                         total: report.joinsTotal,
                         unique: report.joinsUnique
-                    }),
-                    inline: true
+                    })
                 },
                 {
                     name: t('discordBot.analyticsDaily.fields.players'),
@@ -357,8 +350,11 @@ function createDiscordBot({
                         newPlayers: report.newPlayers,
                         returningPlayers: report.returningPlayers,
                         retentionPct
-                    }),
-                    inline: true
+                    })
+                },
+                {
+                    name: t('discordBot.analyticsDaily.fields.avgSession'),
+                    value: fmtSec(report.avgSessionSec)
                 },
                 {
                     name: t('discordBot.analyticsDaily.fields.matches'),
@@ -366,13 +362,11 @@ function createDiscordBot({
                         total: report.matchesTotal,
                         full: report.matchesFull,
                         fullPct: fullMatchPct
-                    }),
-                    inline: true
+                    })
                 },
                 {
                     name: t('discordBot.analyticsDaily.fields.avgMatch'),
-                    value: fmtSec(report.avgMatchSec),
-                    inline: true
+                    value: fmtSec(report.avgMatchSec)
                 }
             )
             .setFooter({ text: t('discordBot.analyticsDaily.footer', { date: formatDate() }) });
