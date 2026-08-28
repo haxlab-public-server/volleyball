@@ -254,9 +254,10 @@ module.exports = function createActivityEvents({
             );
 
             const disc = room.getDiscProperties(0);
+            const boostDivisor = state.serveType === Serve.FLOAT ? 2.2 : 1.5;
             room.setDiscProperties(0, {
                 cGroup: disc.cGroup ^ cf.kick,
-                xspeed: disc.xspeed + Math.round(disc.xspeed / 1.5),
+                xspeed: disc.xspeed + Math.round(disc.xspeed / boostDivisor),
                 color: 0x42f5d4
             });
 

@@ -14,7 +14,6 @@ module.exports = function createPlayerCommands({
     Mods,
     Team,
     Color,
-    Serve,
     ServeString,
     HaxNotification,
     Discord,
@@ -150,26 +149,16 @@ module.exports = function createPlayerCommands({
         }
 
         const isBlue = player.team === Team.BLUE;
-        const isFloat = serveType === Serve.FLOAT;
-
         state.serveType = serveType;
         state.floatSlowed = false;
-
-        let xspeed = isBlue ? -0.7 : 0.7;
-        let yspeed = -11.9;
-
-        if (isFloat) {
-            xspeed *= 0.75;
-            yspeed *= 0.85;
-        }
 
         setTimeout(() => {
             state.serveBall = true;
             room.setDiscProperties(0, {
                 x: isBlue ? 410 : -410,
                 y: 200,
-                xspeed,
-                yspeed
+                xspeed: isBlue ? -0.7 : 0.7,
+                yspeed: -11.9
             });
         }, 300);
 

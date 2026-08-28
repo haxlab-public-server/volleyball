@@ -389,7 +389,6 @@ const {
     Mods,
     Team,
     Color,
-    Serve,
     ServeString,
     HaxNotification,
     Discord,
