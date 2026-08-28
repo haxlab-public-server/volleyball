@@ -62,7 +62,9 @@ const {
     Mods,
     TeamPickMode,
     TeamPickModeString,
-    Sits
+    Sits,
+    Serve,
+    ServeString
 } = require('../core/models/enums');
 
 const createModels = require('../core/models/models');
@@ -136,6 +138,7 @@ state.captainAlertTimer = null;
 state.captainPickTimer = null;
 state.captainPickForTeam = null;
 state.serve = null
+state.serveType = Serve.POWER
 state.training_mode = false
 state.training_mode_spawn = []
 state.roomLink;
@@ -352,6 +355,7 @@ const {
     helpCommand,
     admCommand,
     serveCommand,
+    trySilentServe,
     bbCommand,
     statsCommand,
     renameCommand,
@@ -383,6 +387,7 @@ const {
     Mods,
     Team,
     Color,
+    ServeString,
     HaxNotification,
     Discord,
     Telegram,
@@ -586,11 +591,13 @@ Object.assign(room, wrapEventHandlers(createActivityEvents({
     sendAnnouncementTeam,
     getChatColor,
     teamChatCommand,
+    trySilentServe,
     defaultTeamSize,
     Role,
     Team,
     Mods,
     Color,
+    ServeString,
     HaxNotification,
     discordBot,
     updateBallColor,

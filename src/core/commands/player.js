@@ -14,6 +14,7 @@ module.exports = function createPlayerCommands({
     Mods,
     Team,
     Color,
+    ServeString,
     HaxNotification,
     Discord,
     Telegram,
@@ -118,77 +119,37 @@ module.exports = function createPlayerCommands({
         }
     }
 
-    function serveCommand(player) {
+    function trySilentServe(player, serveType) {
         if (state.training_mode) {
-            room.sendAnnouncement(
-                t('serve.useTrainingCommand'),
-                player.id,
-                Color.GR_RED,
-                'small',
-                HaxNotification.MENTION
-            );
-            return;
+            return { ok: false, reason: 'training_mode' };
         }
 
         if (player.team === Team.SPECTATORS) {
-            room.sendAnnouncement(
-                t('serve.mustBeOnField'),
-                player.id,
-                Color.GR_RED,
-                'small',
-                HaxNotification.MENTION
-            );
-            return;
+            return { ok: false, reason: 'not_on_field' };
         }
 
         if (
             getTeamArray(Team.BLUE).length < defaultTeamSize ||
             getTeamArray(Team.RED).length < defaultTeamSize
         ) {
-            room.sendAnnouncement(
-                t('serve.notEnoughPlayers'),
-                player.id,
-                Color.GR_RED,
-                'small',
-                HaxNotification.MENTION
-            );
-            return;
+            return { ok: false, reason: 'not_enough_players' };
         }
 
         if (state.lastTouches[0] !== undefined) {
-            room.sendAnnouncement(
-                t('serve.cannotServeNow'),
-                player.id,
-                Color.GR_RED,
-                'small',
-                HaxNotification.MENTION
-            );
-            return;
+            return { ok: false, reason: 'cannot_serve_now' };
         }
 
         if (state.serveBall) {
-            room.sendAnnouncement(
-                t('serve.someoneServing'),
-                player.id,
-                Color.GR_RED,
-                'small',
-                HaxNotification.MENTION
-            );
-            return;
+            return { ok: false, reason: 'someone_serving' };
         }
 
         if (player.team !== state.serve) {
-            room.sendAnnouncement(
-                t('serve.notYourServe'),
-                player.id,
-                Color.GR_RED,
-                'small',
-                HaxNotification.MENTION
-            );
-            return;
+            return { ok: false, reason: 'not_your_serve' };
         }
 
         const isBlue = player.team === Team.BLUE;
+        state.serveType = serveType;
+
         setTimeout(() => {
             state.serveBall = true;
             room.setDiscProperties(0, {
@@ -198,6 +159,35 @@ module.exports = function createPlayerCommands({
                 yspeed: -11.9
             });
         }, 300);
+
+        return { ok: true };
+    }
+
+    function serveCommand(player, message) {
+        const args = message.split(/ +/).slice(1);
+        const typeArg = args[0]?.toLowerCase();
+        const serveType = typeArg ? (ServeString[typeArg] ?? ServeString.POWER) : ServeString.POWER;
+
+        const result = trySilentServe(player, serveType);
+
+        if (result.ok) return;
+
+        const messages = {
+            training_mode: t('serve.useTrainingCommand'),
+            not_on_field: t('serve.mustBeOnField'),
+            not_enough_players: t('serve.notEnoughPlayers'),
+            cannot_serve_now: t('serve.cannotServeNow'),
+            someone_serving: t('serve.someoneServing'),
+            not_your_serve: t('serve.notYourServe')
+        };
+
+        room.sendAnnouncement(
+            messages[result.reason],
+            player.id,
+            Color.GR_RED,
+            'small',
+            HaxNotification.MENTION
+        );
     }
 
     function bbCommand(player) {
@@ -890,6 +880,7 @@ module.exports = function createPlayerCommands({
         helpCommand,
         admCommand,
         serveCommand,
+        trySilentServe,
         bbCommand,
         statsCommand,
         renameCommand,

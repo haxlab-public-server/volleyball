@@ -62,6 +62,18 @@ const Sits = {
     FORMING: 5
 }
 
+const Serve = {
+    POWER: 'power',
+    FLOAT: 'float'
+};
+
+const ServeString = {
+    power: Serve.POWER,
+    p: Serve.POWER,
+    float: Serve.FLOAT,
+    f: Serve.FLOAT
+};
+
 module.exports = {
     Role,
     RoleString,
@@ -71,5 +83,7 @@ module.exports = {
     Mods,
     TeamPickMode,
     TeamPickModeString,
-    Sits
+    Sits,
+    Serve,
+    ServeString
 }

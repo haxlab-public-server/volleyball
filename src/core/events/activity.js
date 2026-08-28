@@ -12,11 +12,13 @@ module.exports = function createActivityEvents({
     sendAnnouncementTeam,
     getChatColor,
     teamChatCommand,
+    trySilentServe,
     defaultTeamSize,
     Role,
     Team,
     Mods,
     Color,
+    ServeString,
     HaxNotification,
     discordBot,
     updateBallColor,
@@ -65,6 +67,13 @@ module.exports = function createActivityEvents({
         return pickedNumber >= 1 && pickedNumber <= specsCount;
     }
 
+    function trySilentServeShortcut(player, message) {
+        const serveType = ServeString[message.toLowerCase()];
+        if (!serveType) return false;
+
+        const result = trySilentServe(player, serveType);
+        return result.ok;
+    }
 
     function onPlayerChat(player, message) {
         discordBot.sendLog(`[${getAuth(player.id)}] **${player.name}**: ${message}`);
@@ -80,6 +89,10 @@ module.exports = function createActivityEvents({
                     await new Promise(resolve => setTimeout(resolve, 0));
                     await continueCaptainPick();
                 }
+                return;
+            }
+
+            if (ServeString[message.toLowerCase()] && trySilentServeShortcut(player, message)) {
                 return;
             }
 
@@ -236,7 +249,7 @@ module.exports = function createActivityEvents({
 
         if (!state.goal_sit && state.serveBall) {
             room.sendAnnouncement(
-                t('game.powerServe', { name: player.name }),
+                t('game.serve', { name: player.name }),
                 null, teamColor, 'bold', HaxNotification.CHAT
             );
 

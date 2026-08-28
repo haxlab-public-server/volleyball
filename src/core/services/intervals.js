@@ -31,6 +31,8 @@ module.exports = function createIntervals({
     const announcementMessages = createAnnouncementMessages({ Discord, Telegram, t });
     const { formatDate } = timeFormat;
 
+    const FLOAT_SERVE_NET_SLOWDOWN = 0.4;
+
     function resetBallKick() {
         state.ball_color = 0xffffff;
         const disc = room.getDiscProperties(0);
@@ -38,6 +40,22 @@ module.exports = function createIntervals({
             cGroup: disc.cGroup | cf.kick,
             color: state.ball_color
         });
+    }
+
+    function resetServeBallOnNetCross() {
+        if (state.serveType === 'float') {
+            const disc = room.getDiscProperties(0);
+            room.setDiscProperties(0, {
+                cGroup: disc.cGroup | cf.kick,
+                color: 0xffffff,
+                xspeed: disc.xspeed * FLOAT_SERVE_NET_SLOWDOWN,
+                yspeed: disc.yspeed * FLOAT_SERVE_NET_SLOWDOWN
+            });
+            state.ball_color = 0xffffff;
+            return;
+        }
+
+        resetBallKick();
     }
 
     let announcementIndex = 0;
@@ -149,7 +167,7 @@ module.exports = function createIntervals({
 
             if (crossed) {
                 state.serveBall = false;
-                resetBallKick();
+                resetServeBallOnNetCross();
             }
             updateBallColor();
             return;
