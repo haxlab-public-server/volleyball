@@ -641,6 +641,29 @@ async function main() {
         const secondClose = db.analyticsCloseDanglingSessions({ roomType: 'public', closedAt: ts + 1000, dayKey });
         check('analytics dangling session already closed, no double-close', secondClose, 0);
 
+        db.analyticsAggregateDaily(dayKey, 'public');
+        const dailyReport = db.analyticsGetDaily(dayKey, 'public');
+        const sameDayRange = db.analyticsGetRange(dayKey, dayKey, 'public');
+
+        check('analyticsGetRange single day matches analyticsGetDaily (joinsTotal)', sameDayRange.joinsTotal, dailyReport.joinsTotal);
+        check('analyticsGetRange single day matches analyticsGetDaily (matchesFull)', sameDayRange.matchesFull, dailyReport.matchesFull);
+        check('analyticsGetRange single day matches analyticsGetDaily (onlinePeak)', sameDayRange.onlinePeak, dailyReport.onlinePeak);
+
+        const earlierDay = getDayKey(ts - 5 * 24 * 60 * 60 * 1000);
+        db.analyticsTouchPlayer({ auth: 'p5', nick: 'Eve', ts: ts - 5 * 24 * 60 * 60 * 1000, dayKey: earlierDay });
+        db.analyticsStartSession({
+            sessionId: 'sess-old', auth: 'p5', nick: 'Eve', joinedAt: ts - 5 * 24 * 60 * 60 * 1000, dayKey: earlierDay,
+            roomType: 'public', roomCategory: 'public'
+        });
+        db.analyticsAddEvent({
+            eventId: 'evt-old', ts: ts - 5 * 24 * 60 * 60 * 1000, dayKey: earlierDay, eventType: 'player_join',
+            roomType: 'public', roomCategory: 'public', auth: 'p5', sessionId: 'sess-old'
+        });
+
+        const weekRange = db.analyticsGetRange(earlierDay, dayKey, 'public');
+        check('analyticsGetRange multi-day range sums joins across days', weekRange.joinsTotal, dailyReport.joinsTotal + 1);
+        check('analyticsGetRange multi-day range does not require analytics_daily rows', db.analyticsGetRange(earlierDay, dayKey, 'private').joinsTotal, 1);
+
         db.close();
     }
 

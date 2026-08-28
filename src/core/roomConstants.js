@@ -31,7 +31,6 @@ const base = {
     joinAuths: false,
     Discord: "https://dsc.gg/chds",
     Telegram: "https://t.me/chesdesq",
-    timeZone: "Europe/Moscow",
 };
 
 const publicConfig = {

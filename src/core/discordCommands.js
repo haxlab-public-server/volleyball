@@ -30,7 +30,11 @@ const ROLE_LABELS = {
 
 const EMBED_COLOR = 0x5865F2;
 const ERROR_COLOR = 0xE62C2C;
+const ANALYTICS_EMBED_COLOR = 0x57F287;
 const BROADCAST_ROOM_LABEL = 'Room';
+const ROOM_CATEGORIES = ['public', 'private'];
+const CATEGORY_LABELS = { public: 'PUBLIC', private: 'PRIVATE' };
+const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function parseTimeArg(str) {
     const parsed = parseDuration(str);
@@ -108,7 +112,105 @@ function formatStats(stat, t) {
     ].join('\n');
 }
 
-module.exports = function createDiscordCommands({ db, applyModeration, applyToRoom, discordBotSend, t }) {
+module.exports = function createDiscordCommands({ db, applyModeration, applyToRoom, discordBotSend, timeFormat, t }) {
+    const { getDayKey } = timeFormat;
+
+    function resolvePeriodRange(period, fromArg, toArg) {
+        const now = Date.now();
+        const today = getDayKey(now);
+
+        if (period === 'today') {
+            return { fromDayKey: today, toDayKey: today };
+        }
+
+        if (period === 'week') {
+            return { fromDayKey: getDayKey(now - 6 * 24 * 60 * 60 * 1000), toDayKey: today };
+        }
+
+        if (period === 'month') {
+            return { fromDayKey: getDayKey(now - 29 * 24 * 60 * 60 * 1000), toDayKey: today };
+        }
+
+        if (!fromArg || !toArg) {
+            return { error: t('discord.analytics.customRequiresDates') };
+        }
+        if (!DATE_KEY_RE.test(fromArg) || !DATE_KEY_RE.test(toArg)) {
+            return { error: t('discord.analytics.invalidDateFormat') };
+        }
+        if (fromArg > toArg) {
+            return { error: t('discord.analytics.fromAfterTo') };
+        }
+
+        return { fromDayKey: fromArg, toDayKey: toArg };
+    }
+
+    function fmtSec(value) {
+        const totalSec = Math.round(Number(value ?? 0));
+        const mins = Math.floor(totalSec / 60);
+        const secs = totalSec % 60;
+        return t('discordBot.analyticsDaily.durationMinSec', { mins, secs });
+    }
+
+    function buildAnalyticsEmbed(roomCategory, range) {
+        const categoryLabel = CATEGORY_LABELS[roomCategory] ?? String(roomCategory ?? '').toUpperCase();
+
+        const retentionPct = range.joinsUnique > 0
+            ? Math.round((range.returningPlayers / range.joinsUnique) * 100)
+            : 0;
+
+        const fullMatchPct = range.matchesTotal > 0
+            ? Math.round((range.matchesFull / range.matchesTotal) * 100)
+            : 0;
+
+        const dayLabel = range.fromDayKey === range.toDayKey
+            ? range.fromDayKey
+            : t('discord.analytics.rangeLabel', { from: range.fromDayKey, to: range.toDayKey });
+
+        return new EmbedBuilder()
+            .setColor(ANALYTICS_EMBED_COLOR)
+            .setTitle(t('discordBot.analyticsDaily.title', { category: categoryLabel }))
+            .setDescription(t('discordBot.analyticsDaily.description', { day: dayLabel }))
+            .addFields(
+                {
+                    name: t('discordBot.analyticsDaily.fields.online'),
+                    value: t('discordBot.analyticsDaily.values.online', {
+                        peak: range.onlinePeak,
+                        avg: Number(range.onlineAvg ?? 0).toFixed(1)
+                    })
+                },
+                {
+                    name: t('discordBot.analyticsDaily.fields.joins'),
+                    value: t('discordBot.analyticsDaily.values.joins', {
+                        total: range.joinsTotal,
+                        unique: range.joinsUnique
+                    })
+                },
+                {
+                    name: t('discordBot.analyticsDaily.fields.players'),
+                    value: t('discordBot.analyticsDaily.values.players', {
+                        newPlayers: range.newPlayers,
+                        returningPlayers: range.returningPlayers,
+                        retentionPct
+                    })
+                },
+                {
+                    name: t('discordBot.analyticsDaily.fields.avgSession'),
+                    value: fmtSec(range.avgSessionSec)
+                },
+                {
+                    name: t('discordBot.analyticsDaily.fields.matches'),
+                    value: t('discordBot.analyticsDaily.values.matches', {
+                        total: range.matchesTotal,
+                        full: range.matchesFull,
+                        fullPct: fullMatchPct
+                    })
+                },
+                {
+                    name: t('discordBot.analyticsDaily.fields.avgMatch'),
+                    value: fmtSec(range.avgMatchSec)
+                }
+            );
+    }
 
     async function requireLinkedRole(interaction, minRole) {
         const account = await db.getAccountByDiscordId(interaction.user.id);
@@ -258,7 +360,28 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
             new SlashCommandBuilder()
                 .setName('account')
                 .setDescription(t('discord.command.account'))
-                .addStringOption(o => o.setName('public_id').setDescription(t('discord.command.accountPublicId')).setRequired(false))
+                .addStringOption(o => o.setName('public_id').setDescription(t('discord.command.accountPublicId')).setRequired(false)),
+            new SlashCommandBuilder()
+                .setName('analytics')
+                .setDescription(t('discord.command.analytics'))
+                .addStringOption(o => o.setName('period')
+                    .setDescription(t('discord.command.analyticsPeriod'))
+                    .setRequired(true)
+                    .addChoices(
+                        { name: 'today', value: 'today' },
+                        { name: 'week', value: 'week' },
+                        { name: 'month', value: 'month' },
+                        { name: 'custom', value: 'custom' }
+                    ))
+                .addStringOption(o => o.setName('category')
+                    .setDescription(t('discord.command.analyticsCategory'))
+                    .setRequired(false)
+                    .addChoices(
+                        { name: 'public', value: 'public' },
+                        { name: 'private', value: 'private' }
+                    ))
+                .addStringOption(o => o.setName('from').setDescription(t('discord.command.analyticsFrom')).setRequired(false))
+                .addStringOption(o => o.setName('to').setDescription(t('discord.command.analyticsTo')).setRequired(false))
         ].map(c => c.toJSON());
     }
 
@@ -706,8 +829,34 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         });
     }
 
-    async function handleAccount(interaction) {
-        const caller = await requireLinkedRole(interaction, Role.PLAYER);
+    async function handleAnalytics(interaction) {
+        const caller = await requireLinkedRole(interaction, Role.ADMIN);
+        if (!caller) return;
+
+        const period = interaction.options.getString('period');
+        const categoryArg = interaction.options.getString('category');
+        const fromArg = interaction.options.getString('from');
+        const toArg = interaction.options.getString('to');
+
+        const range = resolvePeriodRange(period, fromArg, toArg);
+        if (range.error) {
+            await interaction.reply({ embeds: [errorEmbed(t('discord.analytics.invalidRangeTitle'), range.error)], ephemeral: true });
+            return;
+        }
+
+        const categories = categoryArg ? [categoryArg] : ROOM_CATEGORIES;
+
+        await interaction.deferReply();
+
+        const embeds = categories.map(category => {
+            const result = db.analyticsGetRange(range.fromDayKey, range.toDayKey, category);
+            return buildAnalyticsEmbed(category, result);
+        });
+
+        await interaction.editReply({ embeds });
+    }
+
+    async function handleAccount(interaction) {        const caller = await requireLinkedRole(interaction, Role.PLAYER);
         if (!caller) return;
 
         const publicId = interaction.options.getString('public_id');
@@ -757,7 +906,8 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         mutes: handleMutes,
         tops: handleTops,
         stats: handleStats,
-        account: handleAccount
+        account: handleAccount,
+        analytics: handleAnalytics
     };
 
     async function handleInteraction(interaction) {

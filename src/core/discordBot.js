@@ -68,6 +68,7 @@ function createDiscordBot({
 
     const roomCommands = createDiscordCommands({
         db,
+        timeFormat,
         applyModeration: (action) => (applyModeration ? applyModeration(action) : Promise.resolve(false)),
         applyToRoom: (roomType, action) => (applyToRoom ? applyToRoom(roomType, action) : Promise.resolve(false)),
         discordBotSend: {

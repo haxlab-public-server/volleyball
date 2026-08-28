@@ -65,13 +65,13 @@ The bot connects to Discord as a real bot application (not webhooks), which prov
 - **Automatic role sync** — when a player's in-room role (`VIP`/`PREADMIN`/`ADMIN`/`MASTER`) is granted, changed, expires, or the player rejoins the room, their Discord role is granted or revoked to match, as long as their Discord is linked and they're a member of the configured guild.
 - **Live online status message** — an embed in a dedicated Discord channel is edited once a minute and shows the room name, current player count, the list of players online, and a **"Присоединиться" (Join)** link button pointing at the current room link.
 - Chat/event logs, ban/mute reports, and auto-uploaded match replays go to dedicated Discord channels.
-- A daily analytics report for the previous day is posted to a dedicated Discord channel.
+- A **daily analytics report** for the previous day is posted to a dedicated Discord channel as an embed, separately for the `public` and `private` room categories (one embed per category), covering online peak/average, joins, new vs. returning players (with a retention %), average time spent on the server, and match counts (total and how many had a full lineup, with a %). The same numbers are available on demand via `/analytics` (see below) for the current in-progress day, the last week/month, or a custom date range.
 - **Slash commands mirroring moderation and stats lookup**, with access gated by the same in-room role hierarchy, checked against the caller's linked account:
   - `MASTER`: `/setrole`, `/getrolelist`, `/password`, `/statsclear`, `/statsbackup`
-  - `ADMIN`: `/ban`, `/unban`, `/mute`, `/unmute`, `/bans`, `/mutes`
+  - `ADMIN`: `/ban`, `/unban`, `/mute`, `/unmute`, `/bans`, `/mutes`, `/analytics`
   - Any linked account (`PLAYER`+): `/tops`, `/stats`, `/account`
 
-  Commands targeting a specific player take their public ID (43 characters) directly, with no nickname resolution. The exception is `/stats`: it's read-only and additionally supports looking a player up by nickname (if several accounts share that nickname, a list is shown with an `index` to disambiguate on a re-run). `/ban`, `/unban`, `/mute`, `/unmute`, and `/password` first write the change to the DB/state, then apply it **instantly, live**, in whichever room the target currently is, via the Node→browser bridge (`window.__applyModeration`) — no need to wait for the player to rejoin. `/statsbackup` snapshots the stats table to a timestamped file and attaches it to the reply, without clearing anything (`/statsclear` is the destructive variant that also wipes the table).
+  Commands targeting a specific player take their public ID (43 characters) directly, with no nickname resolution. The exception is `/stats`: it's read-only and additionally supports looking a player up by nickname (if several accounts share that nickname, a list is shown with an `index` to disambiguate on a re-run). `/ban`, `/unban`, `/mute`, `/unmute`, and `/password` first write the change to the DB/state, then apply it **instantly, live**, in whichever room the target currently is, via the Node→browser bridge (`window.__applyModeration`) — no need to wait for the player to rejoin. `/statsbackup` snapshots the stats table to a timestamped file and attaches it to the reply, without clearing anything (`/statsclear` is the destructive variant that also wipes the table). `/analytics` takes a `period` (`today` / `week` / `month` / `custom`, the last one requiring `from`/`to` dates in `YYYY-MM-DD`) and an optional `category` (`public` / `private` — omit to see both); it reads on demand and never writes to the daily-report table, so it's safe to run anytime, including mid-day for the still-open "today".
 
 ### Localization
 
@@ -129,8 +129,8 @@ src/
       ru.js, en.js            — Russian and English dictionaries for room and Discord text
     announcementMessages.js  — rotating promo announcements
     safeEventHandlers.js     — wraps room.onX with error catching
-    discordBot.js            — Node-only Discord bot client (discord.js): login, slash-command registration/handling, link codes, role sync, channel messages, online embed
-    discordCommands.js       — slash-command definitions and handlers
+    discordBot.js            — Node-only Discord bot client (discord.js): login, slash-command registration/handling, link codes, role sync, channel messages, online embed, daily analytics embed
+    discordCommands.js       — slash-command definitions and handlers, including /analytics
     models/
       enums.js                — Role, Color, Team, Mods, Sits, etc.
       models.js                — Game, MuteList, MutePlayer
@@ -141,6 +141,7 @@ src/
       discord.js                — thin browser-side bridge, forwards calls to window.__discord.*
       spawnRange.js             — parses "min..max" range syntax for training-mode spawn parameters
       reports.js                — replay file naming
+      timeFormat.js             — single source of truth for the configured timeZone: day-key bucketing, date/time formatting
     services/
       chat.js                   — command/alias resolution
       captains.js                — captain-pick logic
@@ -148,6 +149,7 @@ src/
       intervals.js                — all setInterval loops (bans, mutes, roles, announcements, online embed, game tick)
       training.js                 — training-mode ball spawner
       accounts.js                 — account view formatting (`!account`/`/account`) and target-auth resolution
+      analytics.js                 — records joins/leaves/matches/online snapshots into the analytics_* tables
     commands/
       commands.js                 — command registry → role → handler
       player.js, vip.js, admin.js, master.js — command implementations by access tier
@@ -167,7 +169,9 @@ tools/
 
 #### Storage
 
-SQLite via the built-in `node:sqlite` module (`db/volleyball.sqlite`, WAL mode). Tables: `accounts`, `bans`, `mutes`, `nicknames`, `auths`, `stats`. `db/sqlite.js` is the only place with raw SQL; the browser side only ever sees promisified methods, and the Discord slash-command handlers call the same `db` instance directly on the Node side. The `accounts.discord` column stores the linked Discord user ID once a player links their account.
+SQLite via the built-in `node:sqlite` module (`db/volleyball.sqlite`, WAL mode). Core tables: `accounts`, `bans`, `mutes`, `nicknames`, `auths`, `stats`. `db/sqlite.js` is the only place with raw SQL; the browser side only ever sees promisified methods, and the Discord slash-command handlers call the same `db` instance directly on the Node side. The `accounts.discord` column stores the linked Discord user ID once a player links their account.
+
+Analytics tables (`analytics_players`, `analytics_sessions`, `analytics_matches`, `analytics_events`, `analytics_online_minute`) record everything under a `room_type` (the concrete running room instance, e.g. `public`/`private`, or `public-2` once multiple rooms per category exist) and a `room_category` (the group used for reporting, e.g. `public`/`private` — set once via `roomConstants.js:roomCategory`). `analytics_matches.is_full` is decided once, at match start, by the room itself (whether both teams met its `defaultTeamSize`/current team size at that moment) — the analytics layer never recomputes this from a config. Two derived tables exist: `analytics_daily` holds one finalized row per `(day_key, room_category)`, summed across every `room_type` in that category, produced by the scheduled daily report; `analytics_daily_reports_sent` gates that report so it's sent at most once per `(day, category)`. On-demand lookups (the `/analytics` Discord command) go through `analyticsGetRange`, which computes the same metrics over an arbitrary day range without touching either of those two tables — so ad-hoc queries never interfere with the scheduled report and can safely include the still-open current day.
 
 #### DB access boundary
 
@@ -197,6 +201,7 @@ PUBLIC_PASSWORD="password or empty here"
 PRIVATE_PASSWORD="password or empty here"
 
 LOCALE="locale code here (ru | en | your_localization_code)"
+TIME_ZONE="IANA timezone, e.g. Europe/Moscow"
 
 DISCORD_BOT_TOKEN="discord bot token here"
 DISCORD_GUILD_ID="your server id here"
@@ -336,13 +341,13 @@ In-memory smoke tests (`tools/smoke-test.js`) cover the DB layer (accounts, bans
 - **Автоматическую синхронизацию ролей** — при выдаче, изменении, истечении роли (`VIP`/`PREADMIN`/`ADMIN`/`MASTER`), а также при каждом заходе игрока в комнату, его Discord-роль выдаётся или снимается автоматически, если Discord привязан и игрок состоит в настроенной гильдии.
 - **Живое сообщение об онлайне** — embed в отдельном Discord-канале редактируется раз в минуту и показывает название комнаты, текущее число игроков, список игроков онлайн и кнопку-ссылку **"Присоединиться"** на текущую ссылку комнаты.
 - Логи чата и событий, отчёты о банах/мутах и авто-отправка реплеев матчей идут в выделенные Discord-каналы.
-- Ежедневный аналитический отчет за предыдущий день публикуется в специальном канале Discord.
+- **Ежедневный аналитический отчёт** за предыдущий день публикуется в специальном канале Discord в виде embed'а, отдельно по категориям `public` и `private` (по одному embed'у на категорию): пик/среднее онлайна, заходы, новые и вернувшиеся игроки (с процентом retention), среднее время на сервере и число матчей (всего и с полным составом, с процентом). Те же данные доступны по запросу через `/analytics` (см. ниже) — за текущий незакрытый день, за последнюю неделю/месяц или за произвольный диапазон дат.
 - **Slash-команды, зеркалирующие модерацию и просмотр статистики**, с доступом по той же иерархии ролей, что и в комнате, через привязанный Discord-аккаунт:
   - `MASTER`: `/setrole`, `/getrolelist`, `/password`, `/statsclear`, `/statsbackup`
-  - `ADMIN`: `/ban`, `/unban`, `/mute`, `/unmute`, `/bans`, `/mutes`
+  - `ADMIN`: `/ban`, `/unban`, `/mute`, `/unmute`, `/bans`, `/mutes`, `/analytics`
   - Любой привязанный аккаунт (`PLAYER`+): `/tops`, `/stats`, `/account`
 
-  Команды, нацеленные на конкретного игрока, принимают его public ID (43 символа) напрямую, без резолвинга по нику. Исключение — `/stats`: она доступна только на чтение и дополнительно поддерживает поиск игрока по нику (при совпадении у нескольких аккаунтов показывается список с `index`, чтобы уточнить повторным вызовом). `/ban`, `/unban`, `/mute`, `/unmute` и `/password` сначала пишут изменение в БД/состояние, а затем применяют его **мгновенно вживую** в той комнате, где сейчас находится цель, через мост Node→browser (`window.__applyModeration`) — без ожидания перезахода игрока. `/statsbackup` делает снимок таблицы статистики в файл с меткой времени и прикрепляет его к ответу, ничего не очищая (`/statsclear` — деструктивный вариант, который дополнительно очищает таблицу).
+  Команды, нацеленные на конкретного игрока, принимают его public ID (43 символа) напрямую, без резолвинга по нику. Исключение — `/stats`: она доступна только на чтение и дополнительно поддерживает поиск игрока по нику (при совпадении у нескольких аккаунтов показывается список с `index`, чтобы уточнить повторным вызовом). `/ban`, `/unban`, `/mute`, `/unmute` и `/password` сначала пишут изменение в БД/состояние, а затем применяют его **мгновенно вживую** в той комнате, где сейчас находится цель, через мост Node→browser (`window.__applyModeration`) — без ожидания перезахода игрока. `/statsbackup` делает снимок таблицы статистики в файл с меткой времени и прикрепляет его к ответу, ничего не очищая (`/statsclear` — деструктивный вариант, который дополнительно очищает таблицу). `/analytics` принимает `period` (`today` / `week` / `month` / `custom`, последний требует `from`/`to` в формате `YYYY-MM-DD`) и опциональную `category` (`public` / `private` — без неё показываются обе); данные читаются по запросу и никогда не пишутся в таблицу ежедневных отчётов, поэтому команду безопасно вызывать в любой момент, включая середину текущего незакрытого дня.
 
 ### Локализация
 
@@ -400,8 +405,8 @@ src/
       ru.js, en.js            — русско- и англоязычные словари комнаты и Discord
     announcementMessages.js  — ротация рекламных объявлений
     safeEventHandlers.js     — обёртка room.onX с перехватом ошибок
-    discordBot.js            — Node-only клиент Discord-бота (discord.js): логин, регистрация/обработка slash-команд, коды привязки, синк ролей, сообщения в каналах, онлайн-embed
-    discordCommands.js       — описания и обработчики slash-команд
+    discordBot.js            — Node-only клиент Discord-бота (discord.js): логин, регистрация/обработка slash-команд, коды привязки, синк ролей, сообщения в каналах, онлайн-embed, embed ежедневной аналитики
+    discordCommands.js       — описания и обработчики slash-команд, включая /analytics
     models/
       enums.js                — Role, Color, Team, Mods, Sits и т.д.
       models.js                — Game, MuteList, MutePlayer
@@ -412,6 +417,7 @@ src/
       discord.js                — тонкий мост на браузерной стороне, пробрасывает вызовы в window.__discord.*
       spawnRange.js             — парсинг синтаксиса диапазонов "min..max" для параметров спавна в тренировочном режиме
       reports.js                — имена файлов реплеев
+      timeFormat.js             — единственный источник настроенной таймзоны: разбивка по дням, форматирование дат/времени
     services/
       chat.js                   — резолвинг команд/алиасов
       captains.js                — логика выбора капитанами
@@ -419,6 +425,7 @@ src/
       intervals.js                — все setInterval (баны, муты, роли, объявления, онлайн-embed, тик игры)
       training.js                 — автоспавнер мяча в тренировочном режиме
       accounts.js                 — форматирование просмотра аккаунта (`!account`/`/account`) и резолвинг целевого auth
+      analytics.js                 — запись заходов/выходов/матчей/онлайн-снимков в таблицы analytics_*
     commands/
       commands.js                 — реестр команд → роль → функция
       player.js, vip.js, admin.js, master.js — реализации команд по уровню доступа
@@ -438,7 +445,9 @@ tools/
 
 #### Хранилище
 
-SQLite через встроенный `node:sqlite` (`db/volleyball.sqlite`, WAL-режим). Таблицы: `accounts`, `bans`, `mutes`, `nicknames`, `auths`, `stats`. Слой `db/sqlite.js` — единственное место с SQL; вся браузерная сторона видит только промисифицированные методы, а обработчики Discord slash-команд обращаются к тому же экземпляру `db` напрямую на Node-стороне. Колонка `accounts.discord` хранит привязанный Discord ID пользователя после привязки аккаунта.
+SQLite через встроенный `node:sqlite` (`db/volleyball.sqlite`, WAL-режим). Основные таблицы: `accounts`, `bans`, `mutes`, `nicknames`, `auths`, `stats`. Слой `db/sqlite.js` — единственное место с SQL; вся браузерная сторона видит только промисифицированные методы, а обработчики Discord slash-команд обращаются к тому же экземпляру `db` напрямую на Node-стороне. Колонка `accounts.discord` хранит привязанный Discord ID пользователя после привязки аккаунта.
+
+Таблицы аналитики (`analytics_players`, `analytics_sessions`, `analytics_matches`, `analytics_events`, `analytics_online_minute`) записывают всё под `room_type` (конкретный запущенный инстанс комнаты, напр. `public`/`private`, а в будущем `public-2` при нескольких комнатах в категории) и `room_category` (группа для отчётности, напр. `public`/`private` — задаётся один раз в `roomConstants.js:roomCategory`). `analytics_matches.is_full` определяется один раз, в момент старта матча, самой комнатой (были ли обе команды укомплектованы по `defaultTeamSize`/текущему размеру команды на тот момент) — слой аналитики никогда не пересчитывает это из конфига задним числом. Есть две производные таблицы: `analytics_daily` хранит одну финальную строку на `(day_key, room_category)`, просуммированную по всем `room_type` этой категории, формируется плановым ежедневным отчётом; `analytics_daily_reports_sent` гарантирует, что этот отчёт уходит не более одного раза на `(день, категория)`. Запросы по требованию (Discord-команда `/analytics`) идут через `analyticsGetRange`, которая считает те же метрики по произвольному диапазону дней, не трогая эти две таблицы — поэтому запросы "на лету" никогда не мешают плановому отчёту и могут спокойно включать ещё не закрывшийся текущий день.
 
 #### Границы доступа к БД
 
@@ -468,6 +477,7 @@ PUBLIC_PASSWORD="password or empty here"
 PRIVATE_PASSWORD="password or empty here"
 
 LOCALE="locale code here (ru | en | your_localization_code)"
+TIME_ZONE="IANA timezone, e.g. Europe/Moscow"
 
 DISCORD_BOT_TOKEN="discord bot token here"
 DISCORD_GUILD_ID="your server id here"

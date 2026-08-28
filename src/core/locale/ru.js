@@ -463,7 +463,12 @@ module.exports = {
             stat: 'Показатель (или "all" — сразу все топы)', count: 'Сколько строк (5-50, по умолчанию 10)',
             stats: 'Статистика игрока', nickname: 'Ник игрока (пусто = вы сами)', index: 'Номер из списка, если ников несколько',
             account: 'Информация об аккаунте', accountPublicId: 'public_id игрока (пусто = вы сами, требуется ADMIN для чужих)',
-            link: 'Получить код для привязки Discord к аккаунту HaxBall', unlink: 'Отвязать ваш Discord от аккаунта HaxBall'
+            link: 'Получить код для привязки Discord к аккаунту HaxBall', unlink: 'Отвязать ваш Discord от аккаунта HaxBall',
+            analytics: '[ADMIN] Показать аналитику комнаты за период',
+            analyticsPeriod: 'Период: today / week / month / custom',
+            analyticsCategory: 'Категория комнаты (пусто = public и private)',
+            analyticsFrom: 'Начало периода YYYY-MM-DD (только для custom)',
+            analyticsTo: 'Конец периода YYYY-MM-DD (только для custom)'
         },
         notLinkedTitle: 'Discord не привязан',
         notLinkedBody: 'Используйте `/link`, затем `!discord <код>` в комнате, чтобы привязать аккаунт HaxBall.',
@@ -565,6 +570,13 @@ module.exports = {
             body: '{identity}\n**роль:** {role}\n**до:** {until}\n**discord:** {discord}',
             untilPermanent: 'бессрочно',
             discordUnlinked: 'не привязан'
+        },
+        analytics: {
+            invalidRangeTitle: 'Некорректный период',
+            customRequiresDates: 'Для period=custom укажите оба параметра: from и to (формат YYYY-MM-DD).',
+            invalidDateFormat: 'Неверный формат даты, используйте YYYY-MM-DD (например 2026-08-01).',
+            fromAfterTo: 'from не может быть позже to.',
+            rangeLabel: '{from} — {to}'
         },
         genericErrorTitle: 'Ошибка',
         genericErrorBody: 'Произошла ошибка при выполнении команды.',

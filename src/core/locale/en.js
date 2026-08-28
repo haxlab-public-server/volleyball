@@ -458,7 +458,12 @@ module.exports = {
             stat: 'Statistic (or "all" for all leaderboards)', count: 'Number of rows (5-50, default 10)',
             stats: 'Player statistics', nickname: 'Player nickname (empty = yourself)', index: 'List index, if multiple nicknames exist',
             account: 'Account information', accountPublicId: 'Player public_id (empty = yourself, ADMIN required for others)',
-            link: 'Get a code to link Discord to a HaxBall account', unlink: 'Unlink your Discord from HaxBall'
+            link: 'Get a code to link Discord to a HaxBall account', unlink: 'Unlink your Discord from HaxBall',
+            analytics: '[ADMIN] Show room analytics for a period',
+            analyticsPeriod: 'Period: today / week / month / custom',
+            analyticsCategory: 'Room category (empty = both public and private)',
+            analyticsFrom: 'Period start YYYY-MM-DD (custom only)',
+            analyticsTo: 'Period end YYYY-MM-DD (custom only)'
         },
         notLinkedTitle: 'Discord not linked',
         notLinkedBody: 'Use `/link`, then `!discord <code>` in the room, to link your HaxBall account.',
@@ -560,6 +565,13 @@ module.exports = {
             body: '{identity}\n**role:** {role}\n**until:** {until}\n**discord:** {discord}',
             untilPermanent: 'permanent',
             discordUnlinked: 'not linked'
+        },
+        analytics: {
+            invalidRangeTitle: 'Invalid period',
+            customRequiresDates: 'For period=custom, provide both from and to (format YYYY-MM-DD).',
+            invalidDateFormat: 'Invalid date format, use YYYY-MM-DD (e.g. 2026-08-01).',
+            fromAfterTo: 'from cannot be later than to.',
+            rangeLabel: '{from} — {to}'
         },
         genericErrorTitle: 'Error',
         genericErrorBody: 'An error occurred while running the command.',

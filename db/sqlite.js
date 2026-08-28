@@ -726,6 +726,74 @@ function createDb(dbPath) {
              ON CONFLICT(day_key, room_category) DO UPDATE SET sent_at = excluded.sent_at`
         ).run(dayKey, roomCategory, sentAt);
     }
+    
+    function analyticsGetRange(fromDayKey, toDayKey, roomCategory) {
+        const joinsTotal = db.prepare(
+            `SELECT COUNT(*) AS c
+             FROM analytics_events
+             WHERE event_type = 'player_join' AND day_key BETWEEN ? AND ? AND room_category = ?`
+        ).get(fromDayKey, toDayKey, roomCategory)?.c ?? 0;
+
+        const joinsUnique = db.prepare(
+            `SELECT COUNT(DISTINCT auth) AS c
+             FROM analytics_events
+             WHERE event_type = 'player_join' AND day_key BETWEEN ? AND ? AND room_category = ? AND auth IS NOT NULL`
+        ).get(fromDayKey, toDayKey, roomCategory)?.c ?? 0;
+
+        const newPlayers = db.prepare(
+            `SELECT COUNT(DISTINCT ae.auth) AS c
+             FROM analytics_events ae
+             JOIN analytics_players ap ON ap.auth = ae.auth
+             WHERE ae.event_type = 'player_join' AND ae.day_key BETWEEN ? AND ? AND ae.room_category = ?
+               AND ap.first_seen_day BETWEEN ? AND ?`
+        ).get(fromDayKey, toDayKey, roomCategory, fromDayKey, toDayKey)?.c ?? 0;
+
+        const avgSessionSec = db.prepare(
+            'SELECT COALESCE(AVG(duration_sec), 0) AS v FROM analytics_sessions WHERE left_day BETWEEN ? AND ? AND room_category = ? AND duration_sec IS NOT NULL'
+        ).get(fromDayKey, toDayKey, roomCategory)?.v ?? 0;
+
+        const matchesTotal = db.prepare(
+            'SELECT COUNT(*) AS c FROM analytics_matches WHERE started_day BETWEEN ? AND ? AND room_category = ?'
+        ).get(fromDayKey, toDayKey, roomCategory)?.c ?? 0;
+
+        const matchesFull = db.prepare(
+            'SELECT COUNT(*) AS c FROM analytics_matches WHERE started_day BETWEEN ? AND ? AND room_category = ? AND is_full = 1'
+        ).get(fromDayKey, toDayKey, roomCategory)?.c ?? 0;
+
+        const avgMatchSec = db.prepare(
+            'SELECT COALESCE(AVG(duration_sec), 0) AS v FROM analytics_matches WHERE ended_day BETWEEN ? AND ? AND room_category = ? AND duration_sec IS NOT NULL'
+        ).get(fromDayKey, toDayKey, roomCategory)?.v ?? 0;
+
+        const onlineStats = db.prepare(
+            `SELECT
+                COALESCE(MAX(total_online), 0) AS peak,
+                COALESCE(AVG(total_online), 0) AS avg
+             FROM (
+                SELECT minute_ts, SUM(online_count) AS total_online
+                FROM analytics_online_minute
+                WHERE day_key BETWEEN ? AND ? AND room_category = ?
+                GROUP BY minute_ts
+             )`
+        ).get(fromDayKey, toDayKey, roomCategory) ?? { peak: 0, avg: 0 };
+
+        const returningPlayers = Math.max(0, joinsUnique - newPlayers);
+
+        return {
+            fromDayKey,
+            toDayKey,
+            roomCategory,
+            joinsTotal,
+            joinsUnique,
+            newPlayers,
+            returningPlayers,
+            avgSessionSec,
+            matchesTotal,
+            matchesFull,
+            avgMatchSec,
+            onlinePeak: onlineStats.peak ?? 0,
+            onlineAvg: onlineStats.avg ?? 0
+        };
+    }
 
     function close() {
         db.close();
@@ -785,6 +853,7 @@ function createDb(dbPath) {
         analyticsUpsertOnlineMinute,
         analyticsAggregateDaily,
         analyticsGetDaily,
+        analyticsGetRange,
         analyticsIsDailyReportSent,
         analyticsMarkDailyReportSent
     };
