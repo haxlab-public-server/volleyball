@@ -18,6 +18,7 @@ module.exports = function createActivityEvents({
     Team,
     Mods,
     Color,
+    Serve,
     ServeString,
     HaxNotification,
     discordBot,
@@ -261,6 +262,7 @@ module.exports = function createActivityEvents({
                 color: 0x42f5d4
             });
 
+            state.touches = 0;
             state.lastTouches.unshift([player.name, player.id, player.team, false, true]);
             incrementStat(player, 9);
 

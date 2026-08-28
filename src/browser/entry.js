@@ -599,6 +599,7 @@ Object.assign(room, wrapEventHandlers(createActivityEvents({
     Team,
     Mods,
     Color,
+    Serve,
     ServeString,
     HaxNotification,
     discordBot,
