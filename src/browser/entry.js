@@ -138,6 +138,7 @@ state.captainAlertTimer = null;
 state.captainPickTimer = null;
 state.captainPickForTeam = null;
 state.serve = null
+state.floatSlowed = false;
 state.serveType = Serve.POWER
 state.training_mode = false
 state.training_mode_spawn = []
@@ -318,6 +319,7 @@ createIntervals({
     Team,
     Mods,
     Color,
+    Serve,
     HaxNotification,
     updateVipSlots,
     updateBallColor,

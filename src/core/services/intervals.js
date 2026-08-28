@@ -16,6 +16,7 @@ module.exports = function createIntervals({
     Team,
     Mods,
     Color,
+    Serve,
     HaxNotification,
     updateVipSlots,
     updateBallColor,
@@ -40,22 +41,6 @@ module.exports = function createIntervals({
             cGroup: disc.cGroup | cf.kick,
             color: state.ball_color
         });
-    }
-
-    function resetServeBallOnNetCross() {
-        if (state.serveType === 'float') {
-            const disc = room.getDiscProperties(0);
-            room.setDiscProperties(0, {
-                cGroup: disc.cGroup | cf.kick,
-                color: 0xffffff,
-                xspeed: disc.xspeed * FLOAT_SERVE_NET_SLOWDOWN,
-                yspeed: disc.yspeed * FLOAT_SERVE_NET_SLOWDOWN
-            });
-            state.ball_color = 0xffffff;
-            return;
-        }
-
-        resetBallKick();
     }
 
     let announcementIndex = 0;
@@ -159,15 +144,31 @@ module.exports = function createIntervals({
         const ballPos = room.getBallPosition();
 
         if (!state.goal_sit && state.serveBall) {
-            const crossed =
+            if (state.serveType === Serve.FLOAT && !state.floatSlowed) {
+                const crossedNet =
+                    (state.serve === Team.RED && ballPos.x >= 0) ||
+                    (state.serve === Team.BLUE && ballPos.x <= 0);
+
+                if (crossedNet) {
+                    const disc = room.getDiscProperties(0);
+                    room.setDiscProperties(0, {
+                        xspeed: disc.xspeed * FLOAT_SERVE_NET_SLOWDOWN,
+                        yspeed: disc.yspeed * FLOAT_SERVE_NET_SLOWDOWN
+                    });
+                    state.floatSlowed = true;
+                }
+            }
+
+            const crossedBlock =
                 (state.serve === Team.RED &&
                     ((ballPos.y >= 68 && ballPos.x >= 0.1) || ballPos.x >= 100)) ||
                 (state.serve === Team.BLUE &&
                     ((ballPos.y >= 68 && ballPos.x <= -0.1) || ballPos.x <= -100));
 
-            if (crossed) {
+            if (crossedBlock) {
                 state.serveBall = false;
-                resetServeBallOnNetCross();
+                state.floatSlowed = false;
+                resetBallKick();
             }
             updateBallColor();
             return;

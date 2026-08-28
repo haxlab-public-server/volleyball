@@ -150,6 +150,7 @@ module.exports = function createPlayerCommands({
 
         const isBlue = player.team === Team.BLUE;
         state.serveType = serveType;
+        state.floatSlowed = false;
 
         setTimeout(() => {
             state.serveBall = true;
