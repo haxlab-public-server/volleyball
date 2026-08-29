@@ -4,7 +4,7 @@
 <a id="english"></a>
 ## README 🇬🇧
 
-Bot for a [HaxBall](https://www.haxball.com) room implementing a full volleyball game mode: touch counting, blocks, power serves, aces, automatic team forming, and an admin role system.
+Bot for a [HaxBall](https://www.haxball.com) room implementing a full volleyball game mode: touch counting, blocks, power/float serves, aces, automatic team forming, and an admin role system.
 
 The bot runs two rooms at once — **public** and **private** — via two independent headless browser instances, plus a single Discord bot process shared by both rooms. Moderation and stats viewing can be handled either through in-room chat commands or through Discord slash commands — both work off the same database and the same role hierarchy.
 
@@ -16,7 +16,11 @@ The bot runs two rooms at once — **public** and **private** — via two indepe
 
   ![Volleyball rules demo](docs/media/rules-demo.gif)
 
-- **Power serves** (`!serve` / `!sr`) — the team whose turn it is to serve sends the ball with a boosted kick; a successful serve that crosses the net untouched counts as an **ACE**.
+- **Serves** (`!serve` / `!sr`) — the team whose turn it is to serve sends the ball; a successful serve that crosses the net untouched counts as an **ACE**. Two serve types are available:
+  - **Power serve** (`p` / `power`, the default if no type is given) — a fast, hard-hit serve.
+  - **Float serve** (`f` / `float`) — a slower, floaty serve that additionally loses speed the moment it crosses the net, making it harder to time a clean touch.
+
+  Besides `!serve p` / `!serve f`, either type can also be triggered instantly by just typing `p` or `f` alone in chat when it's your turn to serve — no `!` prefix needed.
 
   ![Power serve and ace demo](docs/media/serve-ace-demo.gif)
 
@@ -132,7 +136,7 @@ src/
     discordBot.js            — Node-only Discord bot client (discord.js): login, slash-command registration/handling, link codes, role sync, channel messages, online embed, daily analytics embed
     discordCommands.js       — slash-command definitions and handlers, including /analytics
     models/
-      enums.js                — Role, Color, Team, Mods, Sits, etc.
+      enums.js                — Role, Color, Team, Mods, Sits, Serve, etc.
       models.js                — Game, MuteList, MutePlayer
     utils/
       utils.js                 — various utility functions
@@ -280,7 +284,7 @@ In-memory smoke tests (`tools/smoke-test.js`) cover the DB layer (accounts, bans
 <a id="русский"></a>
 ## README 🇷🇺
 
-Бот для комнаты [HaxBall](https://www.haxball.com), реализующий полноценный режим волейбола: подсчёт касаний, блоки, силовые подачи, эйсы, автоматическое формирование команд и систему ролей администрации.
+Бот для комнаты [HaxBall](https://www.haxball.com), реализующий полноценный режим волейбола: подсчёт касаний, блоки, силовые и планирующие подачи, эйсы, автоматическое формирование команд и систему ролей администрации.
 
 Бот управляет двумя комнатами одновременно — **публичной** и **приватной** — через два независимых экземпляра headless-браузера, а также одним общим процессом Discord-бота на обе комнаты. Модерацию и просмотр статистики можно вести как через команды в чате комнаты, так и через slash-команды Discord — оба канала работают с одной и той же базой и одной иерархией ролей.
 
@@ -292,7 +296,11 @@ In-memory smoke tests (`tools/smoke-test.js`) cover the DB layer (accounts, bans
 
   ![Волейбольные правила — демо](docs/media/rules-demo.gif)
 
-- **Силовые подачи** (`!serve` / `!sr`) — команда, чей черёд подавать, отправляет мяч ускоренным ударом; успешная подача через сетку без касания соперником засчитывается как **ЭЙС**.
+- **Подачи** (`!serve` / `!sr`) — команда, чей черёд подавать, отправляет мяч; успешная подача через сетку без касания соперником засчитывается как **ЭЙС**. Доступны два вида подачи:
+  - **Силовая подача** (`p` / `power`, используется по умолчанию, если тип не указан) — быстрый, резкий удар.
+  - **Планирующая подача** (`f` / `float`) — более медленная, "парящая" подача, которая дополнительно теряет скорость в момент пересечения сетки, что усложняет чистый приём.
+
+  Помимо `!serve p` / `!serve f`, любой тип подачи также можно мгновенно выполнить, просто написав в чат одно `p` или `f` без "!", когда подходит ваша очередь подавать.
 
   ![Силовая подача и эйс — демо](docs/media/serve-ace-demo.gif)
 
@@ -408,7 +416,7 @@ src/
     discordBot.js            — Node-only клиент Discord-бота (discord.js): логин, регистрация/обработка slash-команд, коды привязки, синк ролей, сообщения в каналах, онлайн-embed, embed ежедневной аналитики
     discordCommands.js       — описания и обработчики slash-команд, включая /analytics
     models/
-      enums.js                — Role, Color, Team, Mods, Sits и т.д.
+      enums.js                — Role, Color, Team, Mods, Sits, Serve и т.д.
       models.js                — Game, MuteList, MutePlayer
     utils/
       utils.js                 — различные функции утилиты
