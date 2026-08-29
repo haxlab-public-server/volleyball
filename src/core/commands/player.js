@@ -129,9 +129,8 @@ module.exports = function createPlayerCommands({
         }
 
         if (
-            room.getScores() !== null &&
-            (getTeamArray(Team.BLUE).length < state.game.teamSize ||
-            getTeamArray(Team.RED).length < state.game.teamSize)
+            getTeamArray(Team.BLUE).length < defaultTeamSize ||
+            getTeamArray(Team.RED).length < defaultTeamSize
         ) {
             return { ok: false, reason: 'not_enough_players' };
         }
