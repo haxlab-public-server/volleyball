@@ -27,6 +27,43 @@ function generateCode(length = 6) {
     return out;
 }
 
+/*
+ * No-op stand-in used when DISCORD_BOT_TOKEN is empty. Mirrors the full
+ * public interface returned by createDiscordBot(...) below, so every
+ * caller (src/index.js's main(), launchRoom's __discordCall dispatch,
+ * the browser-side DiscordBot bridge in src/core/utils/discord.js,
+ * intervals.js, etc.) keeps working completely unchanged whether or not
+ * Discord is configured.
+ *
+ * Every method here is a silent, safe no-op instead of touching an
+ * unauthenticated discord.js Client — which is what used to happen
+ * (client.channels.fetch(...) etc. against a client that never logged
+ * in), spamming the console with fetch/login errors on every send.
+ * Return shapes intentionally match the existing "unavailable"/failure
+ * branches already handled elsewhere (e.g. src/core/utils/discord.js's
+ * `{ ok: false, reason: 'unavailable' }`, or a falsy return meaning "no
+ * live effect applied" in discordCommands.js / the room bridge).
+ */
+function createDisabledDiscordBot() {
+    return {
+        login: async () => {},
+        destroy: () => {},
+        consumeLinkCode: async () => ({ ok: false, reason: 'unavailable' }),
+        unlinkByAuth: async () => ({ ok: false, reason: 'unavailable' }),
+        syncRoleForAuth: async () => {},
+        getDiscordUsername: async () => null,
+        sendLog: async () => {},
+        sendReport: async () => {},
+        sendRecording: async () => {},
+        sendVipPassword: async () => {},
+        sendStatsBackup: async () => {},
+        sendAnalyticsDailyReport: async () => false,
+        editOnlineMessage: async () => {},
+        setModerationBridge: () => {},
+        setRoomActionBridge: () => {}
+    };
+}
+
 function createDiscordBot({
     token,
     guildId,
@@ -36,6 +73,10 @@ function createDiscordBot({
     timeFormat,
     t
 }) {
+    if (!token) {
+        return createDisabledDiscordBot();
+    }
+
     const { formatDate } = timeFormat;
 
     const client = new Client({

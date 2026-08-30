@@ -32,6 +32,31 @@ let discordBotForShutdown = null;
 const timeFormat = createTimeFormat(timeZone);
 const ROOM_CATEGORIES = ['public', 'private'];
 
+/*
+ * HaxBall's headless page runs its own internal headless-detection
+ * self-test on load, which prints a burst of synthetic console calls
+ * (console.table/dir/trace/... probes formatted with a hidden
+ * "font-size:0;color:transparent" CSS trick). It's harmless but has
+ * nothing to do with the bot and drowns out real [PUBLIC/PRIVATE ...]
+ * log lines, so it's filtered out before forwarding to Node's console.
+ */
+const NOISY_CONSOLE_RE = /font-size:0;color:transparent/;
+
+// Matches the room link URL that HaxBall hands back once the room is
+// actually live. src/core/events/misc.js's onRoomLink handler logs this
+// via console.log the first time room.onRoomLink fires, so watching for
+// it in the forwarded console output (rather than the exact surrounding
+// text, which is locale/format-dependent) is a robust, Node-observable
+// "the room is up" signal.
+const ROOM_LINK_LOG_RE = /haxball\.com\/play\?c=/;
+
+// How long to wait for the room to actually come online (onRoomLink)
+// after injecting the bundle, before treating the attempt as failed.
+const ROOM_LINK_TIMEOUT_MS = 30 * 1000;
+// Delay before retrying a failed room launch (e.g. after a HaxBall
+// token rate-limit or a page that never produces a room link).
+const ROOM_LAUNCH_RETRY_DELAY_MS = 60 * 1000;
+
 function startAnalyticsDailyReporting({ db, discordBot, timeFormat }) {
     const { getDayKey } = timeFormat;
     let isRunning = false;
@@ -100,7 +125,13 @@ async function buildEntryBundle() {
     return result.outputFiles[0].text;
 }
 
-async function launchRoom(type, config, secrets, discordBot) {
+/*
+ * A single launch attempt for one room. Throws if the room never comes
+ * online (no room-link console line observed) within ROOM_LINK_TIMEOUT_MS,
+ * so the caller (launchRoomWithRetry) can close the half-started browser
+ * and retry cleanly instead of leaving a zombie browser/page around.
+ */
+async function launchRoomAttempt(type, config, secrets, discordBot) {
     const browser = await puppeteer.launch({
         args: [
             '--remote-debugging-port=0',
@@ -109,117 +140,184 @@ async function launchRoom(type, config, secrets, discordBot) {
             '--disable-setuid-sandbox',
         ],
     });
-    activeBrowsers.add(browser);
 
-    browser.on('disconnected', () => {
-        activeBrowsers.delete(browser);
-        if (isShuttingDown) return;
-        console.error(`[FATAL] Browser (${type}) disconnected/crashed.`);
-        setTimeout(() => process.exit(1), 2000);
-    });
+    try {
+        const page = await browser.newPage();
 
-    const page = await browser.newPage();
+        await page.exposeFunction('__dbCall', handleDbCall);
 
-    await page.exposeFunction('__dbCall', handleDbCall);
+        const onlineTarget = discordOnlineMessages[type];
 
-    const onlineTarget = discordOnlineMessages[type];
+        async function handleDiscordCall(method, args) {
+            switch (method) {
+                case 'consumeLinkCode':
+                    return discordBot.consumeLinkCode(...args);
+                case 'unlinkByAuth':
+                    return discordBot.unlinkByAuth(...args);
+                case 'syncRoleForAuth':
+                    return discordBot.syncRoleForAuth(...args);
+                case 'getDiscordUsername':
+                    return discordBot.getDiscordUsername(...args);
+                case 'sendLog':
+                    return discordBot.sendLog(...args);
+                case 'sendReport':
+                    return discordBot.sendReport(...args);
+                case 'sendRecording':
+                    return discordBot.sendRecording(...args);
+                case 'sendVipPassword':
+                    return discordBot.sendVipPassword(...args);
+                case 'sendStatsBackup':
+                    return discordBot.sendStatsBackup(...args);
+                case 'updateOnlineMessage':
+                    return discordBot.editOnlineMessage(onlineTarget?.channelId, onlineTarget?.messageId, args[0]);
+                default:
+                    throw new Error(`Unsupported discord call: ${method}`);
+            }
+        }
 
-    async function handleDiscordCall(method, args) {
-        switch (method) {
-            case 'consumeLinkCode':
-                return discordBot.consumeLinkCode(...args);
-            case 'unlinkByAuth':
-                return discordBot.unlinkByAuth(...args);
-            case 'syncRoleForAuth':
-                return discordBot.syncRoleForAuth(...args);
-            case 'getDiscordUsername':
-                return discordBot.getDiscordUsername(...args);
-            case 'sendLog':
-                return discordBot.sendLog(...args);
-            case 'sendReport':
-                return discordBot.sendReport(...args);
-            case 'sendRecording':
-                return discordBot.sendRecording(...args);
-            case 'sendVipPassword':
-                return discordBot.sendVipPassword(...args);
-            case 'sendStatsBackup':
-                return discordBot.sendStatsBackup(...args);
-            case 'updateOnlineMessage':
-                return discordBot.editOnlineMessage(onlineTarget?.channelId, onlineTarget?.messageId, args[0]);
-            default:
-                throw new Error(`Unsupported discord call: ${method}`);
+        await page.exposeFunction('__discordCall', handleDiscordCall);
+
+        page.on('console', (msg) => {
+            const text = msg.text();
+            if (NOISY_CONSOLE_RE.test(text)) return;
+            console.log(`[${type.toUpperCase()} ${msg.type()}]`, text);
+        });
+        page.on('pageerror', (err) => {
+            console.error(`[${type.toUpperCase()} ERROR]`, err);
+        });
+
+        await page.goto('https://www.haxball.com/headless', {
+            waitUntil: 'domcontentloaded',
+            timeout: 60000
+        });
+
+        await page.waitForFunction(() => typeof window.HBInit === 'function', {
+            timeout: 60000
+        });
+
+        await page.evaluate((payload) => {
+            window.__secrets = payload.secrets;
+            window.__roomConfig = payload.config;
+            window.__roomType = payload.type;
+            window.__locale = payload.locale;
+        }, {
+            secrets,
+            config: { ...config, timeZone },
+            type,
+            locale: localeCode
+        });
+
+        await page.evaluate(() => {
+            const dbMethods = [
+                'getBans', 'addBan', 'removeBanByIndex', 'removeBanByAuth', 'findBan', 'updateBan',
+                'getExpiredBans', 'removeExpiredBans',
+                'hasAuth', 'addAuth', 'removeAuth', 'clearAuths',
+                'getAccount', 'hasAccount', 'getAccountsByRole', 'ensureAccount',
+                'setRole', 'setChatColor', 'expireRoles', 'addMaster',
+                'getStat', 'getAllStats', 'setStatName', 'findStatsByName', 'getTopStats', 'ensureStat', 'incrementStat', 'clearStats', 'backupStats', 'backupAndClearStats',
+                'getNicknames', 'hasNicknames', 'addNickname',
+                'getMutes', 'addMute', 'removeMuteById', 'removeMuteByAuth',
+                'getMuteById', 'getMuteByPlayerId', 'getMuteByAuth',
+                'setDiscordId', 'getAccountByDiscordId',
+                'analyticsTouchPlayer', 'analyticsStartSession', 'analyticsEndSession',
+                'analyticsCloseDanglingSessions',
+                'analyticsStartMatch', 'analyticsEndMatch', 'analyticsAddEvent',
+                'analyticsUpsertOnlineMinute', 'analyticsAggregateDaily'
+            ];
+
+            window.__db = {};
+            for (const method of dbMethods) {
+                window.__db[method] = (...args) => window.__dbCall(method, args);
+            }
+
+            const discordMethods = [
+                'consumeLinkCode', 'unlinkByAuth', 'syncRoleForAuth', 'getDiscordUsername',
+                'sendLog', 'sendReport', 'sendRecording', 'sendVipPassword',
+                'sendStatsBackup', 'updateOnlineMessage'
+            ];
+
+            window.__discord = {};
+            for (const method of discordMethods) {
+                window.__discord[method] = (...args) => window.__discordCall(method, args);
+            }
+        });
+
+        /*
+         * Wait for the room to actually come online before declaring this
+         * launch attempt successful. src/core/events/misc.js's onRoomLink
+         * handler (wired up inside entry.js) logs a single, distinctive
+         * "[<date>] <roomName> - <url>" line via console.log the first
+         * time room.onRoomLink fires — i.e. once HaxBall has actually
+         * produced a working room link. That's the earliest reliable
+         * Node-observable signal that the room is up (HBInit() being a
+         * function only means the page loaded, not that the room itself
+         * started — a rate-limited or invalid token can leave the room
+         * silently stuck after this point).
+         *
+         * Rather than modifying entry.js to add a Node-facing hook, this
+         * reuses the console line already being forwarded via
+         * page.on('console', ...) above.
+         */
+        let roomLinked = false;
+        const onConsoleForLink = (msg) => {
+            if (roomLinked) return;
+            if (msg.type() === 'log' && ROOM_LINK_LOG_RE.test(msg.text())) roomLinked = true;
+        };
+        page.on('console', onConsoleForLink);
+
+        try {
+            const bundle = await buildEntryBundle();
+            await page.addScriptTag({ content: bundle });
+
+            const deadline = Date.now() + ROOM_LINK_TIMEOUT_MS;
+            while (!roomLinked) {
+                if (Date.now() > deadline) {
+                    throw new Error(`Room "${type}" did not come online within ${ROOM_LINK_TIMEOUT_MS / 1000}s (no room link received)`);
+                }
+                await new Promise(resolve => setTimeout(resolve, 250));
+            }
+        } finally {
+            page.off('console', onConsoleForLink);
+        }
+
+        return { browser, page, type };
+    } catch (err) {
+        await browser.close().catch(() => {});
+        throw err;
+    }
+}
+
+/*
+ * Retries launchRoomAttempt indefinitely (with a fixed delay) until it
+ * succeeds or the process is shutting down. Each failed attempt fully
+ * closes its browser first, so a rate-limited or stuck attempt never
+ * leaves zombie Chrome processes or half-initialised pages behind, and
+ * never blocks the other room from launching (they run in parallel via
+ * Promise.all in main()).
+ */
+async function launchRoomWithRetry(type, config, secrets, discordBot) {
+    for (let attempt = 1; !isShuttingDown; attempt++) {
+        try {
+            const room = await launchRoomAttempt(type, config, secrets, discordBot);
+            activeBrowsers.add(room.browser);
+
+            room.browser.on('disconnected', () => {
+                activeBrowsers.delete(room.browser);
+                if (isShuttingDown) return;
+                console.error(`[FATAL] Browser (${type}) disconnected/crashed.`);
+                setTimeout(() => process.exit(1), 2000);
+            });
+
+            console.log(`[OK] Room "${type}" launched (attempt ${attempt})`);
+            return room;
+        } catch (err) {
+            console.error(`[WARN] Room "${type}" failed to launch (attempt ${attempt}):`, err.message ?? err);
+            if (isShuttingDown) throw err;
+            console.log(`[INFO] Retrying room "${type}" in ${ROOM_LAUNCH_RETRY_DELAY_MS / 1000}s...`);
+            await new Promise(resolve => setTimeout(resolve, ROOM_LAUNCH_RETRY_DELAY_MS));
         }
     }
-
-    await page.exposeFunction('__discordCall', handleDiscordCall);
-
-    page.on('console', (msg) => {
-        console.log(`[${type.toUpperCase()} ${msg.type()}]`, msg.text());
-    });
-    page.on('pageerror', (err) => {
-        console.error(`[${type.toUpperCase()} ERROR]`, err);
-    });
-
-    await page.goto('https://www.haxball.com/headless', {
-        waitUntil: 'domcontentloaded',
-        timeout: 60000
-    });
-
-    await page.waitForFunction(() => typeof window.HBInit === 'function', {
-        timeout: 60000
-    });
-
-    await page.evaluate((payload) => {
-        window.__secrets = payload.secrets;
-        window.__roomConfig = payload.config;
-        window.__roomType = payload.type;
-        window.__locale = payload.locale;
-    }, {
-        secrets,
-        config: { ...config, timeZone },
-        type,
-        locale: localeCode
-    });
-
-    await page.evaluate(() => {
-        const dbMethods = [
-            'getBans', 'addBan', 'removeBanByIndex', 'removeBanByAuth', 'findBan', 'updateBan',
-            'getExpiredBans', 'removeExpiredBans',
-            'hasAuth', 'addAuth', 'removeAuth', 'clearAuths',
-            'getAccount', 'hasAccount', 'getAccountsByRole', 'ensureAccount',
-            'setRole', 'setChatColor', 'expireRoles', 'addMaster',
-            'getStat', 'getAllStats', 'setStatName', 'findStatsByName', 'getTopStats', 'ensureStat', 'incrementStat', 'clearStats', 'backupStats', 'backupAndClearStats',
-            'getNicknames', 'hasNicknames', 'addNickname',
-            'getMutes', 'addMute', 'removeMuteById', 'removeMuteByAuth',
-            'getMuteById', 'getMuteByPlayerId', 'getMuteByAuth',
-            'setDiscordId', 'getAccountByDiscordId',
-            'analyticsTouchPlayer', 'analyticsStartSession', 'analyticsEndSession',
-            'analyticsCloseDanglingSessions',
-            'analyticsStartMatch', 'analyticsEndMatch', 'analyticsAddEvent',
-            'analyticsUpsertOnlineMinute', 'analyticsAggregateDaily'
-        ];
-
-        window.__db = {};
-        for (const method of dbMethods) {
-            window.__db[method] = (...args) => window.__dbCall(method, args);
-        }
-
-        const discordMethods = [
-            'consumeLinkCode', 'unlinkByAuth', 'syncRoleForAuth', 'getDiscordUsername',
-            'sendLog', 'sendReport', 'sendRecording', 'sendVipPassword',
-            'sendStatsBackup', 'updateOnlineMessage'
-        ];
-
-        window.__discord = {};
-        for (const method of discordMethods) {
-            window.__discord[method] = (...args) => window.__discordCall(method, args);
-        }
-    });
-
-    const bundle = await buildEntryBundle();
-    await page.addScriptTag({ content: bundle });
-
-    return { browser, page, type };
+    throw new Error(`Room "${type}" launch aborted: shutting down`);
 }
 
 async function main() {
@@ -242,11 +340,11 @@ async function main() {
     }
 
     const [publicRoom, privateRoom] = await Promise.all([
-        launchRoom('public', publicConfig, {
+        launchRoomWithRetry('public', publicConfig, {
             token: publicToken,
             roomPassword: publicPassword
         }, discordBot),
-        launchRoom('private', privateConfig, {
+        launchRoomWithRetry('private', privateConfig, {
             token: privateToken,
             roomPassword: privatePassword
         }, discordBot)
