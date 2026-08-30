@@ -83,10 +83,11 @@ module.exports = function createUpdatesUtils({
     }
 
     function canUseCaptains() {
+        const size = getTeamSize()
         return (
             state.teamPickMode === TeamPickMode.CAPTAINS &&
-            getActivePlayers().length >= state.teamSize * 2 + 1 &&
-            state.teamSize > 1
+            getActivePlayers().length >= size * 2 + 1 &&
+            size > 1
         );
     }
 
