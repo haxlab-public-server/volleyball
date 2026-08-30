@@ -34,7 +34,7 @@ The bot runs two rooms at once — **public** and **private** — via two indepe
 
 - **Match point** with auto-extension: if the score ties at the expected match point, the game continues until there's a two-point lead.
 
-- **Training mode** (private room mode only, `!training` / `!tr`) — a goal-less map with a configurable auto ball spawner (`!ball_spawner` / `!bs`: position, speed, interval, or ready-made serve presets `serve_red`/`serve_blue`) for practicing serves and receives.
+- **Training mode** (private room mode only, `!training` / `!tr`) — a goal-less map with a configurable auto ball spawner (`!ball_spawner` / `!bs`: position, speed, interval, or ready-made serve presets `power_red`/`power_blue`/`float_red`/`float_blue`, matching the two serve types above) for practicing serves and receives.
 
   ![Training mode demo](docs/media/training-demo.gif)
 
@@ -151,7 +151,7 @@ src/
       captains.js                — captain-pick logic
       updates.js                 — team forming, winstay, randomizer, VIP `!up` booking resolution
       intervals.js                — all setInterval loops (bans, mutes, roles, announcements, online embed, game tick)
-      training.js                 — training-mode ball spawner
+      training.js                 — training-mode ball spawner and serve presets (`power_red`/`power_blue`/`float_red`/`float_blue`)
       accounts.js                 — account view formatting (`!account`/`/account`) and target-auth resolution
       analytics.js                 — records joins/leaves/matches/online snapshots into the analytics_* tables
     commands/
@@ -314,7 +314,7 @@ In-memory smoke tests (`tools/smoke-test.js`) cover the DB layer (accounts, bans
 
 - **Матч-поинт** с автопродлением: если счёт сравнивается на предполагаемом матч-поинте, игра продолжается до перевеса.
 
-- **Тренировочный режим** (только в приватном моде комнаты, `!training` / `!tr`) — карта без ворот и настраиваемый автоспавнер мяча (`!ball_spawner` / `!bs`: позиция, скорость, интервал, либо готовые пресеты подачи `serve_red`/`serve_blue`) для отработки подач и приёма.
+- **Тренировочный режим** (только в приватном моде комнаты, `!training` / `!tr`) — карта без ворот и настраиваемый автоспавнер мяча (`!ball_spawner` / `!bs`: позиция, скорость, интервал, либо готовые пресеты подачи `power_red`/`power_blue`/`float_red`/`float_blue`, соответствующие двум видам подачи выше) для отработки подач и приёма.
 
   ![Тренировочный режим — демо](docs/media/training-demo.gif)
 
@@ -431,7 +431,7 @@ src/
       captains.js                — логика выбора капитанами
       updates.js                 — формирование команд, winstay, рандомайзер, резолвинг брони VIP `!up`
       intervals.js                — все setInterval (баны, муты, роли, объявления, онлайн-embed, тик игры)
-      training.js                 — автоспавнер мяча в тренировочном режиме
+      training.js                 — автоспавнер мяча и пресеты подачи в тренировочном режиме (`power_red`/`power_blue`/`float_red`/`float_blue`)
       accounts.js                 — форматирование просмотра аккаунта (`!account`/`/account`) и резолвинг целевого auth
       analytics.js                 — запись заходов/выходов/матчей/онлайн-снимков в таблицы analytics_*
     commands/

@@ -3,18 +3,35 @@ const { parseSpawnValue, parseSpawnSettings, formatSpawnValue } = require('../ut
 const DEFAULT_INTERVAL = 3000;
 
 const SERVE_PRESETS = {
-    serve_red: {
+    power_red: {
         x: -410,
         y: 200,
         xspeed: 0.7,
         yspeed: -11.9,
     },
-    serve_blue: {
+    power_blue: {
         x: 410,
         y: 200,
         xspeed: -0.7,
         yspeed: -11.9,
     },
+    float_red: {
+        x: -410,
+        y: 200,
+        xspeed: 0.7,
+        yspeed: -11.9,
+    },
+    float_blue: {
+        x: 410,
+        y: 200,
+        xspeed: -0.7,
+        yspeed: -11.9,
+    },
+};
+
+const SERVE_PRESET_ALIASES = {
+    serve_red: 'power_red',
+    serve_blue: 'power_blue',
 };
 
 module.exports = function createVipCommands({
@@ -121,8 +138,10 @@ module.exports = function createVipCommands({
             return;
         }
 
-        if (args[0] in SERVE_PRESETS) {
-            const preset = SERVE_PRESETS[args[0]];
+        const presetKey = SERVE_PRESET_ALIASES[args[0]] ?? args[0];
+
+        if (presetKey in SERVE_PRESETS) {
+            const preset = SERVE_PRESETS[presetKey];
             const interval = !isNaN(+args[1]) ? +args[1] : DEFAULT_INTERVAL;
             const settings = buildSpawnSettings(
                 preset.x,
@@ -130,7 +149,7 @@ module.exports = function createVipCommands({
                 preset.xspeed,
                 preset.yspeed,
                 interval,
-                args[0]
+                presetKey
             );
             applySpawnAndAnnounce(player, settings, interval);
             return;
