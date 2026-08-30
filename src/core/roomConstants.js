@@ -29,7 +29,7 @@ const base = {
     gamesTimeout: 5,
     maxInactivity: 20,
     joinAuths: false,
-    Discord: "https://dsc.gg/chds",
+    Discord: "https://discord.com/invite/rY63ysFmFy",
     Telegram: "https://t.me/chesdesq",
 };
 
