@@ -4,7 +4,7 @@ function createSitState({ state, Sits }) {
         [Sits.FORMING, new Set([Sits.FORMING, Sits.CHOICE, Sits.NONE])],
         [Sits.CHOICE, new Set([Sits.CHOICE, Sits.GAME, Sits.NONE])],
         [Sits.RANDOMIZE, new Set([Sits.RANDOMIZE, Sits.GAME, Sits.NONE])],
-        [Sits.GAME, new Set([Sits.GAME, Sits.NONE, Sits.TIMEOUT])],
+        [Sits.GAME, new Set([Sits.GAME, Sits.NONE, Sits.CHOICE, Sits.TIMEOUT])],
         [Sits.TIMEOUT, new Set([Sits.TIMEOUT, Sits.NONE])]
     ]);
 
