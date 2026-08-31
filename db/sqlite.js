@@ -815,8 +815,11 @@ function createDb(dbPath) {
              JOIN analytics_players ap ON ap.auth = ae.auth
              WHERE ae.event_type = 'player_join' AND ae.room_category = ?
                AND ae.ts >= ? AND ae.ts < ? AND ae.auth IS NOT NULL
-             GROUP BY bucketIdx, ae.auth`
+             GROUP BY bucketIdx, ae.auth
+             ORDER BY ae.auth, bucketIdx`
         ).all(fromTs, bucketMs, roomCategory, fromTs, toTs);
+
+        const newCountedAuths = new Set();
 
         for (const row of joinRows) {
             if (row.bucketIdx < 0 || row.bucketIdx >= bucketCount) continue;
@@ -824,8 +827,11 @@ function createDb(dbPath) {
             const bucketDayKey = getDayKeyFn(bucketStart);
             const bucket = perBucket[row.bucketIdx];
 
-            if (row.firstSeenDay === bucketDayKey) {
+            const isFirstSeenDay = row.firstSeenDay === bucketDayKey;
+
+            if (isFirstSeenDay && !newCountedAuths.has(row.auth)) {
                 bucket.newCount++;
+                newCountedAuths.add(row.auth);
             } else {
                 bucket.returningCount++;
             }
