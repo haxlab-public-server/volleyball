@@ -153,7 +153,7 @@ module.exports = function createIntervals({
                     const disc = room.getDiscProperties(0);
                     room.setDiscProperties(0, {
                         xspeed: disc.xspeed * FLOAT_SERVE_NET_SLOWDOWN,
-                        yspeed: disc.yspeed * FLOAT_SERVE_NET_SLOWDOWN
+                        yspeed: disc.yspeed //* FLOAT_SERVE_NET_SLOWDOWN
                     });
                     state.floatSlowed = true;
                 }
