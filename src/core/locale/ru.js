@@ -376,7 +376,7 @@ module.exports = {
         picked: '{captain} выбрал {chosen}',
         noSuchNumber: 'Такого номера нет в списке!',
         turnAnnounce: '🧢 Ход капитана {captain}',
-        timeWarning: '⏳ Осталось 4 секунды для выбора!',
+        timeWarning: '⏳ Осталось {seconds}сек для выбора!',
         timeUp: '⏰ Время вышло — случайно выбран {name}',
         randomizing: '⚖️ Рандомизация команд...'
     },
@@ -468,7 +468,8 @@ module.exports = {
             analyticsPeriod: 'Период: today / week / month / custom',
             analyticsCategory: 'Категория комнаты (пусто = public и private)',
             analyticsFrom: 'Начало периода YYYY-MM-DD (только для custom)',
-            analyticsTo: 'Конец периода YYYY-MM-DD (только для custom)'
+            analyticsTo: 'Конец периода YYYY-MM-DD (только для custom)',
+            analyticsInterval: 'Шаг между точками графика (1h / 3h / 6h / 12h / 1d / 3d / 1w / 1m)'
         },
         notLinkedTitle: 'Discord не привязан',
         notLinkedBody: 'Используйте `/link`, затем `!discord <код>` в комнате, чтобы привязать аккаунт HaxBall.',

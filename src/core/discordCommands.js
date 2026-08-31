@@ -4,7 +4,7 @@ const {
     AttachmentBuilder
 } = require('discord.js');
 const { parseDuration } = require('./utils/utils');
-const { buildAnalyticsChart } = require('./utils/analyticsChart');
+const { buildAnalyticsChart, INTERVAL_CHOICES } = require('./utils/analyticsChart');
 
 const Role = {
     PLAYER: 0,
@@ -114,8 +114,21 @@ function formatStats(stat, t) {
     ].join('\n');
 }
 
-module.exports = function createDiscordCommands({ db, applyModeration, applyToRoom, discordBotSend, timeFormat, t }) {
+module.exports = function createDiscordCommands({
+    db,
+    applyModeration,
+    applyToRoom,
+    discordBotSend,
+    timeFormat,
+    t,
+    maxPlayersByCategory = {}
+}) {
     const { getDayKey } = timeFormat;
+
+    function resolveOnlineMax(roomCategory) {
+        const value = maxPlayersByCategory?.[roomCategory];
+        return Number.isFinite(value) && value > 0 ? value : undefined;
+    }
 
     function resolvePeriodRange(period, fromArg, toArg) {
         const now = Date.now();
@@ -153,7 +166,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         return t('discordBot.analyticsDaily.durationMinSec', { mins, secs });
     }
 
-    async function tryBuildRangeChartBuffer(period, roomCategory, range) {
+    async function tryBuildRangeChartBuffer(period, roomCategory, range, interval) {
         try {
             return await buildAnalyticsChart({
                 db,
@@ -162,7 +175,9 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
                 toDayKey: range.toDayKey,
                 roomCategory,
                 roomCategoryLabel: CATEGORY_LABELS[roomCategory] ?? String(roomCategory ?? '').toUpperCase(),
-                timeFormat
+                timeFormat,
+                interval,
+                onlineMax: resolveOnlineMax(roomCategory)
             });
         } catch (err) {
             console.error('[Discord] Failed to build /analytics chart:', err);
@@ -170,7 +185,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         }
     }
 
-    async function buildAnalyticsEmbed(roomCategory, range, period) {
+    async function buildAnalyticsEmbed(roomCategory, range, period, interval) {
         const categoryLabel = CATEGORY_LABELS[roomCategory] ?? String(roomCategory ?? '').toUpperCase();
 
         const retentionPct = range.joinsUnique > 0
@@ -230,7 +245,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
                 }
             );
 
-        const chartBuffer = await tryBuildRangeChartBuffer(period, roomCategory, range);
+        const chartBuffer = await tryBuildRangeChartBuffer(period, roomCategory, range, interval);
         let file = null;
 
         if (chartBuffer) {
@@ -412,6 +427,12 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
                     ))
                 .addStringOption(o => o.setName('from').setDescription(t('discord.command.analyticsFrom')).setRequired(false))
                 .addStringOption(o => o.setName('to').setDescription(t('discord.command.analyticsTo')).setRequired(false))
+                .addStringOption(o => o.setName('interval')
+                    .setDescription(t('discord.command.analyticsInterval'))
+                    .setRequired(false)
+                    .addChoices(
+                        ...INTERVAL_CHOICES.map(value => ({ name: value, value }))
+                    ))
         ].map(c => c.toJSON());
     }
 
@@ -867,6 +888,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         const categoryArg = interaction.options.getString('category');
         const fromArg = interaction.options.getString('from');
         const toArg = interaction.options.getString('to');
+        const interval = interaction.options.getString('interval') || undefined;
 
         const range = resolvePeriodRange(period, fromArg, toArg);
         if (range.error) {
@@ -883,7 +905,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
 
         for (const category of categories) {
             const result = db.analyticsGetRange(range.fromDayKey, range.toDayKey, category);
-            const { embed, file } = await buildAnalyticsEmbed(category, result, period);
+            const { embed, file } = await buildAnalyticsEmbed(category, result, period, interval);
             embeds.push(embed);
             if (file) files.push(file);
         }

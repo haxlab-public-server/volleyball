@@ -328,7 +328,11 @@ async function main() {
         channelIds: discordChannelIds,
         db,
         timeFormat,
-        t
+        t,
+        maxPlayersByCategory: {
+            public: publicConfig.maxPlayers,
+            private: privateConfig.maxPlayers
+        }
     });
     discordBotForShutdown = discordBot;
 

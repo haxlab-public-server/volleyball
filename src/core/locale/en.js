@@ -371,7 +371,7 @@ module.exports = {
         picked: '{captain} picked {chosen}',
         noSuchNumber: 'No such number in the list!',
         turnAnnounce: '🧢 Captain {captain}\'s turn',
-        timeWarning: '⏳ 4 seconds left to pick!',
+        timeWarning: '⏳ {seconds} seconds left to pick!',
         timeUp: '⏰ Time\'s up — {name} was picked at random',
         randomizing: '⚖️ Randomizing teams...'
     },
@@ -463,7 +463,8 @@ module.exports = {
             analyticsPeriod: 'Period: today / week / month / custom',
             analyticsCategory: 'Room category (empty = both public and private)',
             analyticsFrom: 'Period start YYYY-MM-DD (custom only)',
-            analyticsTo: 'Period end YYYY-MM-DD (custom only)'
+            analyticsTo: 'Period end YYYY-MM-DD (custom only)',
+            analyticsInterval: 'Chart point interval (1h / 3h / 6h / 12h / 1d / 3d / 1w / 1m)'
         },
         notLinkedTitle: 'Discord not linked',
         notLinkedBody: 'Use `/link`, then `!discord <code>` in the room, to link your HaxBall account.',

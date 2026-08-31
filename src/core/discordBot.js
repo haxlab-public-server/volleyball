@@ -72,7 +72,8 @@ function createDiscordBot({
     channelIds,
     db,
     timeFormat,
-    t
+    t,
+    maxPlayersByCategory = {}
 }) {
     if (!token) {
         return createDisabledDiscordBot();
@@ -117,7 +118,8 @@ function createDiscordBot({
             sendReport: (...args) => sendReport(...args),
             sendStatsBackup: (...args) => sendStatsBackup(...args)
         },
-        t
+        t,
+        maxPlayersByCategory
     });
 
     const pendingLinkCodes = new Map();
@@ -345,6 +347,11 @@ function createDiscordBot({
         private: 'PRIVATE'
     };
 
+    function resolveOnlineMax(roomCategory) {
+        const value = maxPlayersByCategory?.[roomCategory];
+        return Number.isFinite(value) && value > 0 ? value : undefined;
+    }
+
     async function tryBuildDailyChartBuffer(dayKey, roomCategory) {
         try {
             return await buildAnalyticsChart({
@@ -354,7 +361,9 @@ function createDiscordBot({
                 toDayKey: dayKey,
                 roomCategory,
                 roomCategoryLabel: CATEGORY_LABELS[roomCategory] ?? String(roomCategory ?? '').toUpperCase(),
-                timeFormat
+                timeFormat,
+                interval: '1h',
+                onlineMax: resolveOnlineMax(roomCategory)
             });
         } catch (err) {
             console.error('[Discord] Failed to build analytics chart:', err);
