@@ -151,8 +151,10 @@ CREATE INDEX IF NOT EXISTS idx_analytics_matches_category_day ON analytics_match
 CREATE INDEX IF NOT EXISTS idx_analytics_events_day_type ON analytics_events (day_key, event_type);
 CREATE INDEX IF NOT EXISTS idx_analytics_events_auth ON analytics_events (auth, ts);
 CREATE INDEX IF NOT EXISTS idx_analytics_events_category_day ON analytics_events (room_category, day_key, event_type);
+CREATE INDEX IF NOT EXISTS idx_analytics_events_category_ts ON analytics_events (room_category, event_type, ts);
 CREATE INDEX IF NOT EXISTS idx_analytics_online_day ON analytics_online_minute (day_key, minute_ts);
 CREATE INDEX IF NOT EXISTS idx_analytics_online_category_day ON analytics_online_minute (room_category, day_key, minute_ts);
+CREATE INDEX IF NOT EXISTS idx_analytics_online_category_minute ON analytics_online_minute (room_category, minute_ts);
 `;
 
 const STAT_FIELDS = [
@@ -795,6 +797,67 @@ function createDb(dbPath) {
         };
     }
 
+    function analyticsGetSeries(fromTs, toTs, roomCategory, bucketMs, getDayKeyFn) {
+        const bucketCount = Math.ceil((toTs - fromTs) / bucketMs);
+        if (bucketCount <= 0) return [];
+
+        const perBucket = [];
+        for (let i = 0; i < bucketCount; i++) {
+            perBucket.push({ newCount: 0, returningCount: 0 });
+        }
+
+        const joinRows = db.prepare(
+            `SELECT
+                CAST((ae.ts - ?) / ? AS INTEGER) AS bucketIdx,
+                ae.auth AS auth,
+                MIN(ap.first_seen_day) AS firstSeenDay
+             FROM analytics_events ae
+             JOIN analytics_players ap ON ap.auth = ae.auth
+             WHERE ae.event_type = 'player_join' AND ae.room_category = ?
+               AND ae.ts >= ? AND ae.ts < ? AND ae.auth IS NOT NULL
+             GROUP BY bucketIdx, ae.auth`
+        ).all(fromTs, bucketMs, roomCategory, fromTs, toTs);
+
+        for (const row of joinRows) {
+            if (row.bucketIdx < 0 || row.bucketIdx >= bucketCount) continue;
+            const bucketStart = fromTs + row.bucketIdx * bucketMs;
+            const bucketDayKey = getDayKeyFn(bucketStart);
+            const bucket = perBucket[row.bucketIdx];
+
+            if (row.firstSeenDay === bucketDayKey) {
+                bucket.newCount++;
+            } else {
+                bucket.returningCount++;
+            }
+        }
+
+        const onlineRows = db.prepare(
+            `SELECT
+                CAST((minute_ts - ?) / ? AS INTEGER) AS bucketIdx,
+                MAX(total) AS peak
+             FROM (
+                SELECT minute_ts, SUM(online_count) AS total
+                FROM analytics_online_minute
+                WHERE room_category = ? AND minute_ts >= ? AND minute_ts < ?
+                GROUP BY minute_ts
+             )
+             GROUP BY bucketIdx`
+        ).all(fromTs, bucketMs, roomCategory, fromTs, toTs);
+
+        const peakByBucket = new Map(onlineRows.map(r => [r.bucketIdx, r.peak]));
+
+        const result = [];
+        for (let i = 0; i < bucketCount; i++) {
+            result.push({
+                bucketStart: fromTs + i * bucketMs,
+                newCount: perBucket[i].newCount,
+                returningCount: perBucket[i].returningCount,
+                onlinePeak: peakByBucket.get(i) ?? 0
+            });
+        }
+        return result;
+    }
+
     function close() {
         db.close();
     }
@@ -854,6 +917,7 @@ function createDb(dbPath) {
         analyticsAggregateDaily,
         analyticsGetDaily,
         analyticsGetRange,
+        analyticsGetSeries,
         analyticsIsDailyReportSent,
         analyticsMarkDailyReportSent
     };

@@ -3,6 +3,7 @@ const {
     EmbedBuilder
 } = require('discord.js');
 const { parseDuration } = require('./utils/utils');
+const { buildAnalyticsChart } = require('./utils/analyticsChart');
 
 const Role = {
     PLAYER: 0,
@@ -151,7 +152,24 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         return t('discordBot.analyticsDaily.durationMinSec', { mins, secs });
     }
 
-    function buildAnalyticsEmbed(roomCategory, range) {
+    function tryBuildRangeChartUrl(period, roomCategory, range) {
+        try {
+            return buildAnalyticsChart({
+                db,
+                period,
+                fromDayKey: range.fromDayKey,
+                toDayKey: range.toDayKey,
+                roomCategory,
+                roomCategoryLabel: CATEGORY_LABELS[roomCategory] ?? String(roomCategory ?? '').toUpperCase(),
+                timeFormat
+            });
+        } catch (err) {
+            console.error('[Discord] Failed to build /analytics chart URL:', err);
+            return null;
+        }
+    }
+
+    function buildAnalyticsEmbed(roomCategory, range, period) {
         const categoryLabel = CATEGORY_LABELS[roomCategory] ?? String(roomCategory ?? '').toUpperCase();
 
         const retentionPct = range.joinsUnique > 0
@@ -166,7 +184,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
             ? range.fromDayKey
             : t('discord.analytics.rangeLabel', { from: range.fromDayKey, to: range.toDayKey });
 
-        return new EmbedBuilder()
+        const embed = new EmbedBuilder()
             .setColor(ANALYTICS_EMBED_COLOR)
             .setTitle(t('discordBot.analyticsDaily.title', { category: categoryLabel }))
             .setDescription(t('discordBot.analyticsDaily.description', { day: dayLabel }))
@@ -210,6 +228,13 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
                     value: fmtSec(range.avgMatchSec)
                 }
             );
+
+        const chartUrl = tryBuildRangeChartUrl(period, roomCategory, range);
+        if (chartUrl) {
+            embed.setImage(chartUrl);
+        }
+
+        return embed;
     }
 
     async function requireLinkedRole(interaction, minRole) {
@@ -850,7 +875,7 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
 
         const embeds = categories.map(category => {
             const result = db.analyticsGetRange(range.fromDayKey, range.toDayKey, category);
-            return buildAnalyticsEmbed(category, result);
+            return buildAnalyticsEmbed(category, result, period);
         });
 
         await interaction.editReply({ embeds });

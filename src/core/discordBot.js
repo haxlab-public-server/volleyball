@@ -13,6 +13,7 @@ const {
 } = require('discord.js');
 
 const createDiscordCommands = require('./discordCommands');
+const { buildAnalyticsChart } = require('./utils/analyticsChart');
 
 const LINK_CODE_TTL_MS = 10 * 60 * 1000;
 const LINK_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -344,6 +345,23 @@ function createDiscordBot({
         private: 'PRIVATE'
     };
 
+    function tryBuildDailyChartUrl(dayKey, roomCategory) {
+        try {
+            return buildAnalyticsChart({
+                db,
+                period: 'today',
+                fromDayKey: dayKey,
+                toDayKey: dayKey,
+                roomCategory,
+                roomCategoryLabel: CATEGORY_LABELS[roomCategory] ?? String(roomCategory ?? '').toUpperCase(),
+                timeFormat
+            });
+        } catch (err) {
+            console.error('[Discord] Failed to build analytics chart URL:', err);
+            return null;
+        }
+    }
+
     async function sendAnalyticsDailyReport(dayKey, roomCategory, report) {
         if (!channelIds.analytics) return false;
 
@@ -412,6 +430,11 @@ function createDiscordBot({
                 }
             )
             .setFooter({ text: t('discordBot.analyticsDaily.footer', { date: formatDate() }) });
+
+        const chartUrl = tryBuildDailyChartUrl(dayKey, roomCategory);
+        if (chartUrl) {
+            embed.setImage(chartUrl);
+        }
 
         await channel.send({ embeds: [embed] }).catch(() => {});
         return true;
