@@ -55,7 +55,7 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel })
         ...series.map(point => (point.newCount || 0) + (point.returningCount || 0))
     );
     const onlineSuggestedMax = maxOnline === 0 ? 5 : Math.ceil(maxOnline * 1.25);
-    const joinsSuggestedMax = maxJoins === 0 ? 5 : Math.ceil(maxJoins * 1.7);
+    const joinsSuggestedMax = maxJoins === 0 ? 5 : Math.ceil(maxJoins * 2.2);
 
     const config = {
         type: 'bar',
@@ -81,7 +81,7 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel })
                         offset: 0,
                         clamp: true,
                         color: '#b6f0c8',
-                        font: { weight: 'bold', size: 9 },
+                        font: { weight: 'bold', size: 8 },
                         formatter: 'function(value) { return value; }'
                     }
                 },
@@ -104,7 +104,7 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel })
                         offset: 0,
                         clamp: true,
                         color: '#b4bcf5',
-                        font: { weight: 'bold', size: 9 },
+                        font: { weight: 'bold', size: 8 },
                         formatter: 'function(value) { return value; }'
                     }
                 },
