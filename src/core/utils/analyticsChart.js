@@ -4,14 +4,11 @@
  * via a QuickChart (https://quickchart.io) URL — no local rendering, no
  * native dependencies. Node-only; not part of the browser bundle.
  *
- * Fetches the underlying series via db.analyticsGetSeries (db/sqlite.js),
- * which requires timeFormat.getDayKey to resolve which calendar day each
- * bucket falls in (see that function's doc comment for the new/returning
- * semantics — a player is "new" in every bucket of their first-seen day,
- * matching the day-level totals shown in the rest of the embed, at the
- * cost of a same-day repeat visitor's newCount summing to more than 1
- * across that day's buckets).
+ * Returns a PNG Buffer (not a URL), because Discord rejects
+ * embed.image.url longer than 2048 characters.
  */
+
+const https = require('node:https');
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -127,13 +124,46 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel })
     return `https://quickchart.io/chart?c=${encodeURIComponent(json)}&backgroundColor=%232b2d31&width=760&height=320&version=2`;
 }
 
-function buildAnalyticsChart({ db, period, fromDayKey, toDayKey, roomCategory, roomCategoryLabel, timeFormat }) {
+function fetchChartBuffer(url) {
+    return new Promise((resolve, reject) => {
+        const req = https.get(url, (res) => {
+            if (res.statusCode !== 200) {
+                res.resume();
+                reject(new Error(`QuickChart responded ${res.statusCode}`));
+                return;
+            }
+            const chunks = [];
+            res.on('data', (chunk) => chunks.push(chunk));
+            res.on('end', () => resolve(Buffer.concat(chunks)));
+            res.on('error', reject);
+        });
+        req.on('error', reject);
+        req.setTimeout(15000, () => {
+            req.destroy();
+            reject(new Error('QuickChart request timed out'));
+        });
+    });
+}
+
+async function buildAnalyticsChart({ db, period, fromDayKey, toDayKey, roomCategory, roomCategoryLabel, timeFormat }) {
     const plan = resolveBucketPlan({ period, fromDayKey, toDayKey, timeFormat });
     const series = db.analyticsGetSeries(plan.fromTs, plan.toTs, roomCategory, plan.bucketMs, timeFormat.getDayKey);
 
     if (!series || series.length === 0) return null;
 
-    return buildAnalyticsChartUrl({ series, unit: plan.unit, timeFormat, roomCategoryLabel });
+    const url = buildAnalyticsChartUrl({
+        series,
+        unit: plan.unit,
+        timeFormat,
+        roomCategoryLabel
+    });
+
+    try {
+        return await fetchChartBuffer(url);
+    } catch (err) {
+        console.error('[analyticsChart] Failed to fetch chart image:', err);
+        return null;
+    }
 }
 
 module.exports = {

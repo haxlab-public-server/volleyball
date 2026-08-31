@@ -345,9 +345,9 @@ function createDiscordBot({
         private: 'PRIVATE'
     };
 
-    function tryBuildDailyChartUrl(dayKey, roomCategory) {
+    async function tryBuildDailyChartBuffer(dayKey, roomCategory) {
         try {
-            return buildAnalyticsChart({
+            return await buildAnalyticsChart({
                 db,
                 period: 'today',
                 fromDayKey: dayKey,
@@ -357,7 +357,7 @@ function createDiscordBot({
                 timeFormat
             });
         } catch (err) {
-            console.error('[Discord] Failed to build analytics chart URL:', err);
+            console.error('[Discord] Failed to build analytics chart:', err);
             return null;
         }
     }
@@ -431,12 +431,14 @@ function createDiscordBot({
             )
             .setFooter({ text: t('discordBot.analyticsDaily.footer', { date: formatDate() }) });
 
-        const chartUrl = tryBuildDailyChartUrl(dayKey, roomCategory);
-        if (chartUrl) {
-            embed.setImage(chartUrl);
+        const files = [];
+        const chartBuffer = await tryBuildDailyChartBuffer(dayKey, roomCategory);
+        if (chartBuffer) {
+            files.push(new AttachmentBuilder(chartBuffer, { name: 'analytics.png' }));
+            embed.setImage('attachment://analytics.png');
         }
 
-        await channel.send({ embeds: [embed] }).catch(() => {});
+        await channel.send({ embeds: [embed], files }).catch(() => {});
         return true;
     }
 

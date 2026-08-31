@@ -1,6 +1,7 @@
 const {
     SlashCommandBuilder,
-    EmbedBuilder
+    EmbedBuilder,
+    AttachmentBuilder
 } = require('discord.js');
 const { parseDuration } = require('./utils/utils');
 const { buildAnalyticsChart } = require('./utils/analyticsChart');
@@ -152,9 +153,9 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
         return t('discordBot.analyticsDaily.durationMinSec', { mins, secs });
     }
 
-    function tryBuildRangeChartUrl(period, roomCategory, range) {
+    async function tryBuildRangeChartBuffer(period, roomCategory, range) {
         try {
-            return buildAnalyticsChart({
+            return await buildAnalyticsChart({
                 db,
                 period,
                 fromDayKey: range.fromDayKey,
@@ -164,12 +165,12 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
                 timeFormat
             });
         } catch (err) {
-            console.error('[Discord] Failed to build /analytics chart URL:', err);
+            console.error('[Discord] Failed to build /analytics chart:', err);
             return null;
         }
     }
 
-    function buildAnalyticsEmbed(roomCategory, range, period) {
+    async function buildAnalyticsEmbed(roomCategory, range, period) {
         const categoryLabel = CATEGORY_LABELS[roomCategory] ?? String(roomCategory ?? '').toUpperCase();
 
         const retentionPct = range.joinsUnique > 0
@@ -229,12 +230,16 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
                 }
             );
 
-        const chartUrl = tryBuildRangeChartUrl(period, roomCategory, range);
-        if (chartUrl) {
-            embed.setImage(chartUrl);
+        const chartBuffer = await tryBuildRangeChartBuffer(period, roomCategory, range);
+        let file = null;
+
+        if (chartBuffer) {
+            const filename = `analytics-${roomCategory}.png`;
+            file = new AttachmentBuilder(chartBuffer, { name: filename });
+            embed.setImage(`attachment://${filename}`);
         }
 
-        return embed;
+        return { embed, file };
     }
 
     async function requireLinkedRole(interaction, minRole) {
@@ -873,12 +878,17 @@ module.exports = function createDiscordCommands({ db, applyModeration, applyToRo
 
         await interaction.deferReply();
 
-        const embeds = categories.map(category => {
-            const result = db.analyticsGetRange(range.fromDayKey, range.toDayKey, category);
-            return buildAnalyticsEmbed(category, result, period);
-        });
+        const embeds = [];
+        const files = [];
 
-        await interaction.editReply({ embeds });
+        for (const category of categories) {
+            const result = db.analyticsGetRange(range.fromDayKey, range.toDayKey, category);
+            const { embed, file } = await buildAnalyticsEmbed(category, result, period);
+            embeds.push(embed);
+            if (file) files.push(file);
+        }
+
+        await interaction.editReply({ embeds, files });
     }
 
     async function handleAccount(interaction) {        const caller = await requireLinkedRole(interaction, Role.PLAYER);
