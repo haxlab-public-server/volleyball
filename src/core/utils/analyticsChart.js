@@ -134,7 +134,7 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel, o
                     stack: 'joins',
                     barPercentage: 0.7,
                     categoryPercentage: 0.85,
-                    order: 0,
+                    order: 2,
                     datalabels: {
                         anchor: 'center',
                         align: 'center',
@@ -157,7 +157,7 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel, o
                     stack: 'joins',
                     barPercentage: 0.7,
                     categoryPercentage: 0.85,
-                    order: 0,
+                    order: 2,
                     datalabels: {
                         anchor: 'center',
                         align: 'center',
@@ -184,7 +184,7 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel, o
                     pointBorderColor: '#2b2d31',
                     pointBorderWidth: 1.5,
                     borderWidth: 2.5,
-                    order: 10,
+                    order: 1,
                     datalabels: {
                         display: false,
                         align: 'top',
