@@ -71,7 +71,7 @@ function formatBucketLabel(bucketStart, unit, timeFormat) {
     return timeFormat.getDayKey(bucketStart).slice(5);
 }
 
-function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel, onlineMax }) {
+function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel, onlineMax, fromDayKey, toDayKey, interval }) {
     const labels = series.map(point => formatBucketLabel(point.bucketStart, unit, timeFormat));
     const newVals = series.map(point => (point.newCount > 0 ? point.newCount : null));
     const returningVals = series.map(point => (point.returningCount > 0 ? point.returningCount : null));
@@ -127,13 +127,13 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel, o
                     type: 'bar',
                     label: 'New',
                     data: newVals,
-                    backgroundColor: 'rgba(87, 242, 135, 0.55)',
-                    borderColor: 'rgba(87, 242, 135, 0.85)',
-                    borderWidth: 1,
+                    backgroundColor: 'rgba(87, 242, 135, 0.28)',
+                    borderColor: 'rgba(87, 242, 135, 0.45)',
+                    borderWidth: 0,
                     yAxisID: 'yBars',
                     stack: 'joins',
-                    barPercentage: 0.55,
-                    categoryPercentage: 0.7,
+                    barPercentage: 0.7,
+                    categoryPercentage: 0.85,
                     order: 1,
                     datalabels: {
                         anchor: 'center',
@@ -141,7 +141,7 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel, o
                         textAlign: 'center',
                         offset: 0,
                         clamp: true,
-                        color: '#b6f0c8',
+                        color: '#9ae6b4',
                         font: { weight: 'bold', size: 8 },
                         formatter: 'function(value) { return value; }'
                     }
@@ -150,13 +150,13 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel, o
                     type: 'bar',
                     label: 'Returning',
                     data: returningVals,
-                    backgroundColor: 'rgba(88, 101, 242, 0.55)',
-                    borderColor: 'rgba(88, 101, 242, 0.85)',
-                    borderWidth: 1,
+                    backgroundColor: 'rgba(88, 101, 242, 0.28)',
+                    borderColor: 'rgba(88, 101, 242, 0.45)',
+                    borderWidth: 0,
                     yAxisID: 'yBars',
                     stack: 'joins',
-                    barPercentage: 0.55,
-                    categoryPercentage: 0.7,
+                    barPercentage: 0.7,
+                    categoryPercentage: 0.85,
                     order: 1,
                     datalabels: {
                         anchor: 'center',
@@ -164,7 +164,7 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel, o
                         textAlign: 'center',
                         offset: 0,
                         clamp: true,
-                        color: '#b4bcf5',
+                        color: '#a5b4fc',
                         font: { weight: 'bold', size: 8 },
                         formatter: 'function(value) { return value; }'
                     }
@@ -174,25 +174,47 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel, o
                     label: 'Online (peak)',
                     data: onlineVals,
                     borderColor: '#FEE75C',
-                    backgroundColor: 'rgba(254, 231, 92, 0.15)',
+                    backgroundColor: 'rgba(254, 231, 92, 0.12)',
                     yAxisID: 'yOnline',
                     fill: false,
                     tension: 0.3,
-                    pointRadius: 3,
-                    pointHoverRadius: 5,
-                    borderWidth: 2,
-                    order: 2,
+                    pointRadius: 3.5,
+                    pointHoverRadius: 6,
+                    pointBackgroundColor: '#FEE75C',
+                    pointBorderColor: '#2b2d31',
+                    pointBorderWidth: 1.5,
+                    borderWidth: 2.5,
+                    order: 10,
                     datalabels: {
-                        display: false
+                        display: true,
+                        align: 'top',
+                        anchor: 'end',
+                        offset: 4,
+                        clamp: true,
+                        color: '#FEE75C',
+                        font: { weight: 'bold', size: 9 },
+                        formatter: 'function(value) { return value > 0 ? value : null; }'
                     }
                 }
             ]
         },
         options: {
+            layout: {
+                padding: { top: 12, right: 4, bottom: 0, left: 0 }
+            },
             plugins: {
                 title: {
                     display: true,
-                    text: `Online & joins — ${roomCategoryLabel}`,
+                    text: (() => {
+                        const rangeLabel = fromDayKey && toDayKey
+                            ? (fromDayKey === toDayKey ? fromDayKey : `${fromDayKey} — ${toDayKey}`)
+                            : null;
+                        const intervalLabel = interval ? ` · ${interval}` : '';
+                        if (rangeLabel) {
+                            return `Online & joins — ${roomCategoryLabel}  (${rangeLabel}${intervalLabel})`;
+                        }
+                        return `Online & joins — ${roomCategoryLabel}`;
+                    })(),
                     color: '#e3e5e8'
                 },
                 legend: {
@@ -205,8 +227,13 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel, o
             scales: {
                 x: {
                     stacked: true,
-                    ticks: { color: '#b5bac1' },
-                    grid: { color: 'rgba(255,255,255,0.08)' }
+                    ticks: {
+                        color: '#b5bac1',
+                        maxRotation: 0,
+                        autoSkip: true,
+                        maxTicksLimit: 24
+                    },
+                    grid: { color: 'rgba(255,255,255,0.06)' }
                 },
                 yBars: {
                     stacked: true,
@@ -216,7 +243,7 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel, o
                         beginAtZero: true,
                         color: '#b5bac1'
                     },
-                    grid: { color: 'rgba(255,255,255,0.08)' },
+                    grid: { color: 'rgba(255,255,255,0.06)' },
                     title: {
                         display: true,
                         text: 'Joins',
@@ -274,7 +301,10 @@ async function buildAnalyticsChart({
         unit: plan.unit,
         timeFormat,
         roomCategoryLabel,
-        onlineMax
+        onlineMax,
+        fromDayKey,
+        toDayKey,
+        interval: plan.interval
     });
 
     try {
