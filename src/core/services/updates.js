@@ -25,8 +25,8 @@ module.exports = function createUpdatesUtils({
     clearCaptainPickTimer,
     t
 }) {
-    const CAPTAIN_PICK_TIMEOUT_MS = 10_000;
-    const CAPTAIN_ALERT_OFFSET_MS = 4_000;
+    const CAPTAIN_PICK_TIMEOUT_MS = 15_000;
+    const CAPTAIN_ALERT_OFFSET_MS = 6_000;
     const RANDOMIZE_DELAY_MS = 3_000;
     const FILL_GUARD_LIMIT = 20;
     let randomizeTimer = null;
@@ -211,7 +211,7 @@ module.exports = function createUpdatesUtils({
             if (state.sit !== Sits.CHOICE) return;
 
             room.sendAnnouncement(
-                t('captains.timeWarning'),
+                t('captains.timeWarning', { seconds: Math.ceil(CAPTAIN_ALERT_OFFSET_MS / 1000) }),
                 captain.id,
                 Color.GR_RED,
                 'bold',
