@@ -49,6 +49,10 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel })
     const newVals = series.map(point => point.newCount);
     const returningVals = series.map(point => point.returningCount);
     const onlineVals = series.map(point => point.onlinePeak);
+    const maxOnline = Math.max(0, ...onlineVals);
+    const maxJoins = Math.max(0, ...newVals.map((v, i) => v + (returningVals[i] || 0)));
+    const onlineSuggestedMax = maxOnline === 0 ? 5 : Math.ceil(maxOnline * 1.25);
+    const joinsSuggestedMax = maxJoins === 0 ? 5 : Math.ceil(maxJoins * 1.35);
 
     const config = {
         type: 'bar',
@@ -59,28 +63,38 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel })
                     type: 'bar',
                     label: 'New',
                     data: newVals,
-                    backgroundColor: '#57F287',
+                    backgroundColor: 'rgba(87, 242, 135, 0.55)',
+                    borderColor: 'rgba(87, 242, 135, 0.85)',
+                    borderWidth: 1,
                     yAxisID: 'yBars',
-                    stack: 'joins'
+                    stack: 'joins',
+                    barPercentage: 0.55,
+                    categoryPercentage: 0.7
                 },
                 {
                     type: 'bar',
                     label: 'Returning',
                     data: returningVals,
-                    backgroundColor: '#5865F2',
+                    backgroundColor: 'rgba(88, 101, 242, 0.55)',
+                    borderColor: 'rgba(88, 101, 242, 0.85)',
+                    borderWidth: 1,
                     yAxisID: 'yBars',
-                    stack: 'joins'
+                    stack: 'joins',
+                    barPercentage: 0.55,
+                    categoryPercentage: 0.7
                 },
                 {
                     type: 'line',
                     label: 'Online (peak)',
                     data: onlineVals,
                     borderColor: '#FEE75C',
-                    backgroundColor: '#FEE75C',
+                    backgroundColor: 'rgba(254, 231, 92, 0.15)',
                     yAxisID: 'yOnline',
                     fill: false,
                     tension: 0.3,
-                    pointRadius: 2
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    borderWidth: 2
                 }
             ]
         },
@@ -104,14 +118,22 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel })
                         id: 'yBars',
                         stacked: true,
                         position: 'left',
-                        ticks: { beginAtZero: true, fontColor: '#b5bac1' },
+                        ticks: {
+                            beginAtZero: true,
+                            suggestedMax: joinsSuggestedMax,
+                            fontColor: '#b5bac1'
+                        },
                         gridLines: { color: 'rgba(255,255,255,0.08)' },
                         scaleLabel: { display: true, labelString: 'Joins', fontColor: '#b5bac1' }
                     },
                     {
                         id: 'yOnline',
                         position: 'right',
-                        ticks: { beginAtZero: true, fontColor: '#b5bac1' },
+                        ticks: {
+                            beginAtZero: true,
+                            suggestedMax: onlineSuggestedMax,
+                            fontColor: '#b5bac1'
+                        },
                         gridLines: { drawOnChartArea: false },
                         scaleLabel: { display: true, labelString: 'Online', fontColor: '#b5bac1' }
                     }
