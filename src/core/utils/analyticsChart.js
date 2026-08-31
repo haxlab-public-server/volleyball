@@ -183,7 +183,7 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel, o
                     pointRadius: 3.5,
                     pointHoverRadius: 6,
                     pointBackgroundColor: '#FEE75C',
-                    pointBorderColor: 'transparent',
+                    pointBorderColor: '#2b2d31',
                     pointBorderWidth: 1.5,
                     borderWidth: 2.5,
                     order: 1,
