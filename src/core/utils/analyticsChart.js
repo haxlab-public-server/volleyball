@@ -46,12 +46,14 @@ function formatBucketLabel(bucketStart, unit, timeFormat) {
 
 function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel }) {
     const labels = series.map(point => formatBucketLabel(point.bucketStart, unit, timeFormat));
-    const newVals = series.map(point => point.newCount);
-    const returningVals = series.map(point => point.returningCount);
+    const newVals = series.map(point => (point.newCount > 0 ? point.newCount : null));
+    const returningVals = series.map(point => (point.returningCount > 0 ? point.returningCount : null));
     const onlineVals = series.map(point => point.onlinePeak);
-
     const maxOnline = Math.max(0, ...onlineVals);
-    const maxJoins = Math.max(0, ...newVals.map((v, i) => v + (returningVals[i] || 0)));
+    const maxJoins = Math.max(
+        0,
+        ...series.map(point => (point.newCount || 0) + (point.returningCount || 0))
+    );
     const onlineSuggestedMax = maxOnline === 0 ? 5 : Math.ceil(maxOnline * 1.25);
     const joinsSuggestedMax = maxJoins === 0 ? 5 : Math.ceil(maxJoins * 1.7);
 
@@ -73,12 +75,14 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel })
                     categoryPercentage: 0.7,
                     order: 1,
                     datalabels: {
-                        display: 'function(ctx) { return ctx.dataset.data[ctx.dataIndex] > 0; }',
                         anchor: 'center',
                         align: 'center',
+                        textAlign: 'center',
+                        offset: 0,
+                        clamp: true,
                         color: '#b6f0c8',
                         font: { weight: 'bold', size: 9 },
-                        formatter: 'function(value) { return value > 0 ? value : ""; }'
+                        formatter: 'function(value) { return value; }'
                     }
                 },
                 {
@@ -94,12 +98,14 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel })
                     categoryPercentage: 0.7,
                     order: 1,
                     datalabels: {
-                        display: 'function(ctx) { return ctx.dataset.data[ctx.dataIndex] > 0; }',
                         anchor: 'center',
                         align: 'center',
+                        textAlign: 'center',
+                        offset: 0,
+                        clamp: true,
                         color: '#b4bcf5',
                         font: { weight: 'bold', size: 9 },
-                        formatter: 'function(value) { return value > 0 ? value : ""; }'
+                        formatter: 'function(value) { return value; }'
                     }
                 },
                 {
