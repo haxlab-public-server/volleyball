@@ -49,10 +49,11 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel })
     const newVals = series.map(point => point.newCount);
     const returningVals = series.map(point => point.returningCount);
     const onlineVals = series.map(point => point.onlinePeak);
+
     const maxOnline = Math.max(0, ...onlineVals);
     const maxJoins = Math.max(0, ...newVals.map((v, i) => v + (returningVals[i] || 0)));
     const onlineSuggestedMax = maxOnline === 0 ? 5 : Math.ceil(maxOnline * 1.25);
-    const joinsSuggestedMax = maxJoins === 0 ? 5 : Math.ceil(maxJoins * 1.35);
+    const joinsSuggestedMax = maxJoins === 0 ? 5 : Math.ceil(maxJoins * 1.7);
 
     const config = {
         type: 'bar',
@@ -69,7 +70,16 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel })
                     yAxisID: 'yBars',
                     stack: 'joins',
                     barPercentage: 0.55,
-                    categoryPercentage: 0.7
+                    categoryPercentage: 0.7,
+                    order: 1,
+                    datalabels: {
+                        display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0,
+                        anchor: 'center',
+                        align: 'center',
+                        color: '#ffffff',
+                        font: { weight: 'bold', size: 11 },
+                        formatter: (value) => value
+                    }
                 },
                 {
                     type: 'bar',
@@ -81,7 +91,16 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel })
                     yAxisID: 'yBars',
                     stack: 'joins',
                     barPercentage: 0.55,
-                    categoryPercentage: 0.7
+                    categoryPercentage: 0.7,
+                    order: 1,
+                    datalabels: {
+                        display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0,
+                        anchor: 'center',
+                        align: 'center',
+                        color: '#ffffff',
+                        font: { weight: 'bold', size: 11 },
+                        formatter: (value) => value
+                    }
                 },
                 {
                     type: 'line',
@@ -94,56 +113,69 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel })
                     tension: 0.3,
                     pointRadius: 3,
                     pointHoverRadius: 5,
-                    borderWidth: 2
+                    borderWidth: 2,
+                    order: 2,
+                    datalabels: {
+                        display: false
+                    }
                 }
             ]
         },
         options: {
-            title: {
-                display: true,
-                text: `Online & joins — ${roomCategoryLabel}`,
-                fontColor: '#e3e5e8'
-            },
-            legend: {
-                labels: { fontColor: '#e3e5e8' }
+            plugins: {
+                title: {
+                    display: true,
+                    text: `Online & joins — ${roomCategoryLabel}`,
+                    color: '#e3e5e8'
+                },
+                legend: {
+                    labels: { color: '#e3e5e8' }
+                },
+                datalabels: {
+                    display: true
+                }
             },
             scales: {
-                xAxes: [{
+                x: {
                     stacked: true,
-                    ticks: { fontColor: '#b5bac1' },
-                    gridLines: { color: 'rgba(255,255,255,0.08)' }
-                }],
-                yAxes: [
-                    {
-                        id: 'yBars',
-                        stacked: true,
-                        position: 'left',
-                        ticks: {
-                            beginAtZero: true,
-                            suggestedMax: joinsSuggestedMax,
-                            fontColor: '#b5bac1'
-                        },
-                        gridLines: { color: 'rgba(255,255,255,0.08)' },
-                        scaleLabel: { display: true, labelString: 'Joins', fontColor: '#b5bac1' }
+                    ticks: { color: '#b5bac1' },
+                    grid: { color: 'rgba(255,255,255,0.08)' }
+                },
+                yBars: {
+                    stacked: true,
+                    position: 'left',
+                    suggestedMax: joinsSuggestedMax,
+                    ticks: {
+                        beginAtZero: true,
+                        color: '#b5bac1'
                     },
-                    {
-                        id: 'yOnline',
-                        position: 'right',
-                        ticks: {
-                            beginAtZero: true,
-                            suggestedMax: onlineSuggestedMax,
-                            fontColor: '#b5bac1'
-                        },
-                        gridLines: { drawOnChartArea: false },
-                        scaleLabel: { display: true, labelString: 'Online', fontColor: '#b5bac1' }
+                    grid: { color: 'rgba(255,255,255,0.08)' },
+                    title: {
+                        display: true,
+                        text: 'Joins',
+                        color: '#b5bac1'
                     }
-                ]
+                },
+                yOnline: {
+                    position: 'right',
+                    suggestedMax: onlineSuggestedMax,
+                    ticks: {
+                        beginAtZero: true,
+                        color: '#b5bac1'
+                    },
+                    grid: { drawOnChartArea: false },
+                    title: {
+                        display: true,
+                        text: 'Online',
+                        color: '#b5bac1'
+                    }
+                }
             }
         }
     };
 
     const json = JSON.stringify(config);
-    return `https://quickchart.io/chart?c=${encodeURIComponent(json)}&backgroundColor=%232b2d31&width=760&height=320&version=2`;
+    return `https://quickchart.io/chart?c=${encodeURIComponent(json)}&backgroundColor=%232b2d31&width=760&height=320&version=3`;
 }
 
 function fetchChartBuffer(url) {
