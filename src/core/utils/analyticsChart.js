@@ -73,12 +73,12 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel })
                     categoryPercentage: 0.7,
                     order: 1,
                     datalabels: {
-                        display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0,
+                        display: 'function(ctx) { return ctx.dataset.data[ctx.dataIndex] > 0; }',
                         anchor: 'center',
                         align: 'center',
-                        color: '#ffffff',
-                        font: { weight: 'bold', size: 11 },
-                        formatter: (value) => value
+                        color: '#b6f0c8',
+                        font: { weight: 'bold', size: 9 },
+                        formatter: 'function(value) { return value > 0 ? value : ""; }'
                     }
                 },
                 {
@@ -94,12 +94,12 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel })
                     categoryPercentage: 0.7,
                     order: 1,
                     datalabels: {
-                        display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0,
+                        display: 'function(ctx) { return ctx.dataset.data[ctx.dataIndex] > 0; }',
                         anchor: 'center',
                         align: 'center',
-                        color: '#ffffff',
-                        font: { weight: 'bold', size: 11 },
-                        formatter: (value) => value
+                        color: '#b4bcf5',
+                        font: { weight: 'bold', size: 9 },
+                        formatter: 'function(value) { return value > 0 ? value : ""; }'
                     }
                 },
                 {
