@@ -119,7 +119,7 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel, o
         };
 
     const config = {
-        type: 'bar',
+        type: 'line',
         data: {
             labels,
             datasets: [
@@ -134,7 +134,7 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel, o
                     stack: 'joins',
                     barPercentage: 0.7,
                     categoryPercentage: 0.85,
-                    order: 1,
+                    order: 0,
                     datalabels: {
                         anchor: 'center',
                         align: 'center',
@@ -157,7 +157,7 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel, o
                     stack: 'joins',
                     barPercentage: 0.7,
                     categoryPercentage: 0.85,
-                    order: 1,
+                    order: 0,
                     datalabels: {
                         anchor: 'center',
                         align: 'center',
@@ -186,7 +186,7 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel, o
                     borderWidth: 2.5,
                     order: 10,
                     datalabels: {
-                        display: true,
+                        display: false,
                         align: 'top',
                         anchor: 'end',
                         offset: 4,
@@ -229,7 +229,6 @@ function buildAnalyticsChartUrl({ series, unit, timeFormat, roomCategoryLabel, o
                     stacked: true,
                     ticks: {
                         color: '#b5bac1',
-                        maxRotation: 0,
                         autoSkip: true,
                         maxTicksLimit: 24
                     },
