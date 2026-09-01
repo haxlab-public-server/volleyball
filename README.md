@@ -69,13 +69,31 @@ The bot connects to Discord as a real bot application (not webhooks), which prov
 - **Automatic role sync** — when a player's in-room role (`VIP`/`PREADMIN`/`ADMIN`/`MASTER`) is granted, changed, expires, or the player rejoins the room, their Discord role is granted or revoked to match, as long as their Discord is linked and they're a member of the configured guild.
 - **Live online status message** — an embed in a dedicated Discord channel is edited once a minute and shows the room name, current player count, the list of players online, and a **"Присоединиться" (Join)** link button pointing at the current room link.
 - Chat/event logs, ban/mute reports, and auto-uploaded match replays go to dedicated Discord channels.
-- A **daily analytics report** for the previous day is posted to a dedicated Discord channel as an embed, separately for the `public` and `private` room categories (one embed per category), covering online peak/average, joins, new vs. returning players (with a retention %), average time spent on the server, and match counts (total and how many had a full lineup, with a %). The same numbers are available on demand via `/analytics` (see below) for the current in-progress day, the last week/month, or a custom date range.
+- A **daily analytics report** for the previous day is posted to a dedicated Discord channel as an embed, separately for the `public` and `private` room categories (one embed per category), covering online peak/average, joins, new vs. returning players (with a retention %), average time spent on the server, and match counts (total and how many had a full lineup, with a %). Each embed also includes an attached **chart image** (see [Analytics charts](#analytics-charts) below) plotting online levels and new/returning joins over the day. The same numbers, including the chart, are available on demand via `/analytics` (see below) for the current in-progress day, the last week/month, or a custom date range.
 - **Slash commands mirroring moderation and stats lookup**, with access gated by the same in-room role hierarchy, checked against the caller's linked account:
   - `MASTER`: `/setrole`, `/getrolelist`, `/password`, `/statsclear`, `/statsbackup`
   - `ADMIN`: `/ban`, `/unban`, `/mute`, `/unmute`, `/bans`, `/mutes`, `/analytics`
   - Any linked account (`PLAYER`+): `/tops`, `/stats`, `/account`
 
-  Commands targeting a specific player take their public ID (43 characters) directly, with no nickname resolution. The exception is `/stats`: it's read-only and additionally supports looking a player up by nickname (if several accounts share that nickname, a list is shown with an `index` to disambiguate on a re-run). `/ban`, `/unban`, `/mute`, `/unmute`, and `/password` first write the change to the DB/state, then apply it **instantly, live**, in whichever room the target currently is, via the Node→browser bridge (`window.__applyModeration`) — no need to wait for the player to rejoin. `/statsbackup` snapshots the stats table to a timestamped file and attaches it to the reply, without clearing anything (`/statsclear` is the destructive variant that also wipes the table). `/analytics` takes a `period` (`today` / `week` / `month` / `custom`, the last one requiring `from`/`to` dates in `YYYY-MM-DD`) and an optional `category` (`public` / `private` — omit to see both); it reads on demand and never writes to the daily-report table, so it's safe to run anytime, including mid-day for the still-open "today".
+  Commands targeting a specific player take their public ID (43 characters) directly, with no nickname resolution. The exception is `/stats`: it's read-only and additionally supports looking a player up by nickname (if several accounts share that nickname, a list is shown with an `index` to disambiguate on a re-run). `/ban`, `/unban`, `/mute`, `/unmute`, and `/password` first write the change to the DB/state, then apply it **instantly, live**, in whichever room the target currently is, via the Node→browser bridge (`window.__applyModeration`) — no need to wait for the player to rejoin. `/statsbackup` snapshots the stats table to a timestamped file and attaches it to the reply, without clearing anything (`/statsclear` is the destructive variant that also wipes the table). `/analytics` takes a `period` (`today` / `week` / `month` / `custom`, the last one requiring `from`/`to` dates in `YYYY-MM-DD`), an optional `category` (`public` / `private` — omit to see both), and an optional `interval` controlling the chart's time bucketing (see below); it reads on demand and never writes to the daily-report table, so it's safe to run anytime, including mid-day for the still-open "today".
+
+#### Analytics charts
+
+Both the scheduled daily report and the on-demand `/analytics` command include a chart image alongside the numeric fields, rendered via [QuickChart](https://quickchart.io) (`src/core/utils/analyticsChart.js`) — no local chart rendering and no native canvas dependencies. The bot builds a Chart.js config, sends it to QuickChart as a URL, and downloads the resulting PNG as a Buffer rather than embedding a link, since Discord rejects `embed.image.url` values over 2048 characters (a QuickChart config URL for a real dataset easily exceeds that).
+
+The chart combines:
+
+- Stacked bars for **new** vs. **returning** joins per time bucket.
+- A line overlay for **peak online players** per bucket, on a secondary axis.
+
+Time bucketing (how wide each point on the x-axis is) is chosen automatically based on the report's date range — hourly buckets for a single day, daily for a week-ish range, weekly/monthly for longer custom ranges — but can be overridden:
+
+- In `/analytics`, via the optional `interval` argument: `1h` / `3h` / `6h` / `12h` / `1d` / `3d` / `1w` / `1m`.
+- The scheduled daily report always uses `1h` buckets, since it only ever covers a single day.
+
+If a report's date range has no analytics data at all (e.g. a room that wasn't running yet), the chart is simply omitted from the embed rather than showing an empty image.
+
+![Analytics chart example](docs/media/analytics-chart-demo.png)
 
 ### Localization
 
@@ -146,6 +164,7 @@ src/
       spawnRange.js             — parses "min..max" range syntax for training-mode spawn parameters
       reports.js                — replay file naming
       timeFormat.js             — single source of truth for the configured timeZone: day-key bucketing, date/time formatting
+      analyticsChart.js         — builds analytics chart images via QuickChart (Node-only, not part of the browser bundle)
     services/
       chat.js                   — command/alias resolution
       captains.js                — captain-pick logic
@@ -175,7 +194,7 @@ tools/
 
 SQLite via the built-in `node:sqlite` module (`db/volleyball.sqlite`, WAL mode). Core tables: `accounts`, `bans`, `mutes`, `nicknames`, `auths`, `stats`. `db/sqlite.js` is the only place with raw SQL; the browser side only ever sees promisified methods, and the Discord slash-command handlers call the same `db` instance directly on the Node side. The `accounts.discord` column stores the linked Discord user ID once a player links their account.
 
-Analytics tables (`analytics_players`, `analytics_sessions`, `analytics_matches`, `analytics_events`, `analytics_online_minute`) record everything under a `room_type` (the concrete running room instance, e.g. `public`/`private`, or `public-2` once multiple rooms per category exist) and a `room_category` (the group used for reporting, e.g. `public`/`private` — set once via `roomConstants.js:roomCategory`). `analytics_matches.is_full` is decided once, at match start, by the room itself (whether both teams met its `defaultTeamSize`/current team size at that moment) — the analytics layer never recomputes this from a config. Two derived tables exist: `analytics_daily` holds one finalized row per `(day_key, room_category)`, summed across every `room_type` in that category, produced by the scheduled daily report; `analytics_daily_reports_sent` gates that report so it's sent at most once per `(day, category)`. On-demand lookups (the `/analytics` Discord command) go through `analyticsGetRange`, which computes the same metrics over an arbitrary day range without touching either of those two tables — so ad-hoc queries never interfere with the scheduled report and can safely include the still-open current day.
+Analytics tables (`analytics_players`, `analytics_sessions`, `analytics_matches`, `analytics_events`, `analytics_online_minute`) record everything under a `room_type` (the concrete running room instance, e.g. `public`/`private`, or `public-2` once multiple rooms per category exist) and a `room_category` (the group used for reporting, e.g. `public`/`private` — set once via `roomConstants.js:roomCategory`). `analytics_matches.is_full` is decided once, at match start, by the room itself (whether both teams met its `defaultTeamSize`/current team size at that moment) — the analytics layer never recomputes this from a config. Two derived tables exist: `analytics_daily` holds one finalized row per `(day_key, room_category)`, summed across every `room_type` in that category, produced by the scheduled daily report; `analytics_daily_reports_sent` gates that report so it's sent at most once per `(day, category)`. On-demand lookups (the `/analytics` Discord command) go through `analyticsGetRange`, which computes the same metrics over an arbitrary day range without touching either of those two tables — so ad-hoc queries never interfere with the scheduled report and can safely include the still-open current day. Chart images (both for the daily report and for `/analytics`) additionally read bucketed time-series data via `analyticsGetSeries`, which is purely a read — it doesn't write to any table either.
 
 #### DB access boundary
 
@@ -186,6 +205,7 @@ Analytics tables (`analytics_players`, `analytics_sessions`, `analytics_matches`
 - Node.js **≥ 22.18** (uses the native `node:sqlite` module)
 - npm
 - A Discord bot application (see setup below)
+- Outbound network access to `quickchart.io` (used to render analytics chart images — see [Analytics charts](#analytics-charts) above; if unreachable, reports are still sent, just without the chart image)
 
 ### Installation
 
@@ -236,9 +256,10 @@ DISCORD_PRIVATE_ONLINE_MESSAGE_ID="filled in after running scripts/send-online-m
 3. Under **OAuth2 → URL Generator**, select scopes `bot` and `applications.commands`, with permissions at least `Manage Roles`, `Send Messages`, `Attach Files`, `Read Message History`. Use the generated link to invite the bot to your server.
 4. Create (or reuse) four Discord roles matching `VIP`/`PREADMIN`/`ADMIN`/`MASTER`. **The bot's own role must sit above all four in the server's role list**, or Discord won't let it grant/revoke them. Copy each role's ID into `.env`.
 5. Create (or reuse) channels for logs, moderation reports, replays, and the VIP password, and copy their IDs into `.env`.
-6. Create (or reuse) one channel per room (public/private) for the live online status message, and fill in `DISCORD_PUBLIC_ONLINE_CHANNEL_ID` / `DISCORD_PRIVATE_ONLINE_CHANNEL_ID`.
-7. Run `node scripts/send-online-messages.js` once — it logs in as the bot and posts one initializing message per room into the channels from step 6 (the bot can only edit its own messages, so these need to exist before the bot can start updating them). Copy the two printed message IDs into `DISCORD_PUBLIC_ONLINE_MESSAGE_ID` / `DISCORD_PRIVATE_ONLINE_MESSAGE_ID`.
-8. On startup, the bot registers its slash commands (`/link`, `/unlink`, and the role-gated moderation/lookup commands listed above) as guild commands for `DISCORD_GUILD_ID`.
+6. Create (or reuse) a channel for the daily analytics report (`DISCORD_ANALYTICS_CHANNEL_ID`) — this is also where the chart images described in [Analytics charts](#analytics-charts) get posted.
+7. Create (or reuse) one channel per room (public/private) for the live online status message, and fill in `DISCORD_PUBLIC_ONLINE_CHANNEL_ID` / `DISCORD_PRIVATE_ONLINE_CHANNEL_ID`.
+8. Run `node scripts/send-online-messages.js` once — it logs in as the bot and posts one initializing message per room into the channels from step 7 (the bot can only edit its own messages, so these need to exist before the bot can start updating them). Copy the two printed message IDs into `DISCORD_PUBLIC_ONLINE_MESSAGE_ID` / `DISCORD_PRIVATE_ONLINE_MESSAGE_ID`.
+9. On startup, the bot registers its slash commands (`/link`, `/unlink`, and the role-gated moderation/lookup commands listed above) as guild commands for `DISCORD_GUILD_ID`.
 
 ### Running
 
@@ -349,13 +370,31 @@ In-memory smoke tests (`tools/smoke-test.js`) cover the DB layer (accounts, bans
 - **Автоматическую синхронизацию ролей** — при выдаче, изменении, истечении роли (`VIP`/`PREADMIN`/`ADMIN`/`MASTER`), а также при каждом заходе игрока в комнату, его Discord-роль выдаётся или снимается автоматически, если Discord привязан и игрок состоит в настроенной гильдии.
 - **Живое сообщение об онлайне** — embed в отдельном Discord-канале редактируется раз в минуту и показывает название комнаты, текущее число игроков, список игроков онлайн и кнопку-ссылку **"Присоединиться"** на текущую ссылку комнаты.
 - Логи чата и событий, отчёты о банах/мутах и авто-отправка реплеев матчей идут в выделенные Discord-каналы.
-- **Ежедневный аналитический отчёт** за предыдущий день публикуется в специальном канале Discord в виде embed'а, отдельно по категориям `public` и `private` (по одному embed'у на категорию): пик/среднее онлайна, заходы, новые и вернувшиеся игроки (с процентом retention), среднее время на сервере и число матчей (всего и с полным составом, с процентом). Те же данные доступны по запросу через `/analytics` (см. ниже) — за текущий незакрытый день, за последнюю неделю/месяц или за произвольный диапазон дат.
+- **Ежедневный аналитический отчёт** за предыдущий день публикуется в специальном канале Discord в виде embed'а, отдельно по категориям `public` и `private` (по одному embed'у на категорию): пик/среднее онлайна, заходы, новые и вернувшиеся игроки (с процентом retention), среднее время на сервере и число матчей (всего и с полным составом, с процентом). Каждый embed также содержит вложенное **изображение графика** (см. [Графики аналитики](#графики-аналитики) ниже), отображающее уровень онлайна и заходы новых/вернувшихся игроков в течение дня. Те же данные, включая график, доступны по запросу через `/analytics` (см. ниже) — за текущий незакрытый день, за последнюю неделю/месяц или за произвольный диапазон дат.
 - **Slash-команды, зеркалирующие модерацию и просмотр статистики**, с доступом по той же иерархии ролей, что и в комнате, через привязанный Discord-аккаунт:
   - `MASTER`: `/setrole`, `/getrolelist`, `/password`, `/statsclear`, `/statsbackup`
   - `ADMIN`: `/ban`, `/unban`, `/mute`, `/unmute`, `/bans`, `/mutes`, `/analytics`
   - Любой привязанный аккаунт (`PLAYER`+): `/tops`, `/stats`, `/account`
 
-  Команды, нацеленные на конкретного игрока, принимают его public ID (43 символа) напрямую, без резолвинга по нику. Исключение — `/stats`: она доступна только на чтение и дополнительно поддерживает поиск игрока по нику (при совпадении у нескольких аккаунтов показывается список с `index`, чтобы уточнить повторным вызовом). `/ban`, `/unban`, `/mute`, `/unmute` и `/password` сначала пишут изменение в БД/состояние, а затем применяют его **мгновенно вживую** в той комнате, где сейчас находится цель, через мост Node→browser (`window.__applyModeration`) — без ожидания перезахода игрока. `/statsbackup` делает снимок таблицы статистики в файл с меткой времени и прикрепляет его к ответу, ничего не очищая (`/statsclear` — деструктивный вариант, который дополнительно очищает таблицу). `/analytics` принимает `period` (`today` / `week` / `month` / `custom`, последний требует `from`/`to` в формате `YYYY-MM-DD`) и опциональную `category` (`public` / `private` — без неё показываются обе); данные читаются по запросу и никогда не пишутся в таблицу ежедневных отчётов, поэтому команду безопасно вызывать в любой момент, включая середину текущего незакрытого дня.
+  Команды, нацеленные на конкретного игрока, принимают его public ID (43 символа) напрямую, без резолвинга по нику. Исключение — `/stats`: она доступна только на чтение и дополнительно поддерживает поиск игрока по нику (при совпадении у нескольких аккаунтов показывается список с `index`, чтобы уточнить повторным вызовом). `/ban`, `/unban`, `/mute`, `/unmute` и `/password` сначала пишут изменение в БД/состояние, а затем применяют его **мгновенно вживую** в той комнате, где сейчас находится цель, через мост Node→browser (`window.__applyModeration`) — без ожидания перезахода игрока. `/statsbackup` делает снимок таблицы статистики в файл с меткой времени и прикрепляет его к ответу, ничего не очищая (`/statsclear` — деструктивный вариант, который дополнительно очищает таблицу). `/analytics` принимает `period` (`today` / `week` / `month` / `custom`, последний требует `from`/`to` в формате `YYYY-MM-DD`), опциональную `category` (`public` / `private` — без неё показываются обе) и опциональный `interval`, задающий разбиение графика по времени (см. ниже); данные читаются по запросу и никогда не пишутся в таблицу ежедневных отчётов, поэтому команду безопасно вызывать в любой момент, включая середину текущего незакрытого дня.
+
+#### Графики аналитики
+
+И плановый ежедневный отчёт, и команда `/analytics` по запросу включают изображение графика рядом с числовыми полями, отрисованное через [QuickChart](https://quickchart.io) (`src/core/utils/analyticsChart.js`) — без локального рендеринга графиков и без нативных зависимостей от canvas. Бот собирает конфиг Chart.js, отправляет его в QuickChart в виде URL и скачивает получившийся PNG как Buffer, а не вставляет ссылку напрямую, поскольку Discord отклоняет значения `embed.image.url` длиннее 2048 символов (URL с конфигом QuickChart для реального набора данных легко превышает этот лимит).
+
+График совмещает:
+
+- Стековые столбцы для **новых** и **вернувшихся** заходов по каждому временному интервалу.
+- Линию поверх столбцов для **пикового числа игроков онлайн** по каждому интервалу, на отдельной оси.
+
+Разбиение по времени (насколько широк каждый интервал по оси X) выбирается автоматически исходя из диапазона дат отчёта — часовые интервалы для одного дня, дневные для диапазона примерно в неделю, недельные/месячные для более длинных произвольных диапазонов — но его можно переопределить:
+
+- В `/analytics` — через опциональный аргумент `interval`: `1h` / `3h` / `6h` / `12h` / `1d` / `3d` / `1w` / `1m`.
+- Плановый ежедневный отчёт всегда использует часовые (`1h`) интервалы, так как он всегда охватывает только один день.
+
+Если за диапазон дат отчёта данных аналитики вообще нет (например, комната ещё не была запущена), график просто не добавляется в embed, вместо показа пустого изображения.
+
+![Пример графика аналитики](docs/media/analytics-chart-demo.png)
 
 ### Локализация
 
@@ -426,6 +465,7 @@ src/
       spawnRange.js             — парсинг синтаксиса диапазонов "min..max" для параметров спавна в тренировочном режиме
       reports.js                — имена файлов реплеев
       timeFormat.js             — единственный источник настроенной таймзоны: разбивка по дням, форматирование дат/времени
+      analyticsChart.js         — строит изображения графиков аналитики через QuickChart (только Node, не входит в бандл браузера)
     services/
       chat.js                   — резолвинг команд/алиасов
       captains.js                — логика выбора капитанами
@@ -455,7 +495,7 @@ tools/
 
 SQLite через встроенный `node:sqlite` (`db/volleyball.sqlite`, WAL-режим). Основные таблицы: `accounts`, `bans`, `mutes`, `nicknames`, `auths`, `stats`. Слой `db/sqlite.js` — единственное место с SQL; вся браузерная сторона видит только промисифицированные методы, а обработчики Discord slash-команд обращаются к тому же экземпляру `db` напрямую на Node-стороне. Колонка `accounts.discord` хранит привязанный Discord ID пользователя после привязки аккаунта.
 
-Таблицы аналитики (`analytics_players`, `analytics_sessions`, `analytics_matches`, `analytics_events`, `analytics_online_minute`) записывают всё под `room_type` (конкретный запущенный инстанс комнаты, напр. `public`/`private`, а в будущем `public-2` при нескольких комнатах в категории) и `room_category` (группа для отчётности, напр. `public`/`private` — задаётся один раз в `roomConstants.js:roomCategory`). `analytics_matches.is_full` определяется один раз, в момент старта матча, самой комнатой (были ли обе команды укомплектованы по `defaultTeamSize`/текущему размеру команды на тот момент) — слой аналитики никогда не пересчитывает это из конфига задним числом. Есть две производные таблицы: `analytics_daily` хранит одну финальную строку на `(day_key, room_category)`, просуммированную по всем `room_type` этой категории, формируется плановым ежедневным отчётом; `analytics_daily_reports_sent` гарантирует, что этот отчёт уходит не более одного раза на `(день, категория)`. Запросы по требованию (Discord-команда `/analytics`) идут через `analyticsGetRange`, которая считает те же метрики по произвольному диапазону дней, не трогая эти две таблицы — поэтому запросы "на лету" никогда не мешают плановому отчёту и могут спокойно включать ещё не закрывшийся текущий день.
+Таблицы аналитики (`analytics_players`, `analytics_sessions`, `analytics_matches`, `analytics_events`, `analytics_online_minute`) записывают всё под `room_type` (конкретный запущенный инстанс комнаты, напр. `public`/`private`, а в будущем `public-2` при нескольких комнатах в категории) и `room_category` (группа для отчётности, напр. `public`/`private` — задаётся один раз в `roomConstants.js:roomCategory`). `analytics_matches.is_full` определяется один раз, в момент старта матча, самой комнатой (были ли обе команды укомплектованы по `defaultTeamSize`/текущему размеру команды на тот момент) — слой аналитики никогда не пересчитывает это из конфига задним числом. Есть две производные таблицы: `analytics_daily` хранит одну финальную строку на `(day_key, room_category)`, просуммированную по всем `room_type` этой категории, формируется плановым ежедневным отчётом; `analytics_daily_reports_sent` гарантирует, что этот отчёт уходит не более одного раза на `(день, категория)`. Запросы по требованию (Discord-команда `/analytics`) идут через `analyticsGetRange`, которая считает те же метрики по произвольному диапазону дней, не трогая эти две таблицы — поэтому запросы "на лету" никогда не мешают плановому отчёту и могут спокойно включать ещё не закрывшийся текущий день. Изображения графиков (как для планового отчёта, так и для `/analytics`) дополнительно читают разбитые по времени данные через `analyticsGetSeries`, которая тоже является чисто операцией чтения — она также не пишет ни в одну таблицу.
 
 #### Границы доступа к БД
 
@@ -466,6 +506,7 @@ SQLite через встроенный `node:sqlite` (`db/volleyball.sqlite`, WA
 - Node.js **≥ 22.18** (используется нативный `node:sqlite`)
 - npm
 - Discord bot-приложение (см. настройку ниже)
+- Исходящий доступ к `quickchart.io` (используется для отрисовки изображений графиков аналитики — см. [Графики аналитики](#графики-аналитики) выше; если сервис недоступен, отчёты всё равно отправляются, просто без изображения графика)
 
 ### Установка
 
@@ -516,9 +557,10 @@ DISCORD_PRIVATE_ONLINE_MESSAGE_ID="filled in after running scripts/send-online-m
 3. Во вкладке **OAuth2 → URL Generator** выберите scope `bot` и `applications.commands`, права как минимум: `Manage Roles`, `Send Messages`, `Attach Files`, `Read Message History`. По полученной ссылке пригласите бота на сервер.
 4. Создайте (или используйте существующие) 4 discord-роли, соответствующие `VIP`/`PREADMIN`/`ADMIN`/`MASTER`. **Роль бота в списке ролей сервера должна стоять выше всех четырёх**, иначе Discord не даст боту их выдавать/снимать. Скопируйте ID каждой роли в `.env`.
 5. Создайте (или используйте существующие) каналы для логов, репортов модерации, реплеев и VIP-пароля, скопируйте их ID в `.env`.
-6. Создайте (или используйте существующий) по одному каналу для public и private комнаты под живое сообщение онлайна, заполните `DISCORD_PUBLIC_ONLINE_CHANNEL_ID` / `DISCORD_PRIVATE_ONLINE_CHANNEL_ID`.
-7. Запустите один раз `node scripts/send-online-messages.js` — он залогинится под ботом и отправит по одному инициализирующему сообщению на каждую комнату в каналы из шага 6 (бот может редактировать только свои сообщения, поэтому они должны существовать до того, как бот начнёт их обновлять). Скопируйте два выведенных ID сообщений в `DISCORD_PUBLIC_ONLINE_MESSAGE_ID` / `DISCORD_PRIVATE_ONLINE_MESSAGE_ID`.
-8. При запуске бот регистрирует свои slash-команды (`/link`, `/unlink` и перечисленные выше команды модерации/просмотра) как гильдейские команды для `DISCORD_GUILD_ID`.
+6. Создайте (или используйте существующий) канал для ежедневного аналитического отчёта (`DISCORD_ANALYTICS_CHANNEL_ID`) — туда же публикуются изображения графиков, описанные в разделе [Графики аналитики](#графики-аналитики).
+7. Создайте (или используйте существующий) по одному каналу для public и private комнаты под живое сообщение онлайна, заполните `DISCORD_PUBLIC_ONLINE_CHANNEL_ID` / `DISCORD_PRIVATE_ONLINE_CHANNEL_ID`.
+8. Запустите один раз `node scripts/send-online-messages.js` — он залогинится под ботом и отправит по одному инициализирующему сообщению на каждую комнату в каналы из шага 7 (бот может редактировать только свои сообщения, поэтому они должны существовать до того, как бот начнёт их обновлять). Скопируйте два выведенных ID сообщений в `DISCORD_PUBLIC_ONLINE_MESSAGE_ID` / `DISCORD_PRIVATE_ONLINE_MESSAGE_ID`.
+9. При запуске бот регистрирует свои slash-команды (`/link`, `/unlink` и перечисленные выше команды модерации/просмотра) как гильдейские команды для `DISCORD_GUILD_ID`.
 
 ### Запуск
 
