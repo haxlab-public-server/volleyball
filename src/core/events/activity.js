@@ -189,7 +189,7 @@ module.exports = function createActivityEvents({
                 const mentionRegex = /@([^\s@]+)/gi;
                 let match;
                 while ((match = mentionRegex.exec(message)) !== null) {
-                    const name = match[1].toLowerCase();
+                    const name = match[1].replace(/_/g, ' ').toLowerCase();
                     const targets = allPlayers.filter(p => p.name.toLowerCase() === name);
 
                     for (const target of targets) {
