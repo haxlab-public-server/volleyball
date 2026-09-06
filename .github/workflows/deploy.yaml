@@ -32,7 +32,9 @@ jobs:
             else
               echo "Dependencies unchanged — skipping npm ci"
             fi
+            pm2 startup || true
             pm2 restart volleyball || pm2 start main.js --name "volleyball"
+            pm2 save
           else
             echo "Only docs/readme changed — skipping restart"
           fi
