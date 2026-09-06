@@ -6,7 +6,7 @@
 
 Bot for a [HaxBall](https://www.haxball.com) room implementing a full volleyball game mode: touch counting, blocks, power/float serves, aces, automatic team forming, and an admin role system.
 
-The bot runs two rooms at once — **public** and **private** — via two independent headless browser instances, plus a single Discord bot process shared by both rooms. Moderation and stats viewing can be handled either through in-room chat commands or through Discord slash commands — both work off the same database and the same role hierarchy.
+The bot can run any number of rooms at once — grouped into categories (e.g. **public**/**private**, or any custom set you define) — each in its own independent headless browser instance, plus a single Discord bot process shared by every room. Moderation and stats viewing can be handled either through in-room chat commands or through Discord slash commands — both work off the same database and the same role hierarchy.
 
 ### Game features
 
@@ -34,7 +34,7 @@ The bot runs two rooms at once — **public** and **private** — via two indepe
 
 - **Match point** with auto-extension: if the score ties at the expected match point, the game continues until there's a two-point lead.
 
-- **Training mode** (private room mode only, `!training` / `!tr`) — a goal-less map with a configurable auto ball spawner (`!ball_spawner` / `!bs`: position, speed, interval, or ready-made serve presets `power_red`/`power_blue`/`float_red`/`float_blue`, matching the two serve types above) for practicing serves and receives.
+- **Training mode** (private-mode rooms only, `!training` / `!tr`) — a goal-less map with a configurable auto ball spawner (`!ball_spawner` / `!bs`: position, speed, interval, or ready-made serve presets `power_red`/`power_blue`/`float_red`/`float_blue`, matching the two serve types above) for practicing serves and receives.
 
   ![Training mode demo](docs/media/training-demo.gif)
 
@@ -67,15 +67,15 @@ The bot connects to Discord as a real bot application (not webhooks), which prov
 
 - **Account linking** (`/link` in Discord + `!discord <code>` in the room) — ties a player's HaxBall public ID to their Discord account. `!discordunlink` / `/unlink` undo it.
 - **Automatic role sync** — when a player's in-room role (`VIP`/`PREADMIN`/`ADMIN`/`MASTER`) is granted, changed, expires, or the player rejoins the room, their Discord role is granted or revoked to match, as long as their Discord is linked and they're a member of the configured guild.
-- **Live online status message** — an embed in a dedicated Discord channel is edited once a minute and shows the room name, current player count, the list of players online, and a **"Присоединиться" (Join)** link button pointing at the current room link.
+- **Live online status message** — a single message in one dedicated Discord channel (`DISCORD_ONLINE_CHANNEL_ID`), containing one embed per configured room, edited once a minute. Each embed shows the room name, current player count, the list of players online, and a **"Присоединиться" (Join)** link button pointing at that room's current link. The bot self-manages this message end to end — it creates it on first startup (storing the message ID in the DB) and reuses/recreates it automatically on later restarts or if the message gets deleted; there's no separate script or manual setup step involved.
 - Chat/event logs, ban/mute reports, and auto-uploaded match replays go to dedicated Discord channels.
-- A **daily analytics report** for the previous day is posted to a dedicated Discord channel as an embed, separately for the `public` and `private` room categories (one embed per category), covering online peak/average, joins, new vs. returning players (with a retention %), average time spent on the server, and match counts (total and how many had a full lineup, with a %). Each embed also includes an attached **chart image** (see [Analytics charts](#analytics-charts) below) plotting online levels and new/returning joins over the day. The same numbers, including the chart, are available on demand via `/analytics` (see below) for the current in-progress day, the last week/month, or a custom date range.
+- A **daily analytics report** for the previous day is posted to a dedicated Discord channel as an embed, separately for every configured room category (one embed per category), covering online peak/average, joins, new vs. returning players (with a retention %), average time spent on the server, and match counts (total and how many had a full lineup, with a %). Each embed also includes an attached **chart image** (see [Analytics charts](#analytics-charts) below) plotting online levels and new/returning joins over the day. The same numbers, including the chart, are available on demand via `/analytics` (see below) for the current in-progress day, the last week/month, or a custom date range.
 - **Slash commands mirroring moderation and stats lookup**, with access gated by the same in-room role hierarchy, checked against the caller's linked account:
   - `MASTER`: `/setrole`, `/getrolelist`, `/password`, `/statsclear`, `/statsbackup`
   - `ADMIN`: `/ban`, `/unban`, `/mute`, `/unmute`, `/bans`, `/mutes`, `/analytics`
   - Any linked account (`PLAYER`+): `/tops`, `/stats`, `/account`
 
-  Commands targeting a specific player take their public ID (43 characters) directly, with no nickname resolution. The exception is `/stats`: it's read-only and additionally supports looking a player up by nickname (if several accounts share that nickname, a list is shown with an `index` to disambiguate on a re-run). `/ban`, `/unban`, `/mute`, `/unmute`, and `/password` first write the change to the DB/state, then apply it **instantly, live**, in whichever room the target currently is, via the Node→browser bridge (`window.__applyModeration`) — no need to wait for the player to rejoin. `/statsbackup` snapshots the stats table to a timestamped file and attaches it to the reply, without clearing anything (`/statsclear` is the destructive variant that also wipes the table). `/analytics` takes a `period` (`today` / `week` / `month` / `custom`, the last one requiring `from`/`to` dates in `YYYY-MM-DD`), an optional `category` (`public` / `private` — omit to see both), and an optional `interval` controlling the chart's time bucketing (see below); it reads on demand and never writes to the daily-report table, so it's safe to run anytime, including mid-day for the still-open "today".
+  Commands targeting a specific player take their public ID (43 characters) directly, with no nickname resolution. The exception is `/stats`: it's read-only and additionally supports looking a player up by nickname (if several accounts share that nickname, a list is shown with an `index` to disambiguate on a re-run). `/ban`, `/unban`, `/mute`, `/unmute`, and `/password` first write the change to the DB/state, then apply it **instantly, live**, in whichever room the target currently is, via the Node→browser bridge (`window.__applyModeration`) — no need to wait for the player to rejoin. `/password` takes a `room` option built dynamically from every currently-configured room instance (see [Room configuration](#room-configuration) below), rather than a hardcoded public/private choice. `/statsbackup` snapshots the stats table to a timestamped file and attaches it to the reply, without clearing anything (`/statsclear` is the destructive variant that also wipes the table). `/analytics` takes a `period` (`today` / `week` / `month` / `custom`, the last one requiring `from`/`to` dates in `YYYY-MM-DD`), an optional `category` (built from the currently configured room categories — omit to see all of them), and an optional `interval` controlling the chart's time bucketing (see below); it reads on demand and never writes to the daily-report table, so it's safe to run anytime, including mid-day for the still-open "today".
 
 #### Analytics charts
 
@@ -107,6 +107,19 @@ LOCALE="en"
 
 Chat formats, announcements, command responses, Discord embeds, slash-command descriptions, and time-unit labels are stored in `src/core/locale/ru.js` and `src/core/locale/en.js`. To add a language, copy one dictionary, translate its string values while keeping the key structure unchanged, register it in `src/core/locale/index.js`, and set `LOCALE` to its code. Missing keys fall back to Russian.
 
+### Room configuration
+
+Rooms are no longer hardcoded as a public/private pair. Instead, every server keeps its own set of room configs as local JSON files:
+
+- `config/rooms.example/*.json.example` — committed reference templates showing the available fields (`public.json.example`, `private.json.example`).
+- `config/rooms/*.json` — the files actually read at startup, **gitignored on purpose** (each server's room setup is local config, not something that should be overwritten by `git pull`/deploys). The folder itself is tracked via `config/rooms/.gitkeep`, but starts out empty.
+
+`src/core/roomConfigs.js` scans every `*.json` file in `config/rooms/` at startup (sorted by filename, no registration needed elsewhere), validates it, and expands its `count` field into that many concrete room instances — with `{num}` substituted into `roomName` if `"numbering": true` is set. Each file can freely set its own `roomCategory`, `mode` (`public`/`private`), `defaultTeamPickMode`, team-size/queue/VIP settings, etc., independently of every other file. HaxBall headless tokens are assigned from a flat pool, `HAXBALL_TOKENS` in `.env`, in the order instances are produced (config files sorted by filename, then room #1, #2, ... within each file) — startup fails with a clear error if there aren't enough tokens for the configured rooms.
+
+See `config/rooms.example/README.md` for the full setup walkthrough (copying templates, adding new files, the `{num}` placeholder rule, etc).
+
+Discord-side pieces that used to assume a fixed public/private pair — `discordCommands.js`'s `/password` room choices and `/analytics` category choices, `discordBot.js`'s online-status embeds — are now all built dynamically from whatever `config/rooms/*.json` currently defines.
+
 ### Architecture
 
 The project runs across two processes:
@@ -116,7 +129,7 @@ Node.js (main.js → src/index.js)
    │
    │  launches headless Chrome via Puppeteer,
    │  opens haxball.com/headless,
-   │  logs in a single Discord bot client shared by both rooms
+   │  logs in a single Discord bot client shared by every room
    │
    ▼
 Browser context (src/browser/entry.js)
@@ -128,11 +141,11 @@ Browser context (src/browser/entry.js)
 HaxBall Room API (HBInit)
 ```
 
-- The **Node side** is responsible for the browser lifecycle, bundle building (esbuild), the single access point to SQLite — `window.__dbCall`, exposed to the browser via `page.exposeFunction` — and the single access point to Discord — `window.__discordCall`, exposed the same way. The Discord bot client itself lives here too, including slash-command registration and handling.
+- The **Node side** is responsible for the browser lifecycle, bundle building (esbuild), room-config loading/validation (`src/core/roomConfigs.js`), the single access point to SQLite — `window.__dbCall`, exposed to the browser via `page.exposeFunction` — and the single access point to Discord — `window.__discordCall`, exposed the same way. The Discord bot client itself lives here too, including slash-command registration and handling.
 - The **browser side** (all code under `src/core/*`) is plain JS with no Node APIs, bundled by esbuild and run inside the HaxBall page. DB calls go asynchronously through the bridge `window.__db.*` → `__dbCall` → Node → SQLite. Discord calls go the same way through `window.__discord.*` → `__discordCall` → Node → the `discord.js` client.
 - The browser bundle creates its own locale instance from the locale code passed by Node. This keeps room announcements and chat formatting independent from the Node process while using the same dictionaries.
 - The Discord bot itself (login, slash commands, role management, message editing) only exists on the Node side — it never gets bundled into the browser context, since a real Gateway connection needs Node APIs that aren't available in the page's sandbox.
-- A **reverse bridge** runs the other way: `src/index.js` exposes `applyModeration` (broadcast to both rooms) and `applyToRoom` (targeted at one room) to the Discord slash-command layer, which call `window.__applyModeration(action)` inside the relevant page(s) via `page.evaluate` — no `page.exposeFunction` registration is needed for this direction, since `page.evaluate` can always reach into the page's global scope from the Node side.
+- A **reverse bridge** runs the other way: `src/index.js` exposes `applyModeration` (broadcast to every room) and `applyToRoom` (targeted at one room, by its `roomKey`) to the Discord slash-command layer, which call `window.__applyModeration(action)` inside the relevant page(s) via `page.evaluate` — no `page.exposeFunction` registration is needed for this direction, since `page.evaluate` can always reach into the page's global scope from the Node side.
 
 #### Directory layout
 
@@ -144,7 +157,8 @@ src/
     entry.js               — entry point in the browser context, wires up all the modules, exposes window.__applyModeration
   core/
     config.js               — secrets and tokens from process.env
-    roomConstants.js         — public/private room configs
+    roomConstants.js         — shared HBInit game-config builder (buildGameConfig), independent of room count/category
+    roomConfigs.js           — scans/validates/expands config/rooms/*.json into concrete room instances, assigns tokens/proxies
     maps.js                  — stadium maps (with goals / without goals)
     locale/
       index.js               — locale factory, interpolation, and fallback handling
@@ -180,11 +194,14 @@ src/
       movement.js, activity.js, game.js, misc.js — room event handlers
 db/
   sqlite.js               — wrapper over node:sqlite (DatabaseSync), schema and queries
+config/
+  rooms/                   — gitignored, per-server room configs actually loaded at startup (see Room configuration above)
+  rooms.example/            — committed reference templates + setup README
 scripts/
   add-master.js             — one-off MASTER role grant directly in the DB
-  send-online-messages.js    — one-off: posts the two initializing messages that the bot later edits into the live online embeds
 tools/
   smoke-test.js             — in-memory smoke tests for the DB layer and role logic
+  check-dependencies.js       — validates factory-function DI wiring between entry.js and src/core/*
 .github/workflows/
   ci.yaml                    — runs smoke tests on push/PR
   deploy.yaml                 — deploys to a self-hosted runner via pm2
@@ -192,9 +209,9 @@ tools/
 
 #### Storage
 
-SQLite via the built-in `node:sqlite` module (`db/volleyball.sqlite`, WAL mode). Core tables: `accounts`, `bans`, `mutes`, `nicknames`, `auths`, `stats`. `db/sqlite.js` is the only place with raw SQL; the browser side only ever sees promisified methods, and the Discord slash-command handlers call the same `db` instance directly on the Node side. The `accounts.discord` column stores the linked Discord user ID once a player links their account.
+SQLite via the built-in `node:sqlite` module (`db/volleyball.sqlite`, WAL mode). Core tables: `accounts`, `bans`, `mutes`, `nicknames`, `auths`, `stats`, plus `online_message` (stores the single self-managed online-status message ID, keyed `'online'`). `db/sqlite.js` is the only place with raw SQL; the browser side only ever sees promisified methods, and the Discord slash-command handlers call the same `db` instance directly on the Node side. The `accounts.discord` column stores the linked Discord user ID once a player links their account.
 
-Analytics tables (`analytics_players`, `analytics_sessions`, `analytics_matches`, `analytics_events`, `analytics_online_minute`) record everything under a `room_type` (the concrete running room instance, e.g. `public`/`private`, or `public-2` once multiple rooms per category exist) and a `room_category` (the group used for reporting, e.g. `public`/`private` — set once via `roomConstants.js:roomCategory`). `analytics_matches.is_full` is decided once, at match start, by the room itself (whether both teams met its `defaultTeamSize`/current team size at that moment) — the analytics layer never recomputes this from a config. Two derived tables exist: `analytics_daily` holds one finalized row per `(day_key, room_category)`, summed across every `room_type` in that category, produced by the scheduled daily report; `analytics_daily_reports_sent` gates that report so it's sent at most once per `(day, category)`. On-demand lookups (the `/analytics` Discord command) go through `analyticsGetRange`, which computes the same metrics over an arbitrary day range without touching either of those two tables — so ad-hoc queries never interfere with the scheduled report and can safely include the still-open current day. Chart images (both for the daily report and for `/analytics`) additionally read bucketed time-series data via `analyticsGetSeries`, which is purely a read — it doesn't write to any table either.
+Analytics tables (`analytics_players`, `analytics_sessions`, `analytics_matches`, `analytics_events`, `analytics_online_minute`) record everything under a `room_type` (the concrete running room instance's `roomKey`, e.g. `public-1`, `private-1`, or any custom name from a config file) and a `room_category` (the group used for reporting — whatever `roomCategory` a config file sets, e.g. `public`/`private` or any custom category). `analytics_matches.is_full` is decided once, at match start, by the room itself (whether both teams met its `defaultTeamSize`/current team size at that moment) — the analytics layer never recomputes this from a config. Two derived tables exist: `analytics_daily` holds one finalized row per `(day_key, room_category)`, summed across every `room_type` in that category, produced by the scheduled daily report; `analytics_daily_reports_sent` gates that report so it's sent at most once per `(day, category)`. On-demand lookups (the `/analytics` Discord command) go through `analyticsGetRange`, which computes the same metrics over an arbitrary day range without touching either of those two tables — so ad-hoc queries never interfere with the scheduled report and can safely include the still-open current day. Chart images (both for the daily report and for `/analytics`) additionally read bucketed time-series data via `analyticsGetSeries`, which is purely a read — it doesn't write to any table either.
 
 #### DB access boundary
 
@@ -214,15 +231,21 @@ git clone <repo-url>
 cd volleyball
 npm install
 cp .env.example .env
+mkdir -p config/rooms
+cp config/rooms.example/public.json.example config/rooms/public.json
+cp config/rooms.example/private.json.example config/rooms/private.json
 ```
+
+Edit `config/rooms/public.json` / `config/rooms/private.json` (or add your own files) as needed — see [Room configuration](#room-configuration) above and `config/rooms.example/README.md` for details.
 
 Fill in `.env`:
 
 ```ini
-PUBLIC_TOKEN="token here"
-PRIVATE_TOKEN="token here"
-PUBLIC_PASSWORD="password or empty here"
-PRIVATE_PASSWORD="password or empty here"
+HAXBALL_TOKENS="token1,token2,..."
+
+HAXBALL_PROXIES="proxy1,proxy2,..."
+
+ROOM_CONFIGS_DIR="path"
 
 LOCALE="locale code here (ru | en | your_localization_code)"
 TIME_ZONE="IANA timezone, e.g. Europe/Moscow"
@@ -240,14 +263,12 @@ DISCORD_REPORT_CHANNEL_ID="discord channel id"
 DISCORD_REPLAY_CHANNEL_ID="discord channel id"
 DISCORD_VIP_CHANNEL_ID="discord channel id"
 DISCORD_ANALYTICS_CHANNEL_ID="discord channel id"
-
-DISCORD_PUBLIC_ONLINE_CHANNEL_ID="discord channel id"
-DISCORD_PUBLIC_ONLINE_MESSAGE_ID="filled in after running scripts/send-online-messages.js"
-DISCORD_PRIVATE_ONLINE_CHANNEL_ID="discord channel id"
-DISCORD_PRIVATE_ONLINE_MESSAGE_ID="filled in after running scripts/send-online-messages.js"
+DISCORD_ONLINE_CHANNEL_ID="discord channel id"
 ```
 
-`PUBLIC_TOKEN`/`PRIVATE_TOKEN` are the HaxBall headless tokens for the respective room.
+`HAXBALL_TOKENS` is a comma-separated flat pool of HaxBall headless tokens — you need at least as many tokens as the total room count across every file in `config/rooms/`. 
+
+`HAXBALL_PROXIES` is optional, for bypassing HaxBall's 2-rooms-per-IP limit (see the comments in `.env.example` for the supported formats). `ROOM_CONFIGS_DIR` can be left empty to use the default `config/rooms/` next to the project root.
 
 #### Discord bot setup
 
@@ -257,9 +278,8 @@ DISCORD_PRIVATE_ONLINE_MESSAGE_ID="filled in after running scripts/send-online-m
 4. Create (or reuse) four Discord roles matching `VIP`/`PREADMIN`/`ADMIN`/`MASTER`. **The bot's own role must sit above all four in the server's role list**, or Discord won't let it grant/revoke them. Copy each role's ID into `.env`.
 5. Create (or reuse) channels for logs, moderation reports, replays, and the VIP password, and copy their IDs into `.env`.
 6. Create (or reuse) a channel for the daily analytics report (`DISCORD_ANALYTICS_CHANNEL_ID`) — this is also where the chart images described in [Analytics charts](#analytics-charts) get posted.
-7. Create (or reuse) one channel per room (public/private) for the live online status message, and fill in `DISCORD_PUBLIC_ONLINE_CHANNEL_ID` / `DISCORD_PRIVATE_ONLINE_CHANNEL_ID`.
-8. Run `node scripts/send-online-messages.js` once — it logs in as the bot and posts one initializing message per room into the channels from step 7 (the bot can only edit its own messages, so these need to exist before the bot can start updating them). Copy the two printed message IDs into `DISCORD_PUBLIC_ONLINE_MESSAGE_ID` / `DISCORD_PRIVATE_ONLINE_MESSAGE_ID`.
-9. On startup, the bot registers its slash commands (`/link`, `/unlink`, and the role-gated moderation/lookup commands listed above) as guild commands for `DISCORD_GUILD_ID`.
+7. Create (or reuse) a single channel for the live online status message and fill in `DISCORD_ONLINE_CHANNEL_ID`. No further setup is needed — the bot creates and manages the message there itself on first startup (one embed per configured room, all in a single message it edits every minute).
+8. On startup, the bot registers its slash commands (`/link`, `/unlink`, and the role-gated moderation/lookup commands listed above) as guild commands for `DISCORD_GUILD_ID`.
 
 ### Running
 
@@ -267,7 +287,7 @@ DISCORD_PRIVATE_ONLINE_MESSAGE_ID="filled in after running scripts/send-online-m
 npm start
 ```
 
-Runs `main.js`, which logs in the Discord bot, then launches **both** rooms (public + private) in parallel. Room links and the VIP password will appear in the console log. Once a room is up, its Discord online-status embed will start updating (once a minute) with the current player count, the player list, and a join button.
+Runs `main.js`, which logs in the Discord bot, then launches **every configured room** (from `config/rooms/*.json`) in sequence. Room links and the VIP password will appear in the console log. Once a room is up, its entry in the Discord online-status message will start updating (once a minute) with the current player count, the player list, and a join button.
 
 #### Granting the MASTER role
 
@@ -294,11 +314,11 @@ Linking an account is also what unlocks the player-tier Discord slash commands (
 npm run test:smoke
 ```
 
-In-memory smoke tests (`tools/smoke-test.js`) cover the DB layer (accounts, bans, stats, nicknames, mutes) and part of the business logic (`MuteList`, `getRole`/`setRole`). They run in CI on every push and PR (`.github/workflows/ci.yaml`).
+In-memory smoke tests (`tools/smoke-test.js`) cover the DB layer (accounts, bans, stats, nicknames, mutes, analytics) and part of the business logic (`MuteList`, `getRole`/`setRole`, captains, training, room utils, and more). They run in CI on every push and PR (`.github/workflows/ci.yaml`). A separate `npm run test:dependencies` check (`tools/check-dependencies.js`) validates that every factory-function's dependency object in `entry.js` matches its declared parameters exactly (no missing/extra/duplicate keys), catching DI wiring mistakes before they cause a runtime error.
 
 ### Deployment
 
-`.github/workflows/deploy.yaml`, on push to `main`, does `git reset --hard`, `npm ci`, and restarts the process via `pm2` on a self-hosted runner.
+`.github/workflows/deploy.yaml`, on push to `main`, does `git reset --hard`, then `npm ci` (only when `package.json`/`package-lock.json` changed or `node_modules` is missing), and restarts the process via `pm2` on a self-hosted runner — skipping the restart entirely for doc-only commits (README/LICENSE/`.gitignore`/`docs/`/`.github/`).
 
 ---
 
@@ -307,7 +327,7 @@ In-memory smoke tests (`tools/smoke-test.js`) cover the DB layer (accounts, bans
 
 Бот для комнаты [HaxBall](https://www.haxball.com), реализующий полноценный режим волейбола: подсчёт касаний, блоки, силовые и планирующие подачи, эйсы, автоматическое формирование команд и систему ролей администрации.
 
-Бот управляет двумя комнатами одновременно — **публичной** и **приватной** — через два независимых экземпляра headless-браузера, а также одним общим процессом Discord-бота на обе комнаты. Модерацию и просмотр статистики можно вести как через команды в чате комнаты, так и через slash-команды Discord — оба канала работают с одной и той же базой и одной иерархией ролей.
+Бот может одновременно управлять любым количеством комнат — сгруппированных по категориям (например, **public**/**private**, либо любой другой набор на ваше усмотрение) — каждая в своём независимом экземпляре headless-браузера, а также одним общим процессом Discord-бота на все комнаты сразу. Модерацию и просмотр статистики можно вести как через команды в чате комнаты, так и через slash-команды Discord — оба канала работают с одной и той же базой и одной иерархией ролей.
 
 ### Особенности режима
 
@@ -335,7 +355,7 @@ In-memory smoke tests (`tools/smoke-test.js`) cover the DB layer (accounts, bans
 
 - **Матч-поинт** с автопродлением: если счёт сравнивается на предполагаемом матч-поинте, игра продолжается до перевеса.
 
-- **Тренировочный режим** (только в приватном моде комнаты, `!training` / `!tr`) — карта без ворот и настраиваемый автоспавнер мяча (`!ball_spawner` / `!bs`: позиция, скорость, интервал, либо готовые пресеты подачи `power_red`/`power_blue`/`float_red`/`float_blue`, соответствующие двум видам подачи выше) для отработки подач и приёма.
+- **Тренировочный режим** (только для комнат в приватном моде, `!training` / `!tr`) — карта без ворот и настраиваемый автоспавнер мяча (`!ball_spawner` / `!bs`: позиция, скорость, интервал, либо готовые пресеты подачи `power_red`/`power_blue`/`float_red`/`float_blue`, соответствующие двум видам подачи выше) для отработки подач и приёма.
 
   ![Тренировочный режим — демо](docs/media/training-demo.gif)
 
@@ -368,15 +388,15 @@ In-memory smoke tests (`tools/smoke-test.js`) cover the DB layer (accounts, bans
 
 - **Привязку аккаунта** (`/link` в Discord + `!discord <код>` в комнате) — связывает публичный ID игрока в HaxBall с его Discord-аккаунтом. `!discordunlink` / `/unlink` отвязывают её обратно.
 - **Автоматическую синхронизацию ролей** — при выдаче, изменении, истечении роли (`VIP`/`PREADMIN`/`ADMIN`/`MASTER`), а также при каждом заходе игрока в комнату, его Discord-роль выдаётся или снимается автоматически, если Discord привязан и игрок состоит в настроенной гильдии.
-- **Живое сообщение об онлайне** — embed в отдельном Discord-канале редактируется раз в минуту и показывает название комнаты, текущее число игроков, список игроков онлайн и кнопку-ссылку **"Присоединиться"** на текущую ссылку комнаты.
+- **Живое сообщение об онлайне** — единственное сообщение в одном выделенном Discord-канале (`DISCORD_ONLINE_CHANNEL_ID`), содержащее по одному embed'у на каждую настроенную комнату, редактируется раз в минуту. Каждый embed показывает название комнаты, текущее число игроков, список игроков онлайн и кнопку-ссылку **"Присоединиться"** на актуальную ссылку этой комнаты. Бот полностью самостоятельно управляет этим сообщением: создаёт его при первом запуске (сохраняя ID сообщения в БД) и переиспользует/пересоздаёт его при последующих перезапусках или если сообщение было удалено — никакого отдельного скрипта или ручной настройки не требуется.
 - Логи чата и событий, отчёты о банах/мутах и авто-отправка реплеев матчей идут в выделенные Discord-каналы.
-- **Ежедневный аналитический отчёт** за предыдущий день публикуется в специальном канале Discord в виде embed'а, отдельно по категориям `public` и `private` (по одному embed'у на категорию): пик/среднее онлайна, заходы, новые и вернувшиеся игроки (с процентом retention), среднее время на сервере и число матчей (всего и с полным составом, с процентом). Каждый embed также содержит вложенное **изображение графика** (см. [Графики аналитики](#графики-аналитики) ниже), отображающее уровень онлайна и заходы новых/вернувшихся игроков в течение дня. Те же данные, включая график, доступны по запросу через `/analytics` (см. ниже) — за текущий незакрытый день, за последнюю неделю/месяц или за произвольный диапазон дат.
+- **Ежедневный аналитический отчёт** за предыдущий день публикуется в специальном канале Discord в виде embed'а, отдельно по каждой настроенной категории комнат (по одному embed'у на категорию): пик/среднее онлайна, заходы, новые и вернувшиеся игроки (с процентом retention), среднее время на сервере и число матчей (всего и с полным составом, с процентом). Каждый embed также содержит вложенное **изображение графика** (см. [Графики аналитики](#графики-аналитики) ниже), отображающее уровень онлайна и заходы новых/вернувшихся игроков в течение дня. Те же данные, включая график, доступны по запросу через `/analytics` (см. ниже) — за текущий незакрытый день, за последнюю неделю/месяц или за произвольный диапазон дат.
 - **Slash-команды, зеркалирующие модерацию и просмотр статистики**, с доступом по той же иерархии ролей, что и в комнате, через привязанный Discord-аккаунт:
   - `MASTER`: `/setrole`, `/getrolelist`, `/password`, `/statsclear`, `/statsbackup`
   - `ADMIN`: `/ban`, `/unban`, `/mute`, `/unmute`, `/bans`, `/mutes`, `/analytics`
   - Любой привязанный аккаунт (`PLAYER`+): `/tops`, `/stats`, `/account`
 
-  Команды, нацеленные на конкретного игрока, принимают его public ID (43 символа) напрямую, без резолвинга по нику. Исключение — `/stats`: она доступна только на чтение и дополнительно поддерживает поиск игрока по нику (при совпадении у нескольких аккаунтов показывается список с `index`, чтобы уточнить повторным вызовом). `/ban`, `/unban`, `/mute`, `/unmute` и `/password` сначала пишут изменение в БД/состояние, а затем применяют его **мгновенно вживую** в той комнате, где сейчас находится цель, через мост Node→browser (`window.__applyModeration`) — без ожидания перезахода игрока. `/statsbackup` делает снимок таблицы статистики в файл с меткой времени и прикрепляет его к ответу, ничего не очищая (`/statsclear` — деструктивный вариант, который дополнительно очищает таблицу). `/analytics` принимает `period` (`today` / `week` / `month` / `custom`, последний требует `from`/`to` в формате `YYYY-MM-DD`), опциональную `category` (`public` / `private` — без неё показываются обе) и опциональный `interval`, задающий разбиение графика по времени (см. ниже); данные читаются по запросу и никогда не пишутся в таблицу ежедневных отчётов, поэтому команду безопасно вызывать в любой момент, включая середину текущего незакрытого дня.
+  Команды, нацеленные на конкретного игрока, принимают его public ID (43 символа) напрямую, без резолвинга по нику. Исключение — `/stats`: она доступна только на чтение и дополнительно поддерживает поиск игрока по нику (при совпадении у нескольких аккаунтов показывается список с `index`, чтобы уточнить повторным вызовом). `/ban`, `/unban`, `/mute`, `/unmute` и `/password` сначала пишут изменение в БД/состояние, а затем применяют его **мгновенно вживую** в той комнате, где сейчас находится цель, через мост Node→browser (`window.__applyModeration`) — без ожидания перезахода игрока. `/password` принимает опцию `room`, список вариантов которой строится динамически из всех текущих настроенных комнат (см. [Конфигурация комнат](#конфигурация-комнат) ниже), а не из захардкоженного выбора public/private. `/statsbackup` делает снимок таблицы статистики в файл с меткой времени и прикрепляет его к ответу, ничего не очищая (`/statsclear` — деструктивный вариант, который дополнительно очищает таблицу). `/analytics` принимает `period` (`today` / `week` / `month` / `custom`, последний требует `from`/`to` в формате `YYYY-MM-DD`), опциональную `category` (список строится из текущих настроенных категорий комнат — без неё показываются все) и опциональный `interval`, задающий разбиение графика по времени (см. ниже); данные читаются по запросу и никогда не пишутся в таблицу ежедневных отчётов, поэтому команду безопасно вызывать в любой момент, включая середину текущего незакрытого дня.
 
 #### Графики аналитики
 
@@ -408,6 +428,19 @@ LOCALE="ru"
 
 Форматы чата, объявления, ответы команд, Discord embed'ы, описания slash-команд и единицы времени находятся в `src/core/locale/ru.js` и `src/core/locale/en.js`. Чтобы добавить язык, скопируйте один словарь, переведите его строковые значения, сохранив структуру ключей, зарегистрируйте файл в `src/core/locale/index.js` и укажите его код в `LOCALE`. Отсутствующие ключи используют русский перевод.
 
+### Конфигурация комнат
+
+Комнаты больше не захардкожены как пара public/private. Вместо этого каждый сервер хранит свой собственный набор конфигов комнат в виде локальных JSON-файлов:
+
+- `config/rooms.example/*.json.example` — коммитящиеся референсные шаблоны, показывающие доступные поля (`public.json.example`, `private.json.example`).
+- `config/rooms/*.json` — файлы, которые реально читаются при старте, **намеренно добавлены в `.gitignore`** (настройка комнат конкретного сервера — это локальная конфигурация, которая не должна перезаписываться при `git pull`/деплое). Сама папка отслеживается через `config/rooms/.gitkeep`, но изначально пуста.
+
+`src/core/roomConfigs.js` сканирует все `*.json` файлы в `config/rooms/` при старте (по алфавиту, без какой-либо регистрации в другом месте), валидирует их и разворачивает поле `count` в соответствующее количество конкретных экземпляров комнат — с подстановкой номера вместо `{num}` в `roomName`, если задано `"numbering": true`. Каждый файл может свободно задавать свою `roomCategory`, `mode` (`public`/`private`), `defaultTeamPickMode`, настройки размера команд/очереди/VIP и т.д., независимо от остальных файлов. Headless-токены HaxBall назначаются из единого пула — `HAXBALL_TOKENS` в `.env` — в том порядке, в котором создаются экземпляры (файлы конфигов по алфавиту, затем комната №1, №2, ... внутри каждого файла); при нехватке токенов под настроенные комнаты бот отказывается запускаться с понятной ошибкой.
+
+Полное пошаговое руководство (копирование шаблонов, добавление новых файлов, правило плейсхолдера `{num}` и т.д.) — в `config/rooms.example/README.md`.
+
+Части на стороне Discord, которые раньше предполагали фиксированную пару public/private — выбор комнаты в `/password` и выбор категории в `/analytics` (`discordCommands.js`), embed'ы онлайн-статуса (`discordBot.js`) — теперь строятся динамически из того, что на данный момент определено в `config/rooms/*.json`.
+
 ### Архитектура
 
 Проект работает в двух процессах:
@@ -417,7 +450,7 @@ Node.js (main.js → src/index.js)
    │
    │  запускает headless Chrome через Puppeteer,
    │  открывает haxball.com/headless,
-   │  логинит единый Discord-бот, общий на обе комнаты
+   │  логинит единый Discord-бот, общий на все комнаты
    │
    ▼
 Browser context (src/browser/entry.js)
@@ -429,11 +462,11 @@ Browser context (src/browser/entry.js)
 HaxBall Room API (HBInit)
 ```
 
-- **Node-сторона** отвечает за жизненный цикл браузера, сборку бандла (esbuild), единственную точку доступа к SQLite — `window.__dbCall`, проброшенную в браузер через `page.exposeFunction`, — и единственную точку доступа к Discord — `window.__discordCall`, проброшенную так же. Здесь же живёт сам клиент Discord-бота, включая регистрацию и обработку slash-команд.
+- **Node-сторона** отвечает за жизненный цикл браузера, сборку бандла (esbuild), загрузку/валидацию конфигов комнат (`src/core/roomConfigs.js`), единственную точку доступа к SQLite — `window.__dbCall`, проброшенную в браузер через `page.exposeFunction`, — и единственную точку доступа к Discord — `window.__discordCall`, проброшенную так же. Здесь же живёт сам клиент Discord-бота, включая регистрацию и обработку slash-команд.
 - **Browser-сторона** (весь код в `src/core/*`) — чистый JS без Node-API, собирается esbuild'ом и исполняется внутри страницы HaxBall. Обращения к БД идут асинхронно через мост `window.__db.*` → `__dbCall` → Node → SQLite. Обращения к Discord идут так же через `window.__discord.*` → `__discordCall` → Node → клиент `discord.js`.
 - Браузерный бандл создаёт собственный экземпляр локали из кода языка, переданного Node. Поэтому объявления комнаты и форматирование чата работают независимо от Node-процесса, используя те же словари.
 - Сам Discord-бот (логин, slash-команды, управление ролями, редактирование сообщений) существует только на Node-стороне — в бандл браузера он никогда не попадает, поскольку для реального Gateway-соединения нужны Node-API, которых нет в песочнице страницы.
-- В обратную сторону работает **reverse-мост**: `src/index.js` пробрасывает в слой Discord slash-команд функции `applyModeration` (широковещательно на обе комнаты) и `applyToRoom` (в конкретную комнату), которые вызывают `window.__applyModeration(action)` внутри нужной страницы(-иц) через `page.evaluate` — регистрация через `page.exposeFunction` для этого направления не нужна, так как `page.evaluate` всегда может обратиться к глобальной области страницы со стороны Node.
+- В обратную сторону работает **reverse-мост**: `src/index.js` пробрасывает в слой Discord slash-команд функции `applyModeration` (широковещательно на все комнаты) и `applyToRoom` (в конкретную комнату по её `roomKey`), которые вызывают `window.__applyModeration(action)` внутри нужной страницы(-иц) через `page.evaluate` — регистрация через `page.exposeFunction` для этого направления не нужна, так как `page.evaluate` всегда может обратиться к глобальной области страницы со стороны Node.
 
 #### Структура каталогов
 
@@ -445,7 +478,8 @@ src/
     entry.js               — точка входа в браузерном контексте, DI всех модулей, экспонирует window.__applyModeration
   core/
     config.js               — секреты и токены из process.env
-    roomConstants.js         — конфиги public/private комнат
+    roomConstants.js         — общий сборщик HBInit game-config (buildGameConfig), не зависящий от количества/категорий комнат
+    roomConfigs.js           — сканирует/валидирует/разворачивает config/rooms/*.json в конкретные экземпляры комнат, назначает токены/прокси
     maps.js                  — карты стадиона (с воротами / без ворот)
     locale/
       index.js               — фабрика локали, интерполяция и fallback
@@ -481,11 +515,14 @@ src/
       movement.js, activity.js, game.js, misc.js — обработчики событий комнаты
 db/
   sqlite.js               — обёртка над node:sqlite (DatabaseSync), схема и запросы
+config/
+  rooms/                   — гитигнорированные, конкретные для сервера конфиги комнат, реально загружаемые при старте (см. Конфигурация комнат выше)
+  rooms.example/            — коммитящиеся референсные шаблоны + README по настройке
 scripts/
   add-master.js             — разовая выдача роли MASTER напрямую в БД
-  send-online-messages.js    — разовая отправка двух инициализарующих сообщений, которые бот затем редактирует в live-embed онлайна
 tools/
   smoke-test.js             — in-memory smoke-тесты БД и ролевой логики
+  check-dependencies.js       — проверяет DI-связывание фабрик между entry.js и src/core/*
 .github/workflows/
   ci.yaml                    — прогон smoke-тестов на push/PR
   deploy.yaml                 — деплой на self-hosted раннер через pm2
@@ -493,9 +530,9 @@ tools/
 
 #### Хранилище
 
-SQLite через встроенный `node:sqlite` (`db/volleyball.sqlite`, WAL-режим). Основные таблицы: `accounts`, `bans`, `mutes`, `nicknames`, `auths`, `stats`. Слой `db/sqlite.js` — единственное место с SQL; вся браузерная сторона видит только промисифицированные методы, а обработчики Discord slash-команд обращаются к тому же экземпляру `db` напрямую на Node-стороне. Колонка `accounts.discord` хранит привязанный Discord ID пользователя после привязки аккаунта.
+SQLite через встроенный `node:sqlite` (`db/volleyball.sqlite`, WAL-режим). Основные таблицы: `accounts`, `bans`, `mutes`, `nicknames`, `auths`, `stats`, а также `online_message` (хранит ID единственного самоуправляемого сообщения об онлайне, под ключом `'online'`). Слой `db/sqlite.js` — единственное место с SQL; вся браузерная сторона видит только промисифицированные методы, а обработчики Discord slash-команд обращаются к тому же экземпляру `db` напрямую на Node-стороне. Колонка `accounts.discord` хранит привязанный Discord ID пользователя после привязки аккаунта.
 
-Таблицы аналитики (`analytics_players`, `analytics_sessions`, `analytics_matches`, `analytics_events`, `analytics_online_minute`) записывают всё под `room_type` (конкретный запущенный инстанс комнаты, напр. `public`/`private`, а в будущем `public-2` при нескольких комнатах в категории) и `room_category` (группа для отчётности, напр. `public`/`private` — задаётся один раз в `roomConstants.js:roomCategory`). `analytics_matches.is_full` определяется один раз, в момент старта матча, самой комнатой (были ли обе команды укомплектованы по `defaultTeamSize`/текущему размеру команды на тот момент) — слой аналитики никогда не пересчитывает это из конфига задним числом. Есть две производные таблицы: `analytics_daily` хранит одну финальную строку на `(day_key, room_category)`, просуммированную по всем `room_type` этой категории, формируется плановым ежедневным отчётом; `analytics_daily_reports_sent` гарантирует, что этот отчёт уходит не более одного раза на `(день, категория)`. Запросы по требованию (Discord-команда `/analytics`) идут через `analyticsGetRange`, которая считает те же метрики по произвольному диапазону дней, не трогая эти две таблицы — поэтому запросы "на лету" никогда не мешают плановому отчёту и могут спокойно включать ещё не закрывшийся текущий день. Изображения графиков (как для планового отчёта, так и для `/analytics`) дополнительно читают разбитые по времени данные через `analyticsGetSeries`, которая тоже является чисто операцией чтения — она также не пишет ни в одну таблицу.
+Таблицы аналитики (`analytics_players`, `analytics_sessions`, `analytics_matches`, `analytics_events`, `analytics_online_minute`) записывают всё под `room_type` (`roomKey` конкретного запущенного экземпляра комнаты, напр. `public-1`, `private-1`, либо любое произвольное имя из файла конфига) и `room_category` (группа для отчётности — то, что задано полем `roomCategory` в файле конфига, напр. `public`/`private` либо любая произвольная категория). `analytics_matches.is_full` определяется один раз, в момент старта матча, самой комнатой (были ли обе команды укомплектованы по `defaultTeamSize`/текущему размеру команды на тот момент) — слой аналитики никогда не пересчитывает это из конфига задним числом. Есть две производные таблицы: `analytics_daily` хранит одну финальную строку на `(day_key, room_category)`, просуммированную по всем `room_type` этой категории, формируется плановым ежедневным отчётом; `analytics_daily_reports_sent` гарантирует, что этот отчёт уходит не более одного раза на `(день, категория)`. Запросы по требованию (Discord-команда `/analytics`) идут через `analyticsGetRange`, которая считает те же метрики по произвольному диапазону дней, не трогая эти две таблицы — поэтому запросы "на лету" никогда не мешают плановому отчёту и могут спокойно включать ещё не закрывшийся текущий день. Изображения графиков (как для планового отчёта, так и для `/analytics`) дополнительно читают разбитые по времени данные через `analyticsGetSeries`, которая тоже является чисто операцией чтения — она также не пишет ни в одну таблицу.
 
 #### Границы доступа к БД
 
@@ -515,15 +552,21 @@ git clone <repo-url>
 cd volleyball
 npm install
 cp .env.example .env
+mkdir -p config/rooms
+cp config/rooms.example/public.json.example config/rooms/public.json
+cp config/rooms.example/private.json.example config/rooms/private.json
 ```
+
+Отредактируйте `config/rooms/public.json` / `config/rooms/private.json` (или добавьте свои файлы) под свои нужды — см. раздел [Конфигурация комнат](#конфигурация-комнат) выше и `config/rooms.example/README.md`.
 
 Заполните `.env`:
 
 ```ini
-PUBLIC_TOKEN="token here"
-PRIVATE_TOKEN="token here"
-PUBLIC_PASSWORD="password or empty here"
-PRIVATE_PASSWORD="password or empty here"
+HAXBALL_TOKENS="token1,token2,..."
+
+HAXBALL_PROXIES="proxy1,proxy2,..."
+
+ROOM_CONFIGS_DIR="path"
 
 LOCALE="locale code here (ru | en | your_localization_code)"
 TIME_ZONE="IANA timezone, e.g. Europe/Moscow"
@@ -541,14 +584,12 @@ DISCORD_REPORT_CHANNEL_ID="discord channel id"
 DISCORD_REPLAY_CHANNEL_ID="discord channel id"
 DISCORD_VIP_CHANNEL_ID="discord channel id"
 DISCORD_ANALYTICS_CHANNEL_ID="discord channel id"
-
-DISCORD_PUBLIC_ONLINE_CHANNEL_ID="discord channel id"
-DISCORD_PUBLIC_ONLINE_MESSAGE_ID="filled in after running scripts/send-online-messages.js"
-DISCORD_PRIVATE_ONLINE_CHANNEL_ID="discord channel id"
-DISCORD_PRIVATE_ONLINE_MESSAGE_ID="filled in after running scripts/send-online-messages.js"
+DISCORD_ONLINE_CHANNEL_ID="discord channel id"
 ```
 
-`PUBLIC_TOKEN`/`PRIVATE_TOKEN` — headless-токены HaxBall для соответствующей комнаты.
+`HAXBALL_TOKENS` — это разделённый запятыми плоский пул headless-токенов HaxBall — нужно указать не меньше токенов, чем суммарное количество комнат по всем файлам в `config/rooms/`. 
+
+`HAXBALL_PROXIES` — опционально, для обхода лимита HaxBall в 2 комнаты на IP (см. комментарии в `.env.example` для поддерживаемых форматов). `ROOM_CONFIGS_DIR` можно оставить пустым, чтобы использовать `config/rooms/` рядом с корнем проекта по умолчанию.
 
 #### Настройка Discord-бота
 
@@ -558,9 +599,8 @@ DISCORD_PRIVATE_ONLINE_MESSAGE_ID="filled in after running scripts/send-online-m
 4. Создайте (или используйте существующие) 4 discord-роли, соответствующие `VIP`/`PREADMIN`/`ADMIN`/`MASTER`. **Роль бота в списке ролей сервера должна стоять выше всех четырёх**, иначе Discord не даст боту их выдавать/снимать. Скопируйте ID каждой роли в `.env`.
 5. Создайте (или используйте существующие) каналы для логов, репортов модерации, реплеев и VIP-пароля, скопируйте их ID в `.env`.
 6. Создайте (или используйте существующий) канал для ежедневного аналитического отчёта (`DISCORD_ANALYTICS_CHANNEL_ID`) — туда же публикуются изображения графиков, описанные в разделе [Графики аналитики](#графики-аналитики).
-7. Создайте (или используйте существующий) по одному каналу для public и private комнаты под живое сообщение онлайна, заполните `DISCORD_PUBLIC_ONLINE_CHANNEL_ID` / `DISCORD_PRIVATE_ONLINE_CHANNEL_ID`.
-8. Запустите один раз `node scripts/send-online-messages.js` — он залогинится под ботом и отправит по одному инициализирующему сообщению на каждую комнату в каналы из шага 7 (бот может редактировать только свои сообщения, поэтому они должны существовать до того, как бот начнёт их обновлять). Скопируйте два выведенных ID сообщений в `DISCORD_PUBLIC_ONLINE_MESSAGE_ID` / `DISCORD_PRIVATE_ONLINE_MESSAGE_ID`.
-9. При запуске бот регистрирует свои slash-команды (`/link`, `/unlink` и перечисленные выше команды модерации/просмотра) как гильдейские команды для `DISCORD_GUILD_ID`.
+7. Создайте (или используйте существующий) один канал под живое сообщение онлайна, заполните `DISCORD_ONLINE_CHANNEL_ID`. Дополнительная настройка не требуется — бот сам создаёт и ведёт сообщение в этом канале при первом запуске (один embed на каждую настроенную комнату, всё в одном сообщении, которое он редактирует раз в минуту).
+8. При запуске бот регистрирует свои slash-команды (`/link`, `/unlink` и перечисленные выше команды модерации/просмотра) как гильдейские команды для `DISCORD_GUILD_ID`.
 
 ### Запуск
 
@@ -568,7 +608,7 @@ DISCORD_PRIVATE_ONLINE_MESSAGE_ID="filled in after running scripts/send-online-m
 npm start
 ```
 
-Запускает `main.js`, который логинит Discord-бота, затем поднимает **обе** комнаты (public + private) параллельно. Ссылки на комнаты и VIP-пароль появятся в логе консоли. После запуска комнаты её Discord-embed онлайна начнёт обновляться (раз в минуту) с текущим числом игроков, их списком и кнопкой для входа.
+Запускает `main.js`, который логинит Discord-бота, затем последовательно поднимает **все настроенные комнаты** (из `config/rooms/*.json`). Ссылки на комнаты и VIP-пароль появятся в логе консоли. После запуска комнаты соответствующая запись в Discord-сообщении об онлайне начнёт обновляться (раз в минуту) с текущим числом игроков, их списком и кнопкой для входа.
 
 #### Выдача роли MASTER
 
@@ -595,8 +635,8 @@ node scripts/add-master.js <public_id>
 npm run test:smoke
 ```
 
-In-memory smoke-тесты (`tools/smoke-test.js`) покрывают слой БД (аккаунты, баны, статистика, ники, муты) и часть бизнес-логики (`MuteList`, `getRole`/`setRole`). Гоняются в CI на каждый push и PR (`.github/workflows/ci.yaml`).
+In-memory smoke-тесты (`tools/smoke-test.js`) покрывают слой БД (аккаунты, баны, статистика, ники, муты, аналитика) и часть бизнес-логики (`MuteList`, `getRole`/`setRole`, капитаны, тренировочный режим, утилиты комнаты и другое). Гоняются в CI на каждый push и PR (`.github/workflows/ci.yaml`). Отдельная проверка `npm run test:dependencies` (`tools/check-dependencies.js`) валидирует, что объект зависимостей каждой фабричной функции в `entry.js` точно соответствует её объявленным параметрам (без пропущенных/лишних/дублирующихся ключей), отлавливая ошибки DI-связывания до того, как они приведут к ошибке в рантайме.
 
 ### Деплой
 
-`.github/workflows/deploy.yaml` при пуше в `main` на self-hosted раннере делает `git reset --hard`, `npm ci` и перезапускает процесс через `pm2`.
+`.github/workflows/deploy.yaml` при пуше в `main` на self-hosted раннере делает `git reset --hard`, затем `npm ci` (только если изменились `package.json`/`package-lock.json` либо отсутствует `node_modules`), и перезапускает процесс через `pm2` — полностью пропуская перезапуск для коммитов, затрагивающих только документацию (README/LICENSE/`.gitignore`/`docs/`/`.github/`).
