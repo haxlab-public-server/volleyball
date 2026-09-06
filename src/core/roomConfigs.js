@@ -262,23 +262,39 @@ function parseTokensEnv(value) {
     return value.split(',').map(s => s.trim()).filter(Boolean);
 }
 
+const VALID_PROXY_PROTOCOLS = ['http://', 'https://', 'socks5://'];
+
 /*
  * Parses the HAXBALL_PROXIES env var: a comma-separated list of proxies.
- * Supports two formats per entry:
- *   - host:port              (no authentication)
- *   - user:pass@host:port    (with authentication)
+ * Supports protocol prefixes and two auth formats per entry:
+ *   - protocol://host:port              (no authentication)
+ *   - protocol://user:pass@host:port    (with authentication)
+ *   - host:port                         (no auth, defaults to http://)
+ *   - user:pass@host:port               (no auth, defaults to http://)
  * Returns an array of proxy objects:
- * [{ host, port, username, password }, ...]
+ * [{ protocol, host, port, username, password }, ...]
  * username/password are null for unauthenticated proxies.
+ * Throws if socks5:// is combined with username/password (unsupported by Chromium).
  */
 function parseProxiesEnv(value) {
     if (!value) return [];
     return value.split(',').map(s => s.trim()).filter(Boolean).map(proxy => {
-        const hasAuth = proxy.includes('@');
+        let protocol = 'http';
+        let rest = proxy;
+
+        for (const proto of VALID_PROXY_PROTOCOLS) {
+            if (rest.toLowerCase().startsWith(proto)) {
+                protocol = proto.replace('://', '');
+                rest = rest.slice(proto.length);
+                break;
+            }
+        }
+
+        const hasAuth = rest.includes('@');
         if (hasAuth) {
-            const atIndex = proxy.lastIndexOf('@');
-            const credentials = proxy.slice(0, atIndex);
-            const hostPort = proxy.slice(atIndex + 1);
+            const atIndex = rest.lastIndexOf('@');
+            const credentials = rest.slice(0, atIndex);
+            const hostPort = rest.slice(atIndex + 1);
             const colonIndex = credentials.indexOf(':');
             if (colonIndex === -1) {
                 throw new Error(
@@ -287,6 +303,14 @@ function parseProxiesEnv(value) {
             }
             const username = credentials.slice(0, colonIndex);
             const password = credentials.slice(colonIndex + 1);
+
+            if (protocol === 'socks5' && username) {
+                throw new Error(
+                    `SOCKS5 proxy with username/password is not supported by Chromium: "${proxy}". ` +
+                    `Use IP whitelisting or an HTTP proxy instead.`
+                );
+            }
+
             const lastColon = hostPort.lastIndexOf(':');
             if (lastColon === -1) {
                 throw new Error(
@@ -295,17 +319,17 @@ function parseProxiesEnv(value) {
             }
             const host = hostPort.slice(0, lastColon);
             const port = hostPort.slice(lastColon + 1);
-            return { host, port, username, password };
+            return { protocol, host, port, username, password };
         } else {
-            const lastColon = proxy.lastIndexOf(':');
+            const lastColon = rest.lastIndexOf(':');
             if (lastColon === -1) {
                 throw new Error(
-                    `Invalid proxy format: "${proxy}" (expected host:port or user:pass@host:port)`
+                    `Invalid proxy format: "${proxy}" (expected [protocol://][user:pass@]host:port)`
                 );
             }
-            const host = proxy.slice(0, lastColon);
-            const port = proxy.slice(lastColon + 1);
-            return { host, port, username: null, password: null };
+            const host = rest.slice(0, lastColon);
+            const port = rest.slice(lastColon + 1);
+            return { protocol, host, port, username: null, password: null };
         }
     });
 }

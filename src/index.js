@@ -171,7 +171,7 @@ async function launchRoomAttempt(instance, secrets, discordBot) {
             '--disable-features=WebRtcHideLocalIpsWithMdns,AsyncDns',
             '--no-sandbox',
             '--disable-setuid-sandbox',
-            ...(instance.proxy ? [`--proxy-server=${instance.proxy.host}:${instance.proxy.port}`] : []),
+            ...(instance.proxy ? [`--proxy-server=${instance.proxy.protocol}://${instance.proxy.host}:${instance.proxy.port}`] : []),
         ],
     });
 
@@ -218,7 +218,7 @@ async function launchRoomAttempt(instance, secrets, discordBot) {
             console.error(`[${logLabel} ERROR]`, err);
         });
 
-        if (instance.proxy?.username) {
+        if (instance.proxy?.username && instance.proxy?.protocol !== 'socks5') {
             await page.authenticate({
                 username: instance.proxy.username,
                 password: instance.proxy.password,
