@@ -85,6 +85,9 @@ const ROOM_LINK_TIMEOUT_MS = 30 * 1000;
 // Delay before retrying a failed room launch (e.g. after a HaxBall
 // token rate-limit or a page that never produces a room link).
 const ROOM_LAUNCH_RETRY_DELAY_MS = 60 * 1000;
+// Delay between sequential room launches to avoid HaxBall rate-limiting
+// multiple tokens simultaneously.
+const ROOM_LAUNCH_DELAY_MS = 2000;
 
 function startAnalyticsDailyReporting({ db, discordBot, timeFormat }) {
     const { getDayKey } = timeFormat;
@@ -161,7 +164,7 @@ async function buildEntryBundle() {
  * the half-started browser and retry cleanly instead of leaving a
  * zombie browser/page around.
  */
-async function launchRoomAttempt(instance, secrets, discordBot) {
+async function launchRoomAttempt(instance, secrets, discordBot, bundle) {
     const { roomKey, roomLabel } = instance;
     const logLabel = roomLabel.toUpperCase();
 
@@ -305,7 +308,6 @@ async function launchRoomAttempt(instance, secrets, discordBot) {
         page.on('console', onConsoleForLink);
 
         try {
-            const bundle = await buildEntryBundle();
             await page.addScriptTag({ content: bundle });
 
             const deadline = Date.now() + ROOM_LINK_TIMEOUT_MS;
@@ -330,15 +332,13 @@ async function launchRoomAttempt(instance, secrets, discordBot) {
  * Retries launchRoomAttempt indefinitely (with a fixed delay) until it
  * succeeds or the process is shutting down. Each failed attempt fully
  * closes its browser first, so a rate-limited or stuck attempt never
- * leaves zombie Chrome processes or half-initialised pages behind, and
- * never blocks other rooms from launching (they all run in parallel via
- * Promise.all in main()).
+ * leaves zombie Chrome processes or half-initialised pages behind.
  */
-async function launchRoomWithRetry(instance, secrets, discordBot) {
+async function launchRoomWithRetry(instance, secrets, discordBot, bundle) {
     const { roomLabel } = instance;
     for (let attempt = 1; !isShuttingDown; attempt++) {
         try {
-            const room = await launchRoomAttempt(instance, secrets, discordBot);
+            const room = await launchRoomAttempt(instance, secrets, discordBot, bundle);
             activeBrowsers.add(room.browser);
 
             room.browser.on('disconnected', () => {
@@ -386,12 +386,20 @@ async function main() {
 
     console.log(`[INFO] Launching ${roomInstances.length} room(s) from configured files...`);
 
-    const launchedRooms = await Promise.all(
-        roomInstances.map(instance => launchRoomWithRetry(instance, {
+    const entryBundle = await buildEntryBundle();
+
+    const launchedRooms = [];
+    for (let i = 0; i < roomInstances.length; i++) {
+        const instance = roomInstances[i];
+        const room = await launchRoomWithRetry(instance, {
             token: instance.token,
             roomPassword: instance.roomPassword
-        }, discordBot))
-    );
+        }, discordBot, entryBundle);
+        launchedRooms.push(room);
+        if (i < roomInstances.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, ROOM_LAUNCH_DELAY_MS));
+        }
+    }
 
     /*
      * Reverse Node->browser bridges used by Discord slash-command mirrors
