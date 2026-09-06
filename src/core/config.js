@@ -1,5 +1,5 @@
 const path = require('node:path');
-const { parseTokensEnv } = require('./roomConfigs');
+const { parseTokensEnv, parseProxiesEnv } = require('./roomConfigs');
 
 /*
  * Tokens are no longer one-per-room-type (PUBLIC_TOKEN/PRIVATE_TOKEN).
@@ -11,6 +11,8 @@ const { parseTokensEnv } = require('./roomConfigs');
  * roomConfigs.js:loadRoomInstances.
  */
 const haxballTokens = parseTokensEnv(process.env.HAXBALL_TOKENS);
+
+const haxballProxies = parseProxiesEnv(process.env.HAXBALL_PROXIES);
 
 const discordBotToken = process.env.DISCORD_BOT_TOKEN ?? '';
 const discordGuildId = process.env.DISCORD_GUILD_ID ?? '';
@@ -40,6 +42,7 @@ const roomConfigsDir = process.env.ROOM_CONFIGS_DIR
 
 module.exports = {
     haxballTokens,
+    haxballProxies,
     discordBotToken,
     discordGuildId,
     discordRoleIds,

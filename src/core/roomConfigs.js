@@ -206,7 +206,7 @@ function expandConfigFile({ filename, raw }) {
  * descriptive error (rather than per-file) if tokens are insufficient,
  * since that's a cross-file check.
  */
-function loadRoomInstances(configDir, tokens) {
+function loadRoomInstances(configDir, tokens, proxies) {
     const files = readConfigFiles(configDir);
     const instances = files.flatMap(expandConfigFile);
 
@@ -228,6 +228,26 @@ function loadRoomInstances(configDir, tokens) {
         }
     });
 
+    const proxyList = Array.isArray(proxies) ? proxies : [];
+    const proxiesNeeded = Math.max(0, Math.ceil((instances.length - 2) / 2));
+
+    if (proxiesNeeded > 0 && proxyList.length < proxiesNeeded) {
+        throw new Error(
+            `Not enough proxies: ${instances.length} room(s) configured, ` +
+            `but only ${proxyList.length} proxy/proxies provided via HAXBALL_PROXIES. ` +
+            `Need ${proxiesNeeded} proxy/proxies (2 rooms per IP limit).`
+        );
+    }
+
+    instances.forEach((instance, index) => {
+        if (index < 2 || proxyList.length === 0) {
+            instance.proxy = null;
+        } else {
+            const proxyIndex = Math.floor((index - 2) / 2);
+            instance.proxy = proxyList[proxyIndex] ?? null;
+        }
+    });
+
     return { instances, totalRooms: instances.length };
 }
 
@@ -240,6 +260,54 @@ function loadRoomInstances(configDir, tokens) {
 function parseTokensEnv(value) {
     if (!value) return [];
     return value.split(',').map(s => s.trim()).filter(Boolean);
+}
+
+/*
+ * Parses the HAXBALL_PROXIES env var: a comma-separated list of proxies.
+ * Supports two formats per entry:
+ *   - host:port              (no authentication)
+ *   - user:pass@host:port    (with authentication)
+ * Returns an array of proxy objects:
+ * [{ host, port, username, password }, ...]
+ * username/password are null for unauthenticated proxies.
+ */
+function parseProxiesEnv(value) {
+    if (!value) return [];
+    return value.split(',').map(s => s.trim()).filter(Boolean).map(proxy => {
+        const hasAuth = proxy.includes('@');
+        if (hasAuth) {
+            const atIndex = proxy.lastIndexOf('@');
+            const credentials = proxy.slice(0, atIndex);
+            const hostPort = proxy.slice(atIndex + 1);
+            const colonIndex = credentials.indexOf(':');
+            if (colonIndex === -1) {
+                throw new Error(
+                    `Invalid proxy credentials: "${credentials}" (expected user:pass)`
+                );
+            }
+            const username = credentials.slice(0, colonIndex);
+            const password = credentials.slice(colonIndex + 1);
+            const lastColon = hostPort.lastIndexOf(':');
+            if (lastColon === -1) {
+                throw new Error(
+                    `Invalid proxy address: "${hostPort}" (expected host:port)`
+                );
+            }
+            const host = hostPort.slice(0, lastColon);
+            const port = hostPort.slice(lastColon + 1);
+            return { host, port, username, password };
+        } else {
+            const lastColon = proxy.lastIndexOf(':');
+            if (lastColon === -1) {
+                throw new Error(
+                    `Invalid proxy format: "${proxy}" (expected host:port or user:pass@host:port)`
+                );
+            }
+            const host = proxy.slice(0, lastColon);
+            const port = proxy.slice(lastColon + 1);
+            return { host, port, username: null, password: null };
+        }
+    });
 }
 
 /*
@@ -259,5 +327,6 @@ module.exports = {
     expandConfigFile,
     loadRoomInstances,
     parseTokensEnv,
+    parseProxiesEnv,
     envKeyFromRoomKey
 };

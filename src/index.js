@@ -8,6 +8,7 @@ const { createLocale } = require('./core/locale');
 const { createTimeFormat } = require('./core/utils/timeFormat');
 const {
     haxballTokens,
+    haxballProxies,
     discordBotToken,
     discordGuildId,
     discordRoleIds,
@@ -36,7 +37,7 @@ const timeFormat = createTimeFormat(timeZone);
  * startup) with a descriptive message if anything is inconsistent —
  * nothing gets launched until every config is known-good.
  */
-const { instances: roomInstances } = loadRoomInstances(roomConfigsDir, haxballTokens);
+const { instances: roomInstances } = loadRoomInstances(roomConfigsDir, haxballTokens, haxballProxies);
 
 // Distinct room_category values across every configured instance, used
 // for daily analytics aggregation/reporting (previously a hardcoded
@@ -170,6 +171,7 @@ async function launchRoomAttempt(instance, secrets, discordBot) {
             '--disable-features=WebRtcHideLocalIpsWithMdns,AsyncDns',
             '--no-sandbox',
             '--disable-setuid-sandbox',
+            ...(instance.proxy ? [`--proxy-server=${instance.proxy.host}:${instance.proxy.port}`] : []),
         ],
     });
 
@@ -215,6 +217,13 @@ async function launchRoomAttempt(instance, secrets, discordBot) {
         page.on('pageerror', (err) => {
             console.error(`[${logLabel} ERROR]`, err);
         });
+
+        if (instance.proxy?.username) {
+            await page.authenticate({
+                username: instance.proxy.username,
+                password: instance.proxy.password,
+            });
+        }
 
         await page.goto('https://www.haxball.com/headless', {
             waitUntil: 'domcontentloaded',
