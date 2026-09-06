@@ -34,8 +34,6 @@ const EMBED_COLOR = 0x5865F2;
 const ERROR_COLOR = 0xE62C2C;
 const ANALYTICS_EMBED_COLOR = 0x57F287;
 const BROADCAST_ROOM_LABEL = 'Room';
-const ROOM_CATEGORIES = ['public', 'private'];
-const CATEGORY_LABELS = { public: 'PUBLIC', private: 'PRIVATE' };
 const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function parseTimeArg(str) {
@@ -121,13 +119,24 @@ module.exports = function createDiscordCommands({
     discordBotSend,
     timeFormat,
     t,
-    maxPlayersByCategory = {}
+    maxPlayersByCategory = {},
+    roomChoices = [],
+    roomCategories = []
 }) {
     const { getDayKey } = timeFormat;
+
+    const roomLabelByKey = new Map(roomChoices.map(r => [r.roomKey, r.roomLabel]));
+    const categoryLabelByCategory = new Map(
+        roomCategories.map(category => [category, category.toUpperCase()])
+    );
 
     function resolveOnlineMax(roomCategory) {
         const value = maxPlayersByCategory?.[roomCategory];
         return Number.isFinite(value) && value > 0 ? value : undefined;
+    }
+
+    function categoryLabel(roomCategory) {
+        return categoryLabelByCategory.get(roomCategory) ?? String(roomCategory ?? '').toUpperCase();
     }
 
     function resolvePeriodRange(period, fromArg, toArg) {
@@ -174,7 +183,7 @@ module.exports = function createDiscordCommands({
                 fromDayKey: range.fromDayKey,
                 toDayKey: range.toDayKey,
                 roomCategory,
-                roomCategoryLabel: CATEGORY_LABELS[roomCategory] ?? String(roomCategory ?? '').toUpperCase(),
+                roomCategoryLabel: categoryLabel(roomCategory),
                 timeFormat,
                 interval,
                 onlineMax: resolveOnlineMax(roomCategory)
@@ -186,7 +195,7 @@ module.exports = function createDiscordCommands({
     }
 
     async function buildAnalyticsEmbed(roomCategory, range, period, interval) {
-        const categoryLabel = CATEGORY_LABELS[roomCategory] ?? String(roomCategory ?? '').toUpperCase();
+        const categoryLabelValue = categoryLabel(roomCategory);
 
         const retentionPct = range.joinsUnique > 0
             ? Math.round((range.returningPlayers / range.joinsUnique) * 100)
@@ -202,7 +211,7 @@ module.exports = function createDiscordCommands({
 
         const embed = new EmbedBuilder()
             .setColor(ANALYTICS_EMBED_COLOR)
-            .setTitle(t('discordBot.analyticsDaily.title', { category: categoryLabel }))
+            .setTitle(t('discordBot.analyticsDaily.title', { category: categoryLabelValue }))
             .setDescription(t('discordBot.analyticsDaily.description', { day: dayLabel }))
             .addFields(
                 {
@@ -309,6 +318,14 @@ module.exports = function createDiscordCommands({
     }
 
     function buildCommandDefinitions() {
+        const passwordRoomChoices = roomChoices
+            .slice(0, 25)
+            .map(r => ({ name: r.roomLabel, value: r.roomKey }));
+
+        const analyticsCategoryChoices = roomCategories
+            .slice(0, 25)
+            .map(category => ({ name: category, value: category }));
+
         return [
             new SlashCommandBuilder()
                 .setName('setrole')
@@ -340,13 +357,15 @@ module.exports = function createDiscordCommands({
             new SlashCommandBuilder()
                 .setName('password')
                 .setDescription(t('discord.command.password'))
-                .addStringOption(o => o.setName('room')
-                    .setDescription(t('discord.command.room'))
-                    .setRequired(true)
-                    .addChoices(
-                        { name: 'public', value: 'public' },
-                        { name: 'private', value: 'private' }
-                    ))
+                .addStringOption(o => {
+                    o.setName('room')
+                        .setDescription(t('discord.command.room'))
+                        .setRequired(true);
+                    if (passwordRoomChoices.length > 0) {
+                        o.addChoices(...passwordRoomChoices);
+                    }
+                    return o;
+                })
                 .addStringOption(o => o.setName('value').setDescription(t('discord.command.passwordValue')).setRequired(false)),
             new SlashCommandBuilder()
                 .setName('statsclear')
@@ -418,13 +437,15 @@ module.exports = function createDiscordCommands({
                         { name: 'month', value: 'month' },
                         { name: 'custom', value: 'custom' }
                     ))
-                .addStringOption(o => o.setName('category')
-                    .setDescription(t('discord.command.analyticsCategory'))
-                    .setRequired(false)
-                    .addChoices(
-                        { name: 'public', value: 'public' },
-                        { name: 'private', value: 'private' }
-                    ))
+                .addStringOption(o => {
+                    o.setName('category')
+                        .setDescription(t('discord.command.analyticsCategory'))
+                        .setRequired(false);
+                    if (analyticsCategoryChoices.length > 0) {
+                        o.addChoices(...analyticsCategoryChoices);
+                    }
+                    return o;
+                })
                 .addStringOption(o => o.setName('from').setDescription(t('discord.command.analyticsFrom')).setRequired(false))
                 .addStringOption(o => o.setName('to').setDescription(t('discord.command.analyticsTo')).setRequired(false))
                 .addStringOption(o => o.setName('interval')
@@ -510,13 +531,14 @@ module.exports = function createDiscordCommands({
         const caller = await requireLinkedRole(interaction, Role.MASTER);
         if (!caller) return;
 
-        const room = interaction.options.getString('room');
+        const roomKey = interaction.options.getString('room');
         const value = interaction.options.getString('value');
+        const roomDisplayLabel = roomLabelByKey.get(roomKey) ?? roomKey;
 
-        const applied = await applyToRoom(room, { type: 'password', value: value || null });
+        const applied = await applyToRoom(roomKey, { type: 'password', value: value || null });
 
         if (!applied) {
-            await interaction.reply({ embeds: [errorEmbed(t('discord.password.roomUnavailableTitle'), t('discord.password.roomUnavailableBody', { room }))], ephemeral: true });
+            await interaction.reply({ embeds: [errorEmbed(t('discord.password.roomUnavailableTitle'), t('discord.password.roomUnavailableBody', { room: roomDisplayLabel }))], ephemeral: true });
             return;
         }
 
@@ -524,8 +546,8 @@ module.exports = function createDiscordCommands({
             embeds: [successEmbed(
                 t('discord.password.successTitle'),
                 value
-                    ? t('discord.password.successSet', { room, value })
-                    : t('discord.password.successCleared', { room })
+                    ? t('discord.password.successSet', { room: roomDisplayLabel, value })
+                    : t('discord.password.successCleared', { room: roomDisplayLabel })
             )]
         });
     }
@@ -896,7 +918,7 @@ module.exports = function createDiscordCommands({
             return;
         }
 
-        const categories = categoryArg ? [categoryArg] : ROOM_CATEGORIES;
+        const categories = categoryArg ? [categoryArg] : roomCategories;
 
         await interaction.deferReply();
 

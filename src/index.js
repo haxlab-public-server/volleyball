@@ -7,20 +7,17 @@ const { createDiscordBot } = require('./core/discordBot');
 const { createLocale } = require('./core/locale');
 const { createTimeFormat } = require('./core/utils/timeFormat');
 const {
-    publicToken,
-    privateToken,
-    publicPassword,
-    privatePassword,
+    haxballTokens,
     discordBotToken,
     discordGuildId,
     discordRoleIds,
     discordChannelIds,
-    discordOnlineMessages,
     locale: localeCode,
-    timeZone
+    timeZone,
+    roomConfigsDir
 } = require('./core/config');
 
-const { publicConfig, privateConfig } = require('./core/roomConstants');
+const { loadRoomInstances } = require('./core/roomConfigs');
 
 const projectRoot = path.resolve(__dirname, '..');
 const db = createDb(path.join(projectRoot, 'db', 'volleyball.sqlite'));
@@ -30,14 +27,45 @@ let isDbClosed = false;
 let discordBotForShutdown = null;
 
 const timeFormat = createTimeFormat(timeZone);
-const ROOM_CATEGORIES = ['public', 'private'];
+
+/*
+ * Loads and validates every config/rooms/*.json file up front: expands
+ * "count" into concrete room instances, checks the "numbering" +
+ * "{num}" placeholder rule, and checks the total instance count against
+ * the number of tokens available in HAXBALL_TOKENS. Throws (and aborts
+ * startup) with a descriptive message if anything is inconsistent —
+ * nothing gets launched until every config is known-good.
+ */
+const { instances: roomInstances } = loadRoomInstances(roomConfigsDir, haxballTokens);
+
+// Distinct room_category values across every configured instance, used
+// for daily analytics aggregation/reporting (previously a hardcoded
+// ['public', 'private']).
+const ROOM_CATEGORIES = [...new Set(roomInstances.map(instance => instance.roomCategory))];
+
+const maxPlayersByCategory = roomInstances.reduce((acc, instance) => {
+    // If multiple instances share a category, use the max maxPlayers
+    // seen for that category (only matters for the online-embed max
+    // used cosmetically in analytics chart axis scaling).
+    acc[instance.roomCategory] = Math.max(acc[instance.roomCategory] ?? 0, instance.maxPlayers);
+    return acc;
+}, {});
+
+// Passed to createDiscordBot -> createDiscordCommands so /password and
+// /analytics can build their option choices from the actually-launched
+// set of rooms instead of a hardcoded public/private pair.
+const roomChoices = roomInstances.map(instance => ({
+    roomKey: instance.roomKey,
+    roomLabel: instance.roomLabel,
+    roomCategory: instance.roomCategory
+}));
 
 /*
  * HaxBall's headless page runs its own internal headless-detection
  * self-test on load, which prints a burst of synthetic console calls
  * (console.table/dir/trace/... probes formatted with a hidden
  * "font-size:0;color:transparent" CSS trick). It's harmless but has
- * nothing to do with the bot and drowns out real [PUBLIC/PRIVATE ...]
+ * nothing to do with the bot and drowns out real [<room label> ...]
  * log lines, so it's filtered out before forwarding to Node's console.
  */
 const NOISY_CONSOLE_RE = /font-size:0;color:transparent/;
@@ -126,12 +154,16 @@ async function buildEntryBundle() {
 }
 
 /*
- * A single launch attempt for one room. Throws if the room never comes
- * online (no room-link console line observed) within ROOM_LINK_TIMEOUT_MS,
- * so the caller (launchRoomWithRetry) can close the half-started browser
- * and retry cleanly instead of leaving a zombie browser/page around.
+ * A single launch attempt for one room instance. Throws if the room
+ * never comes online (no room-link console line observed) within
+ * ROOM_LINK_TIMEOUT_MS, so the caller (launchRoomWithRetry) can close
+ * the half-started browser and retry cleanly instead of leaving a
+ * zombie browser/page around.
  */
-async function launchRoomAttempt(type, config, secrets, discordBot) {
+async function launchRoomAttempt(instance, secrets, discordBot) {
+    const { roomKey, roomLabel } = instance;
+    const logLabel = roomLabel.toUpperCase();
+
     const browser = await puppeteer.launch({
         args: [
             '--remote-debugging-port=0',
@@ -145,8 +177,6 @@ async function launchRoomAttempt(type, config, secrets, discordBot) {
         const page = await browser.newPage();
 
         await page.exposeFunction('__dbCall', handleDbCall);
-
-        const onlineTarget = discordOnlineMessages[type];
 
         async function handleDiscordCall(method, args) {
             switch (method) {
@@ -169,7 +199,7 @@ async function launchRoomAttempt(type, config, secrets, discordBot) {
                 case 'sendStatsBackup':
                     return discordBot.sendStatsBackup(...args);
                 case 'updateOnlineMessage':
-                    return discordBot.editOnlineMessage(onlineTarget?.channelId, onlineTarget?.messageId, args[0]);
+                    return discordBot.editOnlineMessage(roomKey, args[0]);
                 default:
                     throw new Error(`Unsupported discord call: ${method}`);
             }
@@ -180,10 +210,10 @@ async function launchRoomAttempt(type, config, secrets, discordBot) {
         page.on('console', (msg) => {
             const text = msg.text();
             if (NOISY_CONSOLE_RE.test(text)) return;
-            console.log(`[${type.toUpperCase()} ${msg.type()}]`, text);
+            console.log(`[${logLabel} ${msg.type()}]`, text);
         });
         page.on('pageerror', (err) => {
-            console.error(`[${type.toUpperCase()} ERROR]`, err);
+            console.error(`[${logLabel} ERROR]`, err);
         });
 
         await page.goto('https://www.haxball.com/headless', {
@@ -198,12 +228,12 @@ async function launchRoomAttempt(type, config, secrets, discordBot) {
         await page.evaluate((payload) => {
             window.__secrets = payload.secrets;
             window.__roomConfig = payload.config;
-            window.__roomType = payload.type;
+            window.__roomKey = payload.roomKey;
             window.__locale = payload.locale;
         }, {
             secrets,
-            config: { ...config, timeZone },
-            type,
+            config: { ...instance, timeZone },
+            roomKey,
             locale: localeCode
         });
 
@@ -272,7 +302,7 @@ async function launchRoomAttempt(type, config, secrets, discordBot) {
             const deadline = Date.now() + ROOM_LINK_TIMEOUT_MS;
             while (!roomLinked) {
                 if (Date.now() > deadline) {
-                    throw new Error(`Room "${type}" did not come online within ${ROOM_LINK_TIMEOUT_MS / 1000}s (no room link received)`);
+                    throw new Error(`Room "${roomLabel}" did not come online within ${ROOM_LINK_TIMEOUT_MS / 1000}s (no room link received)`);
                 }
                 await new Promise(resolve => setTimeout(resolve, 250));
             }
@@ -280,7 +310,7 @@ async function launchRoomAttempt(type, config, secrets, discordBot) {
             page.off('console', onConsoleForLink);
         }
 
-        return { browser, page, type };
+        return { browser, page, roomKey, roomLabel };
     } catch (err) {
         await browser.close().catch(() => {});
         throw err;
@@ -292,32 +322,33 @@ async function launchRoomAttempt(type, config, secrets, discordBot) {
  * succeeds or the process is shutting down. Each failed attempt fully
  * closes its browser first, so a rate-limited or stuck attempt never
  * leaves zombie Chrome processes or half-initialised pages behind, and
- * never blocks the other room from launching (they run in parallel via
+ * never blocks other rooms from launching (they all run in parallel via
  * Promise.all in main()).
  */
-async function launchRoomWithRetry(type, config, secrets, discordBot) {
+async function launchRoomWithRetry(instance, secrets, discordBot) {
+    const { roomLabel } = instance;
     for (let attempt = 1; !isShuttingDown; attempt++) {
         try {
-            const room = await launchRoomAttempt(type, config, secrets, discordBot);
+            const room = await launchRoomAttempt(instance, secrets, discordBot);
             activeBrowsers.add(room.browser);
 
             room.browser.on('disconnected', () => {
                 activeBrowsers.delete(room.browser);
                 if (isShuttingDown) return;
-                console.error(`[FATAL] Browser (${type}) disconnected/crashed.`);
+                console.error(`[FATAL] Browser (${roomLabel}) disconnected/crashed.`);
                 setTimeout(() => process.exit(1), 2000);
             });
 
-            console.log(`[OK] Room "${type}" launched (attempt ${attempt})`);
+            console.log(`[OK] Room "${roomLabel}" launched (attempt ${attempt})`);
             return room;
         } catch (err) {
-            console.error(`[WARN] Room "${type}" failed to launch (attempt ${attempt}):`, err.message ?? err);
+            console.error(`[WARN] Room "${roomLabel}" failed to launch (attempt ${attempt}):`, err.message ?? err);
             if (isShuttingDown) throw err;
-            console.log(`[INFO] Retrying room "${type}" in ${ROOM_LAUNCH_RETRY_DELAY_MS / 1000}s...`);
+            console.log(`[INFO] Retrying room "${roomLabel}" in ${ROOM_LAUNCH_RETRY_DELAY_MS / 1000}s...`);
             await new Promise(resolve => setTimeout(resolve, ROOM_LAUNCH_RETRY_DELAY_MS));
         }
     }
-    throw new Error(`Room "${type}" launch aborted: shutting down`);
+    throw new Error(`Room "${roomLabel}" launch aborted: shutting down`);
 }
 
 async function main() {
@@ -329,57 +360,53 @@ async function main() {
         db,
         timeFormat,
         t,
-        maxPlayersByCategory: {
-            public: publicConfig.maxPlayers,
-            private: privateConfig.maxPlayers
-        }
+        maxPlayersByCategory,
+        roomChoices,
+        roomCategories: ROOM_CATEGORIES
     });
     discordBotForShutdown = discordBot;
 
     if (discordBotToken) {
         await discordBot.login();
+        discordBot.registerRooms(roomChoices);
+        await discordBot.ensureOnlineMessages();
         startAnalyticsDailyReporting({ db, discordBot, timeFormat });
     } else {
         console.warn(t('common.discordTokenMissing'));
     }
 
-    const [publicRoom, privateRoom] = await Promise.all([
-        launchRoomWithRetry('public', publicConfig, {
-            token: publicToken,
-            roomPassword: publicPassword
-        }, discordBot),
-        launchRoomWithRetry('private', privateConfig, {
-            token: privateToken,
-            roomPassword: privatePassword
-        }, discordBot)
-    ]);
+    console.log(`[INFO] Launching ${roomInstances.length} room(s) from configured files...`);
+
+    const launchedRooms = await Promise.all(
+        roomInstances.map(instance => launchRoomWithRetry(instance, {
+            token: instance.token,
+            roomPassword: instance.roomPassword
+        }, discordBot))
+    );
 
     /*
      * Reverse Node->browser bridges used by Discord slash-command mirrors
      * to apply an instant in-room effect after the DB/state write,
      * without waiting for the player to rejoin or for someone to run the
-     * equivalent !command in the room itself. Both pages expose
+     * equivalent !command in the room itself. Every page exposes
      * window.__applyModeration from src/browser/entry.js — no
      * page.exposeFunction registration is needed for this direction,
      * since page.evaluate can always reach into the page's global scope
      * from the Node side.
      *
      * - applyModeration (broadcast): used by ban/mute/unban/unmute, since
-     *   the target player could be in either room. page.evaluate() is a
-     *   no-op (returns false) in whichever room the target isn't
-     *   currently in; the overall result is true if either room reports
-     *   a live effect.
+     *   the target player could be in any room. page.evaluate() is a
+     *   no-op (returns false) in whichever rooms the target isn't
+     *   currently in; the overall result is true if any room reports a
+     *   live effect.
      * - applyToRoom (targeted): used by /password, which always names a
-     *   specific room (public/private) rather than broadcasting.
+     *   specific room by its roomKey rather than broadcasting.
      */
-    const roomPages = {
-        public: publicRoom.page,
-        private: privateRoom.page
-    };
+    const roomPagesByKey = new Map(launchedRooms.map(room => [room.roomKey, room.page]));
 
     discordBot.setModerationBridge(async (action) => {
         const results = await Promise.allSettled(
-            Object.values(roomPages).map(page =>
+            [...roomPagesByKey.values()].map(page =>
                 page.evaluate((a) => window.__applyModeration(a), action)
             )
         );
@@ -387,19 +414,19 @@ async function main() {
         return results.some(r => r.status === 'fulfilled' && r.value === true);
     });
 
-    discordBot.setRoomActionBridge(async (roomType, action) => {
-        const page = roomPages[roomType];
+    discordBot.setRoomActionBridge(async (roomKey, action) => {
+        const page = roomPagesByKey.get(roomKey);
         if (!page) return false;
 
         try {
             return await page.evaluate((a) => window.__applyModeration(a), action);
         } catch (err) {
-            console.error(`[Discord] applyToRoom(${roomType}) failed:`, err);
+            console.error(`[Discord] applyToRoom(${roomKey}) failed:`, err);
             return false;
         }
     });
 
-    console.log('[OK] Public and Private rooms launched');
+    console.log(`[OK] All ${launchedRooms.length} room(s) launched: ${launchedRooms.map(r => r.roomLabel).join(', ')}`);
 }
 
 main().catch((err) => {

@@ -140,6 +140,11 @@ CREATE TABLE IF NOT EXISTS analytics_daily_reports_sent (
     PRIMARY KEY (day_key, room_category)
 );
 
+CREATE TABLE IF NOT EXISTS online_message (
+    key TEXT PRIMARY KEY,
+    message_id TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_analytics_players_first_seen_day ON analytics_players (first_seen_day);
 CREATE INDEX IF NOT EXISTS idx_analytics_sessions_joined_day ON analytics_sessions (joined_day);
 CREATE INDEX IF NOT EXISTS idx_analytics_sessions_left_day ON analytics_sessions (left_day);
@@ -864,6 +869,16 @@ function createDb(dbPath) {
         return result;
     }
 
+    function getOnlineMessageId(key) {
+        return db.prepare('SELECT message_id FROM online_message WHERE key = ?').get(key)?.message_id ?? null;
+    }
+
+    function setOnlineMessageId(key, messageId) {
+        db.prepare(
+            'INSERT INTO online_message (key, message_id) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET message_id = excluded.message_id'
+        ).run(key, messageId);
+    }
+
     function close() {
         db.close();
     }
@@ -925,7 +940,9 @@ function createDb(dbPath) {
         analyticsGetRange,
         analyticsGetSeries,
         analyticsIsDailyReportSent,
-        analyticsMarkDailyReportSent
+        analyticsMarkDailyReportSent,
+        getOnlineMessageId,
+        setOnlineMessageId
     };
 }
 

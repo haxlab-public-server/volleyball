@@ -59,6 +59,7 @@ function createDisabledDiscordBot() {
         sendVipPassword: async () => {},
         sendStatsBackup: async () => {},
         sendAnalyticsDailyReport: async () => false,
+        registerRooms: () => {},
         editOnlineMessage: async () => {},
         setModerationBridge: () => {},
         setRoomActionBridge: () => {}
@@ -73,13 +74,23 @@ function createDiscordBot({
     db,
     timeFormat,
     t,
-    maxPlayersByCategory = {}
+    maxPlayersByCategory = {},
+    roomChoices = [],
+    roomCategories = []
 }) {
     if (!token) {
         return createDisabledDiscordBot();
     }
 
     const { formatDate } = timeFormat;
+
+    const categoryLabelByCategory = new Map(
+        roomCategories.map(category => [category, category.toUpperCase()])
+    );
+
+    function categoryLabel(roomCategory) {
+        return categoryLabelByCategory.get(roomCategory) ?? String(roomCategory ?? '').toUpperCase();
+    }
 
     const client = new Client({
         intents: [
@@ -89,14 +100,15 @@ function createDiscordBot({
     });
 
     /*
-     * Set once main() has launched both rooms (see src/index.js). Calling
-     * a ban/mute/unban/unmute/password slash-command before rooms are up
-     * is still safe: the DB/state write always happens regardless, these
-     * bridges are only for applying an *instant* live effect on top of
-     * that. Until they're set, the relevant commands silently skip the
-     * live-effect step (moderation) or report the room as unavailable
-     * (password, which has no durable-only fallback since the password
-     * itself lives only in browser-side state).
+     * Set once main() has launched all configured rooms (see
+     * src/index.js). Calling a ban/mute/unban/unmute/password
+     * slash-command before rooms are up is still safe: the DB/state
+     * write always happens regardless, these bridges are only for
+     * applying an *instant* live effect on top of that. Until they're
+     * set, the relevant commands silently skip the live-effect step
+     * (moderation) or report the room as unavailable (password, which
+     * has no durable-only fallback since the password itself lives only
+     * in browser-side state).
      */
     let applyModeration = null;
     let applyToRoom = null;
@@ -113,13 +125,15 @@ function createDiscordBot({
         db,
         timeFormat,
         applyModeration: (action) => (applyModeration ? applyModeration(action) : Promise.resolve(false)),
-        applyToRoom: (roomType, action) => (applyToRoom ? applyToRoom(roomType, action) : Promise.resolve(false)),
+        applyToRoom: (roomKey, action) => (applyToRoom ? applyToRoom(roomKey, action) : Promise.resolve(false)),
         discordBotSend: {
             sendReport: (...args) => sendReport(...args),
             sendStatsBackup: (...args) => sendStatsBackup(...args)
         },
         t,
-        maxPlayersByCategory
+        maxPlayersByCategory,
+        roomChoices,
+        roomCategories
     });
 
     const pendingLinkCodes = new Map();
@@ -342,11 +356,6 @@ function createDiscordBot({
         }
     }
 
-    const CATEGORY_LABELS = {
-        public: 'PUBLIC',
-        private: 'PRIVATE'
-    };
-
     function resolveOnlineMax(roomCategory) {
         const value = maxPlayersByCategory?.[roomCategory];
         return Number.isFinite(value) && value > 0 ? value : undefined;
@@ -360,7 +369,7 @@ function createDiscordBot({
                 fromDayKey: dayKey,
                 toDayKey: dayKey,
                 roomCategory,
-                roomCategoryLabel: CATEGORY_LABELS[roomCategory] ?? String(roomCategory ?? '').toUpperCase(),
+                roomCategoryLabel: categoryLabel(roomCategory),
                 timeFormat,
                 interval: '1h',
                 onlineMax: resolveOnlineMax(roomCategory)
@@ -377,7 +386,7 @@ function createDiscordBot({
         const channel = await client.channels.fetch(channelIds.analytics).catch(() => null);
         if (!channel) return false;
 
-        const categoryLabel = CATEGORY_LABELS[roomCategory] ?? String(roomCategory ?? '').toUpperCase();
+        const categoryLabelValue = categoryLabel(roomCategory);
 
         const fmtSec = (value) => {
             const totalSec = Math.round(Number(value ?? 0));
@@ -396,7 +405,7 @@ function createDiscordBot({
 
         const embed = new EmbedBuilder()
             .setColor(ANALYTICS_EMBED_COLOR)
-            .setTitle(t('discordBot.analyticsDaily.title', { category: categoryLabel }))
+            .setTitle(t('discordBot.analyticsDaily.title', { category: categoryLabelValue }))
             .setDescription(t('discordBot.analyticsDaily.description', { day: dayKey }))
             .addFields(
                 {
@@ -451,35 +460,110 @@ function createDiscordBot({
         return true;
     }
 
-    async function editOnlineMessage(channelId, messageId, payload) {
-        if (!channelId || !messageId || !payload) return;
-        try {
-            const channel = await client.channels.fetch(channelId);
-            const message = await channel.messages.fetch(messageId);
+    let onlineMessageId = null;
+    let onlineRoomOrder = [];
+    const onlinePayloadByKey = new Map();
+    let onlineEditChain = Promise.resolve();
 
-            const { title, playersLine, count, maxPlayers, roomLink } = payload;
+    function registerRooms(rooms) {
+        onlineRoomOrder = rooms.map(r => ({ roomKey: r.roomKey, roomLabel: r.roomLabel }));
+    }
 
-            const embed = new EmbedBuilder()
-                .setColor(ONLINE_EMBED_COLOR)
-                .setTitle(`${title} - ${count}/${maxPlayers}`)
-                .addFields({ name: t('discordBot.onlineEmbed.playersField'), value: playersLine || '' })
-                .setFooter({ text: t('discordBot.onlineEmbed.footer', { date: formatDate() }) });
+    async function ensureOnlineMessages() {
+        if (!channelIds.online || onlineRoomOrder.length === 0) return;
 
-            const components = [];
-            if (roomLink) {
-                const row = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder()
-                        .setLabel(t('discordBot.onlineEmbed.joinButton'))
-                        .setStyle(ButtonStyle.Link)
-                        .setURL(roomLink)
-                );
-                components.push(row);
-            }
-
-            await message.edit({ content: '', embeds: [embed], components });
-        } catch (err) {
-            console.error('[Discord] editOnlineMessage failed:', err);
+        const channel = await client.channels.fetch(channelIds.online).catch(() => null);
+        if (!channel) {
+            console.error('[Discord] DISCORD_ONLINE_CHANNEL_ID is set but the channel could not be fetched.');
+            return;
         }
+
+        onlineMessageId = db.getOnlineMessageId('online');
+
+        if (onlineMessageId) {
+            try {
+                await channel.messages.fetch(onlineMessageId);
+                console.log(`[Discord] Reused online-status message ${onlineMessageId}`);
+                return;
+            } catch (err) {
+                if (err?.code === 10008) {
+                    console.log('[Discord] Stored online-status message not found, will create a new one');
+                    onlineMessageId = null;
+                } else {
+                    console.error('[Discord] Failed to fetch stored online-status message:', err);
+                    return;
+                }
+            }
+        }
+
+        try {
+            const embeds = onlineRoomOrder.map(({ roomKey, roomLabel }) =>
+                new EmbedBuilder()
+                    .setColor(ONLINE_EMBED_COLOR)
+                    .setTitle(roomLabel)
+                    .addFields({ name: '\u200B', value: `**${roomLabel}** — initializing...` })
+            );
+
+            const message = await channel.send({ content: '', embeds });
+            onlineMessageId = message.id;
+            db.setOnlineMessageId('online', message.id);
+            console.log(`[Discord] Created online-status message ${message.id}`);
+        } catch (err) {
+            console.error('[Discord] Failed to create online-status message:', err);
+        }
+    }
+
+    async function editOnlineMessage(roomKey, payload) {
+        if (!channelIds.online || !payload) return;
+        onlinePayloadByKey.set(roomKey, payload);
+
+        if (!onlineMessageId) return;
+
+        onlineEditChain = onlineEditChain.then(async () => {
+            try {
+                const channel = await client.channels.fetch(channelIds.online);
+                const message = await channel.messages.fetch(onlineMessageId);
+
+                const embeds = onlineRoomOrder.map(({ roomKey: rk, roomLabel }) => {
+                    const p = onlinePayloadByKey.get(rk);
+                    if (p) {
+                        return new EmbedBuilder()
+                            .setColor(ONLINE_EMBED_COLOR)
+                            .setTitle(`${p.title} - ${p.count}/${p.maxPlayers}`)
+                            .addFields({ name: t('discordBot.onlineEmbed.playersField'), value: p.playersLine || '' })
+                            .setFooter({ text: t('discordBot.onlineEmbed.footer', { date: formatDate() }) });
+                    }
+                    return new EmbedBuilder()
+                        .setColor(ONLINE_EMBED_COLOR)
+                        .setTitle(roomLabel)
+                        .addFields({ name: '\u200B', value: `**${roomLabel}** — waiting...` });
+                });
+
+                const components = [];
+                for (const { roomKey: rk, roomLabel } of onlineRoomOrder) {
+                    const p = onlinePayloadByKey.get(rk);
+                    if (p?.roomLink) {
+                        components.push(
+                            new ActionRowBuilder().addComponents(
+                                new ButtonBuilder()
+                                    .setLabel(`${t('discordBot.onlineEmbed.joinButton')} ${roomLabel}`)
+                                    .setStyle(ButtonStyle.Link)
+                                    .setURL(p.roomLink)
+                            )
+                        );
+                    }
+                }
+
+                await message.edit({ content: '', embeds, components });
+            } catch (err) {
+                if (err?.code === 10008) {
+                    console.log('[Discord] Online-status message was deleted, will recreate on next update');
+                    onlineMessageId = null;
+                } else {
+                    console.error(`[Discord] editOnlineMessage(${roomKey}) failed:`, err);
+                }
+            }
+        });
     }
 
     async function registerSlashCommands() {
@@ -563,6 +647,8 @@ function createDiscordBot({
         sendVipPassword,
         sendStatsBackup,
         sendAnalyticsDailyReport,
+        registerRooms,
+        ensureOnlineMessages,
         editOnlineMessage,
         setModerationBridge,
         setRoomActionBridge

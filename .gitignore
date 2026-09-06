@@ -6,3 +6,5 @@ jsconfig.json
 db/*.sqlite
 db/*.sqlite-*
 db/backups/
+config/rooms/*.json
+!config/rooms/.gitkeep
